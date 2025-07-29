@@ -1,5 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
+use light_sdk::{compressible::CompressionInfo, sha::LightHasher, LightDiscriminator};
+
+use light_sdk_macros::HasCompressionInfo;
 use std::ops::{BitAnd, BitOr, BitXor};
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "pool";
@@ -22,7 +25,7 @@ pub enum PoolStatusBitFlag {
 
 #[account]
 #[repr(C)]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, LightHasher, LightDiscriminator, HasCompressionInfo)]
 pub struct PoolState {
     /// Which config the pool belongs
     pub amm_config: Pubkey,
@@ -74,8 +77,13 @@ pub struct PoolState {
     pub open_time: u64,
     /// recent epoch
     pub recent_epoch: u64,
+
+    #[skip]
+    /// Compression info (required for compressible)
+    pub compression_info: Option<CompressionInfo>,
+
     /// padding for future updates
-    pub padding: [u64; 31],
+    pub padding: [u64; 1],
 }
 
 impl PoolState {
@@ -116,7 +124,7 @@ impl PoolState {
         self.fund_fees_token_1 = 0;
         self.open_time = open_time;
         self.recent_epoch = Clock::get().unwrap().epoch;
-        self.padding = [0u64; 31];
+        self.padding = [0u64; 1];
     }
 
     pub fn set_status(&mut self, status: u8) {
