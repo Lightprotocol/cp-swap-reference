@@ -24,6 +24,7 @@ import {
   getAccount,
 } from "@solana/spl-token";
 import { sendTransaction } from "./index";
+import { COMPRESSED_TOKEN_PROGRAM_ID } from "@lightprotocol/stateless.js";
 
 // create a token mint and a token2022 mint with transferFeeConfig
 export async function createTokenMintAndAssociatedTokenAccount(
@@ -264,6 +265,39 @@ export async function getUserAndPoolVaultAmount(
     onwerToken1Account,
     poolVault0TokenAccount,
     poolVault1TokenAccount,
+  };
+}
+
+export async function getUserAndPoolLpAmount(
+  owner: PublicKey,
+  lpMint: PublicKey,
+  lpVault: PublicKey
+) {
+  const userLpTokenAddr = getAssociatedTokenAddressSync(
+    lpMint,
+    owner,
+    undefined,
+    COMPRESSED_TOKEN_PROGRAM_ID,
+    COMPRESSED_TOKEN_PROGRAM_ID
+  );
+
+  const userLpAccount = await getAccount(
+    anchor.getProvider().connection,
+    userLpTokenAddr,
+    "processed",
+    COMPRESSED_TOKEN_PROGRAM_ID
+  );
+
+  const poolLpVaultAccount = await getAccount(
+    anchor.getProvider().connection,
+    lpVault,
+    "processed",
+    COMPRESSED_TOKEN_PROGRAM_ID
+  );
+
+  return {
+    userLpAccount,
+    poolLpVaultAccount,
   };
 }
 

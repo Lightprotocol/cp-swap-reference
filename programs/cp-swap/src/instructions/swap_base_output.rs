@@ -5,6 +5,7 @@ use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
+use light_sdk::compressible::HasCompressionInfo;
 
 pub fn swap_base_output(
     ctx: Context<Swap>,
@@ -14,7 +15,7 @@ pub fn swap_base_output(
     require_gt!(amount_out_less_fee, 0);
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    let pool_state = &mut ctx.accounts.pool_state;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
         || block_timestamp < pool_state.open_time
     {
@@ -187,12 +188,15 @@ pub fn swap_base_output(
     )?;
 
     // update the previous price to the observation
-    ctx.accounts.observation_state.load_mut()?.update(
+    ctx.accounts.observation_state.update(
         oracle::block_timestamp(),
         token_0_price_x64,
         token_1_price_x64,
     );
     pool_state.recent_epoch = Clock::get()?.epoch;
+
+    // The account was written to, so we must update CompressionInfo.
+    pool_state.compression_info_mut().set_last_written_slot()?;
 
     Ok(())
 }

@@ -6,6 +6,7 @@ use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use light_sdk::compressible::HasCompressionInfo;
 
 #[derive(Accounts)]
 pub struct Swap<'info> {
@@ -22,12 +23,12 @@ pub struct Swap<'info> {
     pub authority: UncheckedAccount<'info>,
 
     /// The factory state to read protocol fees
-    #[account(address = pool_state.load()?.amm_config)]
+    #[account(address = pool_state.amm_config)]
     pub amm_config: Box<Account<'info, AmmConfig>>,
 
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
-    pub pool_state: AccountLoader<'info, PoolState>,
+    pub pool_state: Box<Account<'info, PoolState>>,
 
     /// The user token account for input token
     #[account(mut)]
@@ -40,14 +41,14 @@ pub struct Swap<'info> {
     /// The vault token account for input token
     #[account(
         mut,
-        constraint = input_vault.key() == pool_state.load()?.token_0_vault || input_vault.key() == pool_state.load()?.token_1_vault
+        constraint = input_vault.key() == pool_state.token_0_vault || input_vault.key() == pool_state.token_1_vault
     )]
     pub input_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The vault token account for output token
     #[account(
         mut,
-        constraint = output_vault.key() == pool_state.load()?.token_0_vault || output_vault.key() == pool_state.load()?.token_1_vault
+        constraint = output_vault.key() == pool_state.token_0_vault || output_vault.key() == pool_state.token_1_vault
     )]
     pub output_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -69,14 +70,14 @@ pub struct Swap<'info> {
     )]
     pub output_token_mint: Box<InterfaceAccount<'info, Mint>>,
     /// The program account for the most recent oracle observation
-    #[account(mut, address = pool_state.load()?.observation_key)]
-    pub observation_state: AccountLoader<'info, ObservationState>,
+    #[account(mut, address = pool_state.observation_key)]
+    pub observation_state: Account<'info, ObservationState>,
 }
 
 pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    let pool_state = &mut ctx.accounts.pool_state;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
         || block_timestamp < pool_state.open_time
     {
@@ -247,12 +248,15 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     )?;
 
     // update the previous price to the observation
-    ctx.accounts.observation_state.load_mut()?.update(
+    ctx.accounts.observation_state.update(
         oracle::block_timestamp(),
         token_0_price_x64,
         token_1_price_x64,
     );
     pool_state.recent_epoch = Clock::get()?.epoch;
+
+    // The account was written to, so we must update CompressionInfo.
+    pool_state.compression_info_mut().set_last_written_slot()?;
 
     Ok(())
 }

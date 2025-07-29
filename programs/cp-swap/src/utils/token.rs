@@ -77,51 +77,6 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     )
 }
 
-/// Issue a spl_token `MintTo` instruction.
-pub fn token_mint_to<'a>(
-    authority: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
-    mint: AccountInfo<'a>,
-    destination: AccountInfo<'a>,
-    amount: u64,
-    signer_seeds: &[&[&[u8]]],
-) -> Result<()> {
-    token_2022::mint_to(
-        CpiContext::new_with_signer(
-            token_program,
-            token_2022::MintTo {
-                to: destination,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
-        amount,
-    )
-}
-
-pub fn token_burn<'a>(
-    authority: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
-    mint: AccountInfo<'a>,
-    from: AccountInfo<'a>,
-    amount: u64,
-    signer_seeds: &[&[&[u8]]],
-) -> Result<()> {
-    token_2022::burn(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            token_2022::Burn {
-                from,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
-        amount,
-    )
-}
-
 /// Calculate the fee for output amount
 pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
@@ -248,7 +203,7 @@ pub fn create_or_allocate_account<'a>(
     payer: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
     target_account: AccountInfo<'a>,
-    siger_seed: &[&[u8]],
+    signer_seed: &[&[u8]],
     space: usize,
 ) -> Result<()> {
     let rent = Rent::get()?;
@@ -262,7 +217,7 @@ pub fn create_or_allocate_account<'a>(
         };
         let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
         system_program::create_account(
-            cpi_context.with_signer(&[siger_seed]),
+            cpi_context.with_signer(&[signer_seed]),
             lamports,
             u64::try_from(space).unwrap(),
             program_id,
@@ -285,7 +240,7 @@ pub fn create_or_allocate_account<'a>(
         };
         let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
         system_program::allocate(
-            cpi_context.with_signer(&[siger_seed]),
+            cpi_context.with_signer(&[signer_seed]),
             u64::try_from(space).unwrap(),
         )?;
 
@@ -293,7 +248,7 @@ pub fn create_or_allocate_account<'a>(
             account_to_assign: target_account.clone(),
         };
         let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
-        system_program::assign(cpi_context.with_signer(&[siger_seed]), program_id)?;
+        system_program::assign(cpi_context.with_signer(&[signer_seed]), program_id)?;
     }
     Ok(())
 }

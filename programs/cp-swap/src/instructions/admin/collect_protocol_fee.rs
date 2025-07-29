@@ -24,23 +24,23 @@ pub struct CollectProtocolFee<'info> {
 
     /// Pool state stores accumulated protocol fee amount
     #[account(mut)]
-    pub pool_state: AccountLoader<'info, PoolState>,
+    pub pool_state: Account<'info, PoolState>,
 
     /// Amm config account stores owner
-    #[account(address = pool_state.load()?.amm_config)]
+    #[account(address = pool_state.amm_config)]
     pub amm_config: Account<'info, AmmConfig>,
 
     /// The address that holds pool tokens for token_0
     #[account(
         mut,
-        constraint = token_0_vault.key() == pool_state.load()?.token_0_vault
+        constraint = token_0_vault.key() == pool_state.token_0_vault
     )]
     pub token_0_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_1
     #[account(
         mut,
-        constraint = token_1_vault.key() == pool_state.load()?.token_1_vault
+        constraint = token_1_vault.key() == pool_state.token_1_vault
     )]
     pub token_1_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -80,7 +80,7 @@ pub fn collect_protocol_fee(
     let amount_1: u64;
     let auth_bump: u8;
     {
-        let mut pool_state = ctx.accounts.pool_state.load_mut()?;
+        let pool_state = &mut ctx.accounts.pool_state;
 
         amount_0 = amount_0_requested.min(pool_state.protocol_fees_token_0);
         amount_1 = amount_1_requested.min(pool_state.protocol_fees_token_1);
@@ -97,6 +97,7 @@ pub fn collect_protocol_fee(
         auth_bump = pool_state.auth_bump;
         pool_state.recent_epoch = Clock::get()?.epoch;
     }
+
     transfer_from_pool_vault_to_user(
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),

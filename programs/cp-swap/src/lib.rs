@@ -5,8 +5,13 @@ pub mod states;
 pub mod utils;
 
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
+pub use crate::instructions::initialize::Initialize;
+pub use crate::states::{ObservationState, PoolState};
 use anchor_lang::prelude::*;
 use instructions::*;
+use light_sdk::derive_light_cpi_signer;
+use light_sdk_macros::add_compressible_instructions;
+use light_sdk_types::CpiSigner;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_security_txt::security_txt! {
@@ -24,6 +29,9 @@ declare_id!("CPMDWBwJDtYax9qW7AyRuVC19Cc4L4Vcy4n2BHAbHkCW");
 #[cfg(not(feature = "devnet"))]
 declare_id!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 
+pub const LIGHT_CPI_SIGNER: CpiSigner =
+    derive_light_cpi_signer!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
+
 pub mod admin {
     use super::{pubkey, Pubkey};
     #[cfg(feature = "devnet")]
@@ -32,7 +40,7 @@ pub mod admin {
     pub const ID: Pubkey = pubkey!("GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ");
 }
 
-pub mod create_pool_fee_reveiver {
+pub mod create_pool_fee_receiver {
     use super::{pubkey, Pubkey};
     #[cfg(feature = "devnet")]
     pub const ID: Pubkey = pubkey!("G11FKBRaAkHAKuLCgLM6K6NUc9rTjPAznRCjZifrTQe2");
@@ -42,8 +50,15 @@ pub mod create_pool_fee_reveiver {
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
+/// ZK Compression: Auto-generates compress/decompress instructions for the
+/// specified accounts. Derives compress_pool_state, compress_observation_state,
+/// decompress_accounts_idempotent, initialize_compression_config, and
+/// update_compression_config, as well as all relevant structs. Everything is
+/// auto-added to the program IDL for consumption by clients.
+#[add_compressible_instructions(PoolState, ObservationState)]
 #[program]
 pub mod raydium_cp_swap {
+
     use super::*;
 
     // The configuration of AMM protocol, include trade fee and protocol fee
@@ -146,13 +161,20 @@ pub mod raydium_cp_swap {
     /// * `init_amount_1` - the initial amount_1 to deposit
     /// * `open_time` - the timestamp allowed for swap
     ///
-    pub fn initialize(
-        ctx: Context<Initialize>,
+    pub fn initialize<'info>(
+        ctx: Context<'_, '_, '_, 'info, Initialize<'info>>,
         init_amount_0: u64,
         init_amount_1: u64,
         open_time: u64,
+        compression_params: InitializeCompressionParams,
     ) -> Result<()> {
-        instructions::initialize(ctx, init_amount_0, init_amount_1, open_time)
+        instructions::initialize(
+            ctx,
+            init_amount_0,
+            init_amount_1,
+            open_time,
+            compression_params,
+        )
     }
 
     /// Deposit lp token to the pool
