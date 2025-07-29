@@ -44,23 +44,23 @@ describe("deposit test", () => {
       poolVault1TokenAccount: poolVault1TokenAccountBefore,
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
-      poolState.addresses.token0Vault,
-      poolState.addresses.token1Vault
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
+      poolState.token0Vault,
+      poolState.token1Vault
     );
 
     const liquidity = new BN(10000000000);
     await deposit(
       program,
       owner,
-      poolState.addresses.ammConfig,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
+      poolState.ammConfig,
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
       liquidity,
       new BN(10000000000),
       new BN(20000000000),
@@ -76,12 +76,12 @@ describe("deposit test", () => {
       poolVault1TokenAccount: poolVault1TokenAccountAfter,
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
-      poolState.addresses.token0Vault,
-      poolState.addresses.token1Vault
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
+      poolState.token0Vault,
+      poolState.token1Vault
     );
     const input_token0_amount =
       ownerToken0AccountBefore.amount - ownerToken0AccountAfter.amount;
@@ -122,20 +122,20 @@ describe("deposit test", () => {
             calculatePreFeeAmount(
               transferFeeConfig,
               poolVault0TokenAccountBefore.amount,
-              poolState.addresses.token0Program
+              poolState.token0Program
             ).toString()
           ),
           initAmount1: new BN(
             calculatePreFeeAmount(
               transferFeeConfig,
               poolVault1TokenAccountBefore.amount,
-              poolState.addresses.token1Program
+              poolState.token1Program
             ).toString()
           ),
         },
         {
-          token0Program: poolState.addresses.token0Program,
-          token1Program: poolState.addresses.token1Program,
+          token0Program: poolState.token0Program,
+          token1Program: poolState.token1Program,
         }
       );
     const {
@@ -145,12 +145,12 @@ describe("deposit test", () => {
       poolVault1TokenAccount: poolVault1TokenAccountBefore2,
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
-      poolState2.addresses.token0Mint,
-      poolState2.addresses.token0Program,
-      poolState2.addresses.token1Mint,
-      poolState2.addresses.token1Program,
-      poolState2.addresses.token0Vault,
-      poolState2.addresses.token1Vault
+      poolState2.token0Mint,
+      poolState2.token0Program,
+      poolState2.token1Mint,
+      poolState2.token1Program,
+      poolState2.token0Vault,
+      poolState2.token1Vault
     );
     // check vault init state
     assert.equal(
@@ -165,11 +165,11 @@ describe("deposit test", () => {
     await deposit(
       program,
       owner,
-      poolState2.addresses.ammConfig,
-      poolState2.addresses.token0Mint,
-      poolState2.addresses.token0Program,
-      poolState2.addresses.token1Mint,
-      poolState2.addresses.token1Program,
+      poolState2.ammConfig,
+      poolState2.token0Mint,
+      poolState2.token0Program,
+      poolState2.token1Mint,
+      poolState2.token1Program,
       liquidity,
       new BN(100000000000),
       new BN(200000000000),
@@ -185,12 +185,12 @@ describe("deposit test", () => {
       poolVault1TokenAccount: poolVault1TokenAccountAfter2,
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
-      poolState2.addresses.token0Mint,
-      poolState2.addresses.token0Program,
-      poolState2.addresses.token1Mint,
-      poolState2.addresses.token1Program,
-      poolState2.addresses.token0Vault,
-      poolState2.addresses.token1Vault
+      poolState2.token0Mint,
+      poolState2.token0Program,
+      poolState2.token1Mint,
+      poolState2.token1Program,
+      poolState2.token0Vault,
+      poolState2.token1Vault
     );
 
     const input_token0_amount_with_fee =
@@ -205,7 +205,7 @@ describe("deposit test", () => {
       calculateFee(
         transferFeeConfig,
         input_token0_amount_with_fee,
-        poolState2.addresses.token0Program
+        poolState2.token0Program
       ) + input_token0_amount
     );
     assert.equal(
@@ -213,7 +213,7 @@ describe("deposit test", () => {
       calculateFee(
         transferFeeConfig,
         input_token1_amount_with_fee,
-        poolState2.addresses.token1Program
+        poolState2.token1Program
       ) + input_token1_amount
     );
 
@@ -266,23 +266,23 @@ describe("deposit test", () => {
       poolVault1TokenAccount: poolVault1TokenAccountBefore,
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
-      poolState.addresses.token0Vault,
-      poolState.addresses.token1Vault
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
+      poolState.token0Vault,
+      poolState.token1Vault
     );
 
     const liquidity = new BN(10000000000);
     await deposit(
       program,
       owner,
-      poolState.addresses.ammConfig,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
+      poolState.ammConfig,
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
       liquidity,
       new BN(10000000000),
       new BN(20000000000),
@@ -298,19 +298,19 @@ describe("deposit test", () => {
       poolVault1TokenAccount: poolVault1TokenAccountAfter,
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
-      poolState.addresses.token0Vault,
-      poolState.addresses.token1Vault
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
+      poolState.token0Vault,
+      poolState.token1Vault
     );
     const input_token0_amount =
       ownerToken0AccountBefore.amount - ownerToken0AccountAfter.amount;
     const input_token1_amount =
       ownerToken1AccountBefore.amount - ownerToken1AccountAfter.amount;
 
-    if (poolState.addresses.token0Program.equals(TOKEN_PROGRAM_ID)) {
+    if (poolState.token0Program.equals(TOKEN_PROGRAM_ID)) {
       assert.equal(
         poolVault0TokenAccountAfter.amount -
           poolVault0TokenAccountBefore.amount,

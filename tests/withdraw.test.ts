@@ -37,11 +37,11 @@ describe("withdraw test", () => {
     await deposit(
       program,
       owner,
-      poolState.addresses.ammConfig,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
+      poolState.ammConfig,
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
       liquidity,
       new BN(10000000000),
       new BN(20000000000)
@@ -50,11 +50,11 @@ describe("withdraw test", () => {
     await withdraw(
       program,
       owner,
-      poolState.addresses.ammConfig,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
+      poolState.ammConfig,
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
       liquidity.divn(2),
       new BN(10000000),
       new BN(1000000),
@@ -86,22 +86,22 @@ describe("withdraw test", () => {
       poolVault1TokenAccount: poolVault1TokenAccountBefore,
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
-      poolState.addresses.token0Vault,
-      poolState.addresses.token1Vault
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
+      poolState.token0Vault,
+      poolState.token1Vault
     );
 
     await deposit(
       program,
       owner,
-      poolState.addresses.ammConfig,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
+      poolState.ammConfig,
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
       liquidity,
       new BN(10000000000),
       new BN(20000000000)
@@ -110,11 +110,11 @@ describe("withdraw test", () => {
     await withdraw(
       program,
       owner,
-      poolState.addresses.ammConfig,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
+      poolState.ammConfig,
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
       liquidity,
       new BN(10000000),
       new BN(1000000),
@@ -131,12 +131,12 @@ describe("withdraw test", () => {
       poolVault1TokenAccount: poolVault1TokenAccountAfter,
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
-      poolState.addresses.token0Mint,
-      poolState.addresses.token0Program,
-      poolState.addresses.token1Mint,
-      poolState.addresses.token1Program,
-      poolState.addresses.token0Vault,
-      poolState.addresses.token1Vault
+      poolState.token0Mint,
+      poolState.token0Program,
+      poolState.token1Mint,
+      poolState.token1Program,
+      poolState.token0Vault,
+      poolState.token1Vault
     );
 
     assert(

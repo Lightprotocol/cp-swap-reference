@@ -55,7 +55,7 @@ pub struct Initialize<'info> {
         ],
         bump,
         payer = creator,
-        space = 8 + PoolState::INIT_SPACE
+        space = PoolState::LEN
     )]
     pub pool_state: Box<Account<'info, PoolState>>,
 

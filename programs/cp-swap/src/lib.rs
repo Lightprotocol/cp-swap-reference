@@ -48,9 +48,8 @@ pub mod create_pool_fee_reveiver {
 }
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
-use light_sdk_macros::add_compressible_instructions;
-
-#[add_compressible_instructions(PoolState)]
+// use light_sdk_macros::add_compressible_instructions;
+// #[add_compressible_instructions(PoolState)]
 #[program]
 pub mod raydium_cp_swap {
 

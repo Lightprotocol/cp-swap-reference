@@ -202,18 +202,18 @@ export async function setupSwapTest(
   await deposit(
     program,
     owner,
-    poolState.addresses.ammConfig,
-    poolState.addresses.token0Mint,
-    poolState.addresses.token0Program,
-    poolState.addresses.token1Mint,
-    poolState.addresses.token1Program,
+    poolState.ammConfig,
+    poolState.token0Mint,
+    poolState.token0Program,
+    poolState.token1Mint,
+    poolState.token1Program,
     new BN(10000000000),
     new BN(100000000000),
     new BN(100000000000),
     confirmOptions
   );
   return {
-    configAddress: poolState.addresses.ammConfig,
+    configAddress: poolState.ammConfig,
     poolAddress,
     poolState,
   };
