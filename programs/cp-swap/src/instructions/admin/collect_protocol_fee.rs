@@ -79,22 +79,24 @@ pub fn collect_protocol_fee(
     let amount_0: u64;
     let amount_1: u64;
     let auth_bump: u8;
-    let pool_state = &mut ctx.accounts.pool_state;
+    {
+        let pool_state = &mut ctx.accounts.pool_state;
 
-    amount_0 = amount_0_requested.min(pool_state.protocol_fees_token_0);
-    amount_1 = amount_1_requested.min(pool_state.protocol_fees_token_1);
+        amount_0 = amount_0_requested.min(pool_state.protocol_fees_token_0);
+        amount_1 = amount_1_requested.min(pool_state.protocol_fees_token_1);
 
-    pool_state.protocol_fees_token_0 = pool_state
-        .protocol_fees_token_0
-        .checked_sub(amount_0)
-        .unwrap();
-    pool_state.protocol_fees_token_1 = pool_state
-        .protocol_fees_token_1
-        .checked_sub(amount_1)
-        .unwrap();
+        pool_state.protocol_fees_token_0 = pool_state
+            .protocol_fees_token_0
+            .checked_sub(amount_0)
+            .unwrap();
+        pool_state.protocol_fees_token_1 = pool_state
+            .protocol_fees_token_1
+            .checked_sub(amount_1)
+            .unwrap();
 
-    auth_bump = pool_state.auth_bump;
-    pool_state.recent_epoch = Clock::get()?.epoch;
+        auth_bump = pool_state.auth_bump;
+        pool_state.recent_epoch = Clock::get()?.epoch;
+    }
 
     transfer_from_pool_vault_to_user(
         ctx.accounts.authority.to_account_info(),

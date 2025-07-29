@@ -165,7 +165,7 @@ describe("deposit test", () => {
     await deposit(
       program,
       owner,
-      poolState2.ammConfig,
+      poolState2.addresses.ammConfig,
       poolState2.addresses.token0Mint,
       poolState2.addresses.token0Program,
       poolState2.addresses.token1Mint,
