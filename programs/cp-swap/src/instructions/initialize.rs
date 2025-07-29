@@ -6,7 +6,6 @@ use anchor_lang::{
     accounts::interface_account::InterfaceAccount,
     prelude::*,
     solana_program::{clock, program::invoke, system_instruction},
-    system_program,
 };
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -46,8 +45,19 @@ pub struct Initialize<'info> {
     /// ],
     ///
     /// Or random account: must be signed by cli
-    #[account(mut)]
-    pub pool_state: UncheckedAccount<'info>,
+    #[account(
+        init,
+        seeds = [
+            POOL_SEED.as_bytes(),
+            amm_config.key().as_ref(),
+            token_0_mint.key().as_ref(),
+            token_1_mint.key().as_ref(),
+        ],
+        bump,
+        payer = creator,
+        space = 8 + PoolState::INIT_SPACE
+    )]
+    pub pool_state: Box<Account<'info, PoolState>>,
 
     /// Token_0 mint, the key must smaller than token_1 mint.
     #[account(
@@ -210,19 +220,11 @@ pub fn initialize(
             &[ctx.bumps.token_1_vault][..],
         ],
     )?;
-
-    let pool_state_loader = create_pool(
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.pool_state.to_account_info(),
-        &ctx.accounts.amm_config.to_account_info(),
-        &ctx.accounts.token_0_mint.to_account_info(),
-        &ctx.accounts.token_1_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-    )?;
-    let pool_state = &mut pool_state_loader.load_init()?;
+    let pool_state_key = ctx.accounts.pool_state.key();
+    let pool_state = &mut ctx.accounts.pool_state;
 
     let mut observation_state = ctx.accounts.observation_state.load_init()?;
-    observation_state.pool_id = ctx.accounts.pool_state.key();
+    observation_state.pool_id = pool_state_key;
 
     transfer_from_user_to_pool_vault(
         ctx.accounts.creator.to_account_info(),
@@ -288,7 +290,6 @@ pub fn initialize(
             .ok_or(ErrorCode::InitLpAmountTooLess)?,
         &[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]],
     )?;
-
     // Charge the fee to create a pool
     if ctx.accounts.amm_config.create_pool_fee != 0 {
         invoke(
@@ -339,8 +340,8 @@ pub fn create_pool<'info>(
     token_0_mint: &AccountInfo<'info>,
     token_1_mint: &AccountInfo<'info>,
     system_program: &AccountInfo<'info>,
-) -> Result<AccountLoad<'info, PoolState>> {
-    if pool_account_info.owner != &system_program::ID {
+) -> Result<()> {
+    if pool_account_info.owner != &anchor_lang::system_program::ID {
         return err!(ErrorCode::NotApproved);
     }
 
@@ -373,8 +374,5 @@ pub fn create_pool<'info>(
         PoolState::LEN,
     )?;
 
-    Ok(AccountLoad::<PoolState>::try_from_unchecked(
-        &crate::id(),
-        &pool_account_info,
-    )?)
+    Ok(())
 }

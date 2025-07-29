@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
+use light_sdk::{LightDiscriminator, LightHasher};
 use std::ops::{BitAnd, BitOr, BitXor, Deref};
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "pool";
@@ -20,17 +21,43 @@ pub enum PoolStatusBitFlag {
     Disable,
 }
 
-#[derive(Default, Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+#[derive(
+    Default, Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, LightHasher, LightDiscriminator,
+)]
 pub struct PoolAddresses {
+    #[hash]
+    /// Which config the pool belongs
     pub amm_config: Pubkey,
+    /// pool creator
+    #[hash]
     pub pool_creator: Pubkey,
+    /// Token A
+    #[hash]
     pub token_0_vault: Pubkey,
+    /// Token B
+    #[hash]
     pub token_1_vault: Pubkey,
+
+    /// Pool tokens are issued when A or B tokens are deposited.
+    /// Pool tokens can be withdrawn back to the original A or B token.
+    #[hash]
     pub lp_mint: Pubkey,
+    /// Mint information for token A
+    #[hash]
     pub token_0_mint: Pubkey,
+    /// Mint information for token B
+    #[hash]
     pub token_1_mint: Pubkey,
+
+    /// token_0 program
+    #[hash]
     pub token_0_program: Pubkey,
+    /// token_1 program
+    #[hash]
     pub token_1_program: Pubkey,
+
+    /// observation account to store oracle data
+    #[hash]
     pub observation_key: Pubkey,
 }
 
@@ -41,8 +68,10 @@ impl Space for PoolAddresses {
 #[derive(Default, Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy)]
 pub struct PoolMetadata {
     pub lp_mint_decimals: u8,
+    /// mint0 and mint1 decimals
     pub mint_0_decimals: u8,
     pub mint_1_decimals: u8,
+    /// The timestamp allowed for swap in the pool.
     pub open_time: u64,
 }
 
@@ -50,24 +79,34 @@ impl Space for PoolMetadata {
     const INIT_SPACE: usize = 1 * 3 + 8 * 1; // 3 u8s + 1 u64
 }
 
-#[account(zero_copy(unsafe))]
-#[repr(C, packed)]
-#[derive(Default, Debug, InitSpace)]
+#[account]
+#[derive(Default, Debug, InitSpace, LightDiscriminator)]
 pub struct PoolState {
-    // TOP LEVEL - Active fields (8 fields)
-    pub protocol_fees_token_0: u64,
-    pub protocol_fees_token_1: u64,
-    pub fund_fees_token_0: u64,
-    pub fund_fees_token_1: u64,
-    pub lp_supply: u64,
-    pub recent_epoch: u64,
-    pub status: u8,
     pub auth_bump: u8,
 
-    // NESTED structures
-    pub addresses: PoolAddresses, // 10 pubkeys
-    pub metadata: PoolMetadata,   // decimals + open_time
+    /// Bitwise representation of the state of the pool
+    /// bit0, 1: disable deposit(value is 1), 0: normal
+    /// bit1, 1: disable withdraw(value is 2), 0: normal
+    /// bit2, 1: disable swap(value is 4), 0: normal
+    pub status: u8,
 
+    /// The amounts of token_0 and token_1 that are owed to the liquidity provider.
+    pub protocol_fees_token_0: u64,
+    pub protocol_fees_token_1: u64,
+
+    /// True circulating supply without burns and lock ups
+    pub lp_supply: u64,
+
+    pub fund_fees_token_0: u64,
+    pub fund_fees_token_1: u64,
+
+    /// recent epoch
+    pub recent_epoch: u64,
+
+    pub addresses: PoolAddresses,
+    pub metadata: PoolMetadata,
+
+    /// padding for future updates
     pub padding: [u64; 1],
 }
 

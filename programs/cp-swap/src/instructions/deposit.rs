@@ -22,7 +22,7 @@ pub struct Deposit<'info> {
     pub authority: UncheckedAccount<'info>,
 
     #[account(mut)]
-    pub pool_state: AccountLoader<'info, PoolState>,
+    pub pool_state: Box<Account<'info, PoolState>>,
 
     /// Owner lp token account
     #[account(mut,  token::authority = owner)]
@@ -47,14 +47,14 @@ pub struct Deposit<'info> {
     /// The address that holds pool tokens for token_0
     #[account(
         mut,
-        constraint = token_0_vault.key() == pool_state.load()?.token_0_vault
+        constraint = token_0_vault.key() == pool_state.token_0_vault
     )]
     pub token_0_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_1
     #[account(
         mut,
-        constraint = token_1_vault.key() == pool_state.load()?.token_1_vault
+        constraint = token_1_vault.key() == pool_state.token_1_vault
     )]
     pub token_1_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -79,7 +79,7 @@ pub struct Deposit<'info> {
     /// Lp token mint
     #[account(
         mut,
-        address = pool_state.load()?.lp_mint @ ErrorCode::IncorrectLpMint)
+        address = pool_state.lp_mint @ ErrorCode::IncorrectLpMint)
     ]
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 }
@@ -92,7 +92,7 @@ pub fn deposit(
 ) -> Result<()> {
     require_gt!(lp_token_amount, 0);
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    let pool_state = &mut ctx.accounts.pool_state;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit) {
         return err!(ErrorCode::NotApproved);
     }
