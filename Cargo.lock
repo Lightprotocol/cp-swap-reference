@@ -26,7 +26,7 @@ dependencies = [
  "light-compressed-account",
  "light-concurrent-merkle-tree",
  "light-hash-set",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-indexed-merkle-tree",
  "light-merkle-tree-metadata",
  "light-zero-copy",
@@ -1400,7 +1400,7 @@ dependencies = [
  "account-compression",
  "anchor-lang",
  "light-compressed-account",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-sdk",
  "light-sdk-types",
  "light-system-program-anchor",
@@ -1986,7 +1986,7 @@ dependencies = [
  "light-compressed-account",
  "light-concurrent-merkle-tree",
  "light-hash-set",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-indexed-array",
  "light-indexed-merkle-tree",
  "light-merkle-tree-metadata",
@@ -3002,7 +3002,7 @@ dependencies = [
  "light-account-checks",
  "light-bloom-filter",
  "light-compressed-account",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-macros",
  "light-merkle-tree-metadata",
  "light-verifier",
@@ -3053,7 +3053,7 @@ dependencies = [
  "lazy_static",
  "light-compressed-account",
  "light-concurrent-merkle-tree",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-indexed-merkle-tree",
  "light-merkle-tree-metadata",
  "light-prover-client",
@@ -3094,7 +3094,7 @@ dependencies = [
  "anchor-lang",
  "borsh 0.10.4",
  "bytemuck",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-macros",
  "light-zero-copy",
  "solana-program-error",
@@ -3112,7 +3112,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "light-compressed-account",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-heap",
  "light-system-program-anchor",
  "light-zero-copy",
@@ -3144,7 +3144,7 @@ source = "git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-p
 dependencies = [
  "borsh 0.10.4",
  "light-bounded-vec",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "memoffset",
  "solana-program-error",
  "thiserror 2.0.12",
@@ -3155,10 +3155,26 @@ name = "light-hash-set"
 version = "2.1.0"
 source = "git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc#7cf6a9a2b200f1e77f7d39344c8bde69f9597e3e"
 dependencies = [
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "num-bigint 0.4.6",
  "num-traits",
  "solana-program-error",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "light-hasher"
+version = "3.1.0"
+dependencies = [
+ "ark-bn254 0.5.0",
+ "ark-ff 0.5.0",
+ "arrayvec",
+ "borsh 0.10.4",
+ "light-poseidon 0.3.0",
+ "num-bigint 0.4.6",
+ "sha2 0.10.9",
+ "sha3",
+ "solana-nostd-keccak",
  "thiserror 2.0.12",
 ]
 
@@ -3194,7 +3210,7 @@ name = "light-indexed-array"
 version = "0.1.0"
 source = "git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc#7cf6a9a2b200f1e77f7d39344c8bde69f9597e3e"
 dependencies = [
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "num-bigint 0.4.6",
  "num-traits",
  "thiserror 2.0.12",
@@ -3207,7 +3223,7 @@ source = "git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-p
 dependencies = [
  "light-bounded-vec",
  "light-concurrent-merkle-tree",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-merkle-tree-reference",
  "num-bigint 0.4.6",
  "num-traits",
@@ -3247,7 +3263,7 @@ name = "light-merkle-tree-reference"
 version = "2.0.0"
 source = "git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc#7cf6a9a2b200f1e77f7d39344c8bde69f9597e3e"
 dependencies = [
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-indexed-array",
  "num-bigint 0.4.6",
  "num-traits",
@@ -3294,7 +3310,7 @@ dependencies = [
  "light-compressed-token",
  "light-compressible-client",
  "light-concurrent-merkle-tree",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-indexed-array",
  "light-indexed-merkle-tree",
  "light-merkle-tree-metadata",
@@ -3329,7 +3345,7 @@ dependencies = [
  "ark-bn254 0.5.0",
  "ark-serialize 0.5.0",
  "ark-std 0.5.0",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-indexed-array",
  "light-sparse-merkle-tree",
  "num-bigint 0.4.6",
@@ -3368,7 +3384,7 @@ dependencies = [
  "borsh 0.10.4",
  "light-account-checks",
  "light-compressed-account",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-macros",
  "light-sdk-macros",
  "light-sdk-types",
@@ -3390,10 +3406,9 @@ dependencies = [
 [[package]]
 name = "light-sdk-macros"
 version = "0.13.0"
-source = "git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc#7cf6a9a2b200f1e77f7d39344c8bde69f9597e3e"
 dependencies = [
  "heck 0.4.1",
- "light-hasher",
+ "light-hasher 3.1.0",
  "light-poseidon 0.3.0",
  "proc-macro2",
  "quote",
@@ -3410,7 +3425,7 @@ dependencies = [
  "borsh 0.10.4",
  "light-account-checks",
  "light-compressed-account",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-macros",
  "light-zero-copy",
  "solana-msg",
@@ -3422,7 +3437,7 @@ name = "light-sparse-merkle-tree"
 version = "0.1.0"
 source = "git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc#7cf6a9a2b200f1e77f7d39344c8bde69f9597e3e"
 dependencies = [
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-indexed-array",
  "num-bigint 0.4.6",
  "num-traits",
@@ -3458,7 +3473,7 @@ dependencies = [
  "light-compressed-account",
  "light-compressed-token",
  "light-concurrent-merkle-tree",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-indexed-array",
  "light-indexed-merkle-tree",
  "light-merkle-tree-metadata",
@@ -4461,7 +4476,7 @@ dependencies = [
  "bytemuck",
  "light-client",
  "light-compressible-client",
- "light-hasher",
+ "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?branch=swen-0011-proc)",
  "light-macros",
  "light-program-test",
  "light-sdk",

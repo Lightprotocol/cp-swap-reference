@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
-use light_sdk::{LightDiscriminator, LightHasher};
+use light_sdk::{compressible::CompressionInfo, LightDiscriminator, LightHasher};
+use light_sdk_macros::HasCompressionInfo;
 use std::ops::{BitAnd, BitOr, BitXor, Deref};
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "pool";
@@ -65,7 +66,7 @@ impl Space for PoolAddresses {
     const INIT_SPACE: usize = 32 * 10; // 10 Pubkeys
 }
 
-#[derive(Default, Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+#[derive(Default, Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, LightHasher)]
 pub struct PoolMetadata {
     pub lp_mint_decimals: u8,
     /// mint0 and mint1 decimals
@@ -80,7 +81,7 @@ impl Space for PoolMetadata {
 }
 
 #[account]
-#[derive(Default, Debug, InitSpace, LightDiscriminator)]
+#[derive(Default, Debug, InitSpace, LightDiscriminator, LightHasher, HasCompressionInfo)]
 pub struct PoolState {
     pub auth_bump: u8,
 
@@ -106,7 +107,10 @@ pub struct PoolState {
     pub addresses: PoolAddresses,
     pub metadata: PoolMetadata,
 
+    #[skip]
+    pub compression_info: Option<CompressionInfo>,
     /// padding for future updates
+    #[hash]
     pub padding: [u64; 1],
 }
 
@@ -119,7 +123,8 @@ impl Deref for PoolState {
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 8 * 6 + 1 * 2 + (32 * 10) + (1 * 3 + 8 * 1) + 1 + 9 + 8 * 1;
+    pub const LEN: usize =
+        8 + 8 * 6 + 1 * 2 + (32 * 10) + (1 * 3 + 8 * 1) + 1 + 9 + (1 + 9) + 8 * 1;
 
     pub fn initialize(
         &mut self,
