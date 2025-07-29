@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
-use std::ops::{BitAnd, BitOr, BitXor};
+use std::ops::{BitAnd, BitOr, BitXor, Deref};
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "pool";
 pub const POOL_LP_MINT_SEED: &str = "pool_lp_mint";
@@ -20,66 +20,67 @@ pub enum PoolStatusBitFlag {
     Disable,
 }
 
-#[account(zero_copy(unsafe))]
-#[repr(C, packed)]
-#[derive(Default, Debug)]
-pub struct PoolState {
-    /// Which config the pool belongs
+#[derive(Default, Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+pub struct PoolAddresses {
     pub amm_config: Pubkey,
-    /// pool creator
     pub pool_creator: Pubkey,
-    /// Token A
     pub token_0_vault: Pubkey,
-    /// Token B
     pub token_1_vault: Pubkey,
-
-    /// Pool tokens are issued when A or B tokens are deposited.
-    /// Pool tokens can be withdrawn back to the original A or B token.
     pub lp_mint: Pubkey,
-    /// Mint information for token A
     pub token_0_mint: Pubkey,
-    /// Mint information for token B
     pub token_1_mint: Pubkey,
-
-    /// token_0 program
     pub token_0_program: Pubkey,
-    /// token_1 program
     pub token_1_program: Pubkey,
-
-    /// observation account to store oracle data
     pub observation_key: Pubkey,
+}
 
-    pub auth_bump: u8,
-    /// Bitwise representation of the state of the pool
-    /// bit0, 1: disable deposit(value is 1), 0: normal
-    /// bit1, 1: disable withdraw(value is 2), 0: normal
-    /// bit2, 1: disable swap(value is 4), 0: normal
-    pub status: u8,
+impl Space for PoolAddresses {
+    const INIT_SPACE: usize = 32 * 10; // 10 Pubkeys
+}
 
+#[derive(Default, Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+pub struct PoolMetadata {
     pub lp_mint_decimals: u8,
-    /// mint0 and mint1 decimals
     pub mint_0_decimals: u8,
     pub mint_1_decimals: u8,
+    pub open_time: u64,
+}
 
-    /// True circulating supply without burns and lock ups
-    pub lp_supply: u64,
-    /// The amounts of token_0 and token_1 that are owed to the liquidity provider.
+impl Space for PoolMetadata {
+    const INIT_SPACE: usize = 1 * 3 + 8 * 1; // 3 u8s + 1 u64
+}
+
+#[account(zero_copy(unsafe))]
+#[repr(C, packed)]
+#[derive(Default, Debug, InitSpace)]
+pub struct PoolState {
+    // TOP LEVEL - Active fields (8 fields)
     pub protocol_fees_token_0: u64,
     pub protocol_fees_token_1: u64,
-
     pub fund_fees_token_0: u64,
     pub fund_fees_token_1: u64,
-
-    /// The timestamp allowed for swap in the pool.
-    pub open_time: u64,
-    /// recent epoch
+    pub lp_supply: u64,
     pub recent_epoch: u64,
-    /// padding for future updates
-    pub padding: [u64; 31],
+    pub status: u8,
+    pub auth_bump: u8,
+
+    // NESTED structures
+    pub addresses: PoolAddresses, // 10 pubkeys
+    pub metadata: PoolMetadata,   // decimals + open_time
+
+    pub padding: [u64; 1],
+}
+
+impl Deref for PoolState {
+    type Target = PoolAddresses;
+
+    fn deref(&self) -> &Self::Target {
+        &self.addresses
+    }
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 8 * 31;
+    pub const LEN: usize = 8 + 8 * 6 + 1 * 2 + (32 * 10) + (1 * 3 + 8 * 1) + 1 + 9 + 8 * 1;
 
     pub fn initialize(
         &mut self,
@@ -95,28 +96,28 @@ impl PoolState {
         lp_mint: &InterfaceAccount<Mint>,
         observation_key: Pubkey,
     ) {
-        self.amm_config = amm_config.key();
-        self.pool_creator = pool_creator.key();
-        self.token_0_vault = token_0_vault;
-        self.token_1_vault = token_1_vault;
-        self.lp_mint = lp_mint.key();
-        self.token_0_mint = token_0_mint.key();
-        self.token_1_mint = token_1_mint.key();
-        self.token_0_program = *token_0_mint.to_account_info().owner;
-        self.token_1_program = *token_1_mint.to_account_info().owner;
-        self.observation_key = observation_key;
+        self.addresses.amm_config = amm_config.key();
+        self.addresses.pool_creator = pool_creator.key();
+        self.addresses.token_0_vault = token_0_vault;
+        self.addresses.token_1_vault = token_1_vault;
+        self.addresses.lp_mint = lp_mint.key();
+        self.addresses.token_0_mint = token_0_mint.key();
+        self.addresses.token_1_mint = token_1_mint.key();
+        self.addresses.token_0_program = *token_0_mint.to_account_info().owner;
+        self.addresses.token_1_program = *token_1_mint.to_account_info().owner;
+        self.addresses.observation_key = observation_key;
         self.auth_bump = auth_bump;
-        self.lp_mint_decimals = lp_mint.decimals;
-        self.mint_0_decimals = token_0_mint.decimals;
-        self.mint_1_decimals = token_1_mint.decimals;
+        self.metadata.lp_mint_decimals = lp_mint.decimals;
+        self.metadata.mint_0_decimals = token_0_mint.decimals;
+        self.metadata.mint_1_decimals = token_1_mint.decimals;
         self.lp_supply = lp_supply;
         self.protocol_fees_token_0 = 0;
         self.protocol_fees_token_1 = 0;
         self.fund_fees_token_0 = 0;
         self.fund_fees_token_1 = 0;
-        self.open_time = open_time;
+        self.metadata.open_time = open_time;
         self.recent_epoch = Clock::get().unwrap().epoch;
-        self.padding = [0u64; 31];
+        self.padding = [0u64; 1];
     }
 
     pub fn set_status(&mut self, status: u8) {

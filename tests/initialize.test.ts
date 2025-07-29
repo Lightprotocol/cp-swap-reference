@@ -49,17 +49,17 @@ describe("initialize test", () => {
     );
     let vault0 = await getAccount(
       anchor.getProvider().connection,
-      poolState.token0Vault,
+      poolState.addresses.token0Vault,
       "processed",
-      poolState.token0Program
+      poolState.addresses.token0Program
     );
     assert.equal(vault0.amount.toString(), initAmount0.toString());
 
     let vault1 = await getAccount(
       anchor.getProvider().connection,
-      poolState.token1Vault,
+      poolState.addresses.token1Vault,
       "processed",
-      poolState.token1Program
+      poolState.addresses.token1Program
     );
     assert.equal(vault1.amount.toString(), initAmount1.toString());
   });
@@ -96,17 +96,17 @@ describe("initialize test", () => {
     );
     let vault0 = await getAccount(
       anchor.getProvider().connection,
-      poolState.token0Vault,
+      poolState.addresses.token0Vault,
       "processed",
-      poolState.token0Program
+      poolState.addresses.token0Program
     );
     assert.equal(vault0.amount.toString(), initAmount0.toString());
 
     let vault1 = await getAccount(
       anchor.getProvider().connection,
-      poolState.token1Vault,
+      poolState.addresses.token1Vault,
       "processed",
-      poolState.token1Program
+      poolState.addresses.token1Program
     );
     assert.equal(vault1.amount.toString(), initAmount1.toString());
   });
@@ -144,9 +144,9 @@ describe("initialize test", () => {
     );
     let vault0 = await getAccount(
       anchor.getProvider().connection,
-      poolState.token0Vault,
+      poolState.addresses.token0Vault,
       "processed",
-      poolState.token0Program
+      poolState.addresses.token0Program
     );
     if (token0Program == TOKEN_PROGRAM_ID) {
       assert.equal(vault0.amount.toString(), initAmount0.toString());
@@ -156,16 +156,16 @@ describe("initialize test", () => {
         calculateFee(
           transferFeeConfig,
           BigInt(initAmount0.toString()),
-          poolState.token0Program
+          poolState.addresses.token0Program
         );
       assert(new BN(total.toString()).gte(initAmount0));
     }
 
     let vault1 = await getAccount(
       anchor.getProvider().connection,
-      poolState.token1Vault,
+      poolState.addresses.token1Vault,
       "processed",
-      poolState.token1Program
+      poolState.addresses.token1Program
     );
     if (token1Program == TOKEN_PROGRAM_ID) {
       assert.equal(vault1.amount.toString(), initAmount1.toString());
@@ -175,7 +175,7 @@ describe("initialize test", () => {
         calculateFee(
           transferFeeConfig,
           BigInt(initAmount1.toString()),
-          poolState.token1Program
+          poolState.addresses.token1Program
         );
       assert(new BN(total.toString()).gte(initAmount1));
     }

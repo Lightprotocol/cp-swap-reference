@@ -29,8 +29,8 @@ describe("swap test", () => {
       },
       { transferFeeBasisPoints: 0, MaxFee: 0 }
     );
-    const inputToken = poolState.token0Mint;
-    const inputTokenProgram = poolState.token0Program;
+    const inputToken = poolState.addresses.token0Mint;
+    const inputTokenProgram = poolState.addresses.token0Program;
     const inputTokenAccountAddr = getAssociatedTokenAddressSync(
       inputToken,
       owner.publicKey,
@@ -51,8 +51,8 @@ describe("swap test", () => {
       configAddress,
       inputToken,
       inputTokenProgram,
-      poolState.token1Mint,
-      poolState.token1Program,
+      poolState.addresses.token1Mint,
+      poolState.addresses.token1Program,
       amount_in,
       new BN(0)
     );
@@ -82,16 +82,16 @@ describe("swap test", () => {
       },
       { transferFeeBasisPoints: 0, MaxFee: 0 }
     );
-    const inputToken = poolState.token0Mint;
-    const inputTokenProgram = poolState.token0Program;
+    const inputToken = poolState.addresses.token0Mint;
+    const inputTokenProgram = poolState.addresses.token0Program;
     const inputTokenAccountAddr = getAssociatedTokenAddressSync(
       inputToken,
       owner.publicKey,
       false,
       inputTokenProgram
     );
-    const outputToken = poolState.token1Mint;
-    const outputTokenProgram = poolState.token1Program;
+    const outputToken = poolState.addresses.token1Mint;
+    const outputTokenProgram = poolState.addresses.token1Program;
     const outputTokenAccountAddr = getAssociatedTokenAddressSync(
       outputToken,
       owner.publicKey,
@@ -112,8 +112,8 @@ describe("swap test", () => {
       configAddress,
       inputToken,
       inputTokenProgram,
-      poolState.token1Mint,
-      poolState.token1Program,
+      poolState.addresses.token1Mint,
+      poolState.addresses.token1Program,
       amount_out,
       new BN(10000000000000),
       confirmOptions
@@ -146,16 +146,16 @@ describe("swap test", () => {
       transferFeeConfig
     );
 
-    const inputToken = poolState.token0Mint;
-    const inputTokenProgram = poolState.token0Program;
+    const inputToken = poolState.addresses.token0Mint;
+    const inputTokenProgram = poolState.addresses.token0Program;
     const inputTokenAccountAddr = getAssociatedTokenAddressSync(
       inputToken,
       owner.publicKey,
       false,
       inputTokenProgram
     );
-    const outputToken = poolState.token1Mint;
-    const outputTokenProgram = poolState.token1Program;
+    const outputToken = poolState.addresses.token1Mint;
+    const outputTokenProgram = poolState.addresses.token1Program;
     const outputTokenAccountAddr = getAssociatedTokenAddressSync(
       outputToken,
       owner.publicKey,
@@ -176,8 +176,8 @@ describe("swap test", () => {
       configAddress,
       inputToken,
       inputTokenProgram,
-      poolState.token1Mint,
-      poolState.token1Program,
+      poolState.addresses.token1Mint,
+      poolState.addresses.token1Program,
       amount_out,
       new BN(10000000000000),
       confirmOptions
