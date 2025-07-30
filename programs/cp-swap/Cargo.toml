@@ -30,14 +30,11 @@ solana-security-txt = "1.1.1"
 bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 
-# TODO: add"anchor-discriminator-compat"
-
 light-sdk = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor", "idl-build", "anchor-discriminator-compat"] }
 light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
 light-hasher = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
 light-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
 light-sdk-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
-
 
 [dev-dependencies]
 quickcheck = "1.0.3"
