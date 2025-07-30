@@ -32,21 +32,21 @@ arrayref = { version = "0.3.6" }
 
 # TODO: add"anchor-discriminator-compat"
 
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc", features = ["anchor", "idl-build"] }
-light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc" }
-light-hasher = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc", features = ["solana"] }
-light-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc", features = ["solana"] }
-light-sdk-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc" }
+light-sdk = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor", "idl-build"] }
+light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
+light-hasher = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
+light-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
+light-sdk-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
 
 
 [dev-dependencies]
 quickcheck = "1.0.3"
 proptest = "1.0"
 rand = "0.9.0"
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc", features = ["v2"] }
-light-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc", features = ["v2"] }
-light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc", features = ["anchor"] }
-light-test-utils = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc" }
+light-program-test = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["v2"] }
+light-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["v2"] }
+light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor"] }
+light-test-utils = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
 
 
 [profile.release]

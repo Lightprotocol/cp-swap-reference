@@ -25,7 +25,7 @@ pub enum PoolStatusBitFlag {
 
 #[account]
 #[repr(C)]
-#[derive(Default, Debug, LightHasher, LightDiscriminator, HasCompressionInfo)]
+#[derive(Default, Debug, LightHasher, LightDiscriminator, HasCompressionInfo, InitSpace)]
 pub struct PoolState {
     /// Which config the pool belongs
     pub amm_config: Pubkey,

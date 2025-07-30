@@ -10,6 +10,8 @@ pub use crate::states::PoolState;
 use anchor_lang::prelude::*;
 use instructions::*;
 use light_sdk::derive_light_cpi_signer;
+use light_sdk::LightDiscriminator;
+use light_sdk_macros::add_compressible_instructions;
 use light_sdk_types::CpiSigner;
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -48,8 +50,8 @@ pub mod create_pool_fee_reveiver {
 }
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
-// use light_sdk_macros::add_compressible_instructions;
-// #[add_compressible_instructions(PoolState)]
+
+#[add_compressible_instructions(PoolState)]
 #[program]
 pub mod raydium_cp_swap {
 
