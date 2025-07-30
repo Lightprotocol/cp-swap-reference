@@ -32,7 +32,7 @@ arrayref = { version = "0.3.6" }
 
 # TODO: add"anchor-discriminator-compat"
 
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor", "idl-build"] }
+light-sdk = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor", "idl-build", "anchor-discriminator-compat"] }
 light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
 light-hasher = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
 light-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
