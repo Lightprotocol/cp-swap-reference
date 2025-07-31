@@ -554,8 +554,13 @@ export async function swap_base_input(
     poolAddress,
     program.programId
   );
+  console.log("observationAddress: ", observationAddress);
+  const observationState = await program.account.observationState.fetch(
+    observationAddress
+  );
+  console.log("observationState: ", observationState);
 
-  const tx = await program.methods
+  const ix = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
     .accounts({
       payer: owner.publicKey,
@@ -572,8 +577,13 @@ export async function swap_base_input(
       outputTokenMint: outputToken,
       observationState: observationAddress,
     })
-    .rpc(confirmOptions);
-
+    .instruction();
+  const tx = await sendTransaction(
+    program.provider.connection,
+    [ix],
+    [owner],
+    confirmOptions
+  );
   return tx;
 }
 

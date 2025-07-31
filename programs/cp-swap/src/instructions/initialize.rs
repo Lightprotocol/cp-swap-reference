@@ -154,7 +154,7 @@ pub struct Initialize<'info> {
         ],
         bump,
         payer = creator,
-        space = ObservationState::LEN
+        space = 8 + ObservationState::INIT_SPACE
     )]
     pub observation_state: Account<'info, ObservationState>,
 

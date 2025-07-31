@@ -9,12 +9,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Seed to derive account address and signature
 pub const OBSERVATION_SEED: &str = "observation";
 // Number of ObservationState element
-pub const OBSERVATION_NUM: usize = 10;
+pub const OBSERVATION_NUM: usize = 1;
 pub const OBSERVATION_UPDATE_DURATION_DEFAULT: u64 = 15;
 
 /// The element of observations in ObservationState
 
-#[derive(Default, Clone, Copy, AnchorSerialize, AnchorDeserialize, InitSpace)]
+#[derive(Default, Clone, Copy, AnchorSerialize, AnchorDeserialize, InitSpace, Debug)]
 pub struct Observation {
     /// The block timestamp of the observation
     pub block_timestamp: u64,
@@ -23,14 +23,9 @@ pub struct Observation {
     /// the cumulative of token1 price during the duration time, Q32.32, the remaining 64 bit for overflow
     pub cumulative_token_1_price_x32: u128,
 }
-impl Observation {
-    pub const LEN: usize = 8 + 16 + 16;
-}
 
 #[account]
-#[repr(C)]
-// #[cfg_attr(feature = "client", derive(Debug))]
-#[derive(LightHasher, LightDiscriminator, Compressible, InitSpace)]
+#[derive(LightHasher, LightDiscriminator, Compressible, InitSpace, Debug)]
 pub struct ObservationState {
     /// Whether the ObservationState is initialized
     pub initialized: bool,
@@ -38,8 +33,7 @@ pub struct ObservationState {
     pub observation_index: u16,
     pub pool_id: Pubkey,
     /// observation array
-    pub observations: [Observation; OBSERVATION_NUM],
-    #[skip]
+    pub observations: Option<[Observation; OBSERVATION_NUM]>,
     pub compression_info: Option<CompressionInfo>,
     /// padding for feature update
     pub padding: [u64; 4],
@@ -52,7 +46,7 @@ impl Default for ObservationState {
             initialized: false,
             observation_index: 0,
             pool_id: Pubkey::default(),
-            observations: [Observation::default(); OBSERVATION_NUM],
+            observations: None,
             compression_info: None,
             padding: [0u64; 4],
         }
@@ -60,8 +54,6 @@ impl Default for ObservationState {
 }
 
 impl ObservationState {
-    pub const LEN: usize = 8 + 1 + 2 + 32 + 4 + (Observation::LEN * OBSERVATION_NUM) + 8 * 4;
-
     // Writes an oracle observation to the account, returning the next observation_index.
     /// Writable at most once per second. Index represents the most recently written element.
     /// If the index is at the end of the allowable array length (100 - 1), the next index will turn to 0.
@@ -84,15 +76,23 @@ impl ObservationState {
         token_1_price_x32: u128,
     ) {
         let observation_index = self.observation_index;
-        let observations = &mut self.observations;
 
         if !self.initialized {
+            // is None.
+            let observations = self
+                .observations
+                .get_or_insert_with(|| [Observation::default(); OBSERVATION_NUM]);
             // skip the pool init price
             self.initialized = true;
             observations[observation_index as usize].block_timestamp = block_timestamp;
             observations[observation_index as usize].cumulative_token_0_price_x32 = 0;
             observations[observation_index as usize].cumulative_token_1_price_x32 = 0;
+
+            self.compression_info = Some(CompressionInfo::new_decompressed().unwrap());
         } else {
+            // is Some.
+            let observations = &mut self.observations.as_mut().unwrap();
+
             let last_observation = observations[observation_index as usize];
             let delta_time = block_timestamp.saturating_sub(last_observation.block_timestamp);
             if delta_time < OBSERVATION_UPDATE_DURATION_DEFAULT {
@@ -116,6 +116,8 @@ impl ObservationState {
                     .cumulative_token_1_price_x32
                     .wrapping_add(delta_token_1_price_x32);
             self.observation_index = next_observation_index;
+
+            self.compression_info = Some(CompressionInfo::new_decompressed().unwrap());
         }
     }
 }
@@ -142,7 +144,7 @@ pub mod observation_test {
     fn observation_state_size_test() {
         assert_eq!(
             std::mem::size_of::<ObservationState>(),
-            ObservationState::LEN - 8
+            ObservationState::INIT_SPACE
         )
     }
 }
