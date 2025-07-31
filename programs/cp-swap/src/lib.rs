@@ -10,7 +10,6 @@ pub use crate::states::PoolState;
 use anchor_lang::prelude::*;
 use instructions::*;
 use light_sdk::derive_light_cpi_signer;
-use light_sdk::LightDiscriminator;
 use light_sdk_macros::add_compressible_instructions;
 use light_sdk_types::CpiSigner;
 
