@@ -6,7 +6,7 @@ pub mod utils;
 
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 pub use crate::instructions::initialize::Initialize;
-pub use crate::states::PoolState;
+pub use crate::states::{ObservationState, PoolState};
 use anchor_lang::prelude::*;
 use instructions::*;
 use light_sdk::derive_light_cpi_signer;
@@ -50,7 +50,7 @@ pub mod create_pool_fee_reveiver {
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
-#[add_compressible_instructions(PoolState)]
+#[add_compressible_instructions(PoolState, ObservationState)]
 #[program]
 pub mod raydium_cp_swap {
 
