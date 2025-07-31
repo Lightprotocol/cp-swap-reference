@@ -1,6 +1,9 @@
 /// Oracle provides price data useful for a wide variety of system designs
 ///
 use anchor_lang::prelude::*;
+use light_sdk::{compressible::CompressionInfo, sha::LightHasher, LightDiscriminator};
+use light_sdk_macros::Compressible;
+
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
 /// Seed to derive account address and signature
@@ -10,9 +13,8 @@ pub const OBSERVATION_NUM: usize = 100;
 pub const OBSERVATION_UPDATE_DURATION_DEFAULT: u64 = 15;
 
 /// The element of observations in ObservationState
-#[zero_copy(unsafe)]
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+
+#[derive(Default, Clone, Copy, AnchorSerialize, AnchorDeserialize, InitSpace)]
 pub struct Observation {
     /// The block timestamp of the observation
     pub block_timestamp: u64,
@@ -25,9 +27,10 @@ impl Observation {
     pub const LEN: usize = 8 + 16 + 16;
 }
 
-#[account(zero_copy(unsafe))]
-#[repr(C, packed)]
-#[cfg_attr(feature = "client", derive(Debug))]
+#[account]
+#[repr(C)]
+// #[cfg_attr(feature = "client", derive(Debug))]
+#[derive(LightHasher, LightDiscriminator, Compressible, InitSpace)]
 pub struct ObservationState {
     /// Whether the ObservationState is initialized
     pub initialized: bool,
@@ -35,7 +38,10 @@ pub struct ObservationState {
     pub observation_index: u16,
     pub pool_id: Pubkey,
     /// observation array
-    pub observations: [Observation; OBSERVATION_NUM],
+    #[skip]
+    pub observations: Option<[Observation; OBSERVATION_NUM]>,
+    #[skip]
+    pub compression_info: Option<CompressionInfo>,
     /// padding for feature update
     pub padding: [u64; 4],
 }
@@ -47,14 +53,15 @@ impl Default for ObservationState {
             initialized: false,
             observation_index: 0,
             pool_id: Pubkey::default(),
-            observations: [Observation::default(); OBSERVATION_NUM],
+            observations: Some([Observation::default(); OBSERVATION_NUM]),
+            compression_info: None,
             padding: [0u64; 4],
         }
     }
 }
 
 impl ObservationState {
-    pub const LEN: usize = 8 + 1 + 2 + 32 + (Observation::LEN * OBSERVATION_NUM) + 8 * 4;
+    pub const LEN: usize = 8 + 1 + 2 + 32 + 8 * 4;
 
     // Writes an oracle observation to the account, returning the next observation_index.
     /// Writable at most once per second. Index represents the most recently written element.
@@ -78,14 +85,16 @@ impl ObservationState {
         token_1_price_x32: u128,
     ) {
         let observation_index = self.observation_index;
+        let observations = self.observations.as_mut().unwrap();
+
         if !self.initialized {
             // skip the pool init price
             self.initialized = true;
-            self.observations[observation_index as usize].block_timestamp = block_timestamp;
-            self.observations[observation_index as usize].cumulative_token_0_price_x32 = 0;
-            self.observations[observation_index as usize].cumulative_token_1_price_x32 = 0;
+            observations[observation_index as usize].block_timestamp = block_timestamp;
+            observations[observation_index as usize].cumulative_token_0_price_x32 = 0;
+            observations[observation_index as usize].cumulative_token_1_price_x32 = 0;
         } else {
-            let last_observation = self.observations[observation_index as usize];
+            let last_observation = observations[observation_index as usize];
             let delta_time = block_timestamp.saturating_sub(last_observation.block_timestamp);
             if delta_time < OBSERVATION_UPDATE_DURATION_DEFAULT {
                 return;
@@ -97,13 +106,13 @@ impl ObservationState {
             } else {
                 observation_index + 1
             };
-            self.observations[next_observation_index as usize].block_timestamp = block_timestamp;
+            observations[next_observation_index as usize].block_timestamp = block_timestamp;
             // cumulative_token_price_x32 only occupies the first 64 bits, and the remaining 64 bits are used to store overflow data
-            self.observations[next_observation_index as usize].cumulative_token_0_price_x32 =
+            observations[next_observation_index as usize].cumulative_token_0_price_x32 =
                 last_observation
                     .cumulative_token_0_price_x32
                     .wrapping_add(delta_token_0_price_x32);
-            self.observations[next_observation_index as usize].cumulative_token_1_price_x32 =
+            observations[next_observation_index as usize].cumulative_token_1_price_x32 =
                 last_observation
                     .cumulative_token_1_price_x32
                     .wrapping_add(delta_token_1_price_x32);

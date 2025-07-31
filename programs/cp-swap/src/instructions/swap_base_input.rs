@@ -70,7 +70,7 @@ pub struct Swap<'info> {
     pub output_token_mint: Box<InterfaceAccount<'info, Mint>>,
     /// The program account for the most recent oracle observation
     #[account(mut, address = pool_state.observation_key)]
-    pub observation_state: AccountLoader<'info, ObservationState>,
+    pub observation_state: Account<'info, ObservationState>,
 }
 
 pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
@@ -247,7 +247,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     )?;
 
     // update the previous price to the observation
-    ctx.accounts.observation_state.load_mut()?.update(
+    ctx.accounts.observation_state.update(
         oracle::block_timestamp(),
         token_0_price_x64,
         token_1_price_x64,

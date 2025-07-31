@@ -156,7 +156,7 @@ pub struct Initialize<'info> {
         payer = creator,
         space = ObservationState::LEN
     )]
-    pub observation_state: AccountLoader<'info, ObservationState>,
+    pub observation_state: Account<'info, ObservationState>,
 
     /// Program to create mint account and mint tokens
     pub token_program: Program<'info, Token>,
@@ -224,7 +224,7 @@ pub fn initialize(
     let pool_state_key = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state;
 
-    let mut observation_state = ctx.accounts.observation_state.load_init()?;
+    let observation_state = &mut ctx.accounts.observation_state;
     observation_state.pool_id = pool_state_key;
 
     transfer_from_user_to_pool_vault(

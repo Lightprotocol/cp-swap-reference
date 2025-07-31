@@ -187,7 +187,7 @@ pub fn swap_base_output(
     )?;
 
     // update the previous price to the observation
-    ctx.accounts.observation_state.load_mut()?.update(
+    ctx.accounts.observation_state.update(
         oracle::block_timestamp(),
         token_0_price_x64,
         token_1_price_x64,
