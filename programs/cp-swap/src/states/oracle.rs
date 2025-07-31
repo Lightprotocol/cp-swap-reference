@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Seed to derive account address and signature
 pub const OBSERVATION_SEED: &str = "observation";
 // Number of ObservationState element
-pub const OBSERVATION_NUM: usize = 100;
+pub const OBSERVATION_NUM: usize = 10;
 pub const OBSERVATION_UPDATE_DURATION_DEFAULT: u64 = 15;
 
 /// The element of observations in ObservationState
@@ -38,8 +38,7 @@ pub struct ObservationState {
     pub observation_index: u16,
     pub pool_id: Pubkey,
     /// observation array
-    #[skip]
-    pub observations: Option<[Observation; OBSERVATION_NUM]>,
+    pub observations: [Observation; OBSERVATION_NUM],
     #[skip]
     pub compression_info: Option<CompressionInfo>,
     /// padding for feature update
@@ -53,7 +52,7 @@ impl Default for ObservationState {
             initialized: false,
             observation_index: 0,
             pool_id: Pubkey::default(),
-            observations: Some([Observation::default(); OBSERVATION_NUM]),
+            observations: [Observation::default(); OBSERVATION_NUM],
             compression_info: None,
             padding: [0u64; 4],
         }
@@ -61,7 +60,7 @@ impl Default for ObservationState {
 }
 
 impl ObservationState {
-    pub const LEN: usize = 8 + 1 + 2 + 32 + 8 * 4;
+    pub const LEN: usize = 8 + 1 + 2 + 32 + 4 + (Observation::LEN * OBSERVATION_NUM) + 8 * 4;
 
     // Writes an oracle observation to the account, returning the next observation_index.
     /// Writable at most once per second. Index represents the most recently written element.
@@ -85,7 +84,7 @@ impl ObservationState {
         token_1_price_x32: u128,
     ) {
         let observation_index = self.observation_index;
-        let observations = self.observations.as_mut().unwrap();
+        let observations = &mut self.observations;
 
         if !self.initialized {
             // skip the pool init price
