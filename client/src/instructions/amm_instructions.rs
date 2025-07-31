@@ -6,6 +6,8 @@ use anchor_spl::{
 use anyhow::Result;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_program, sysvar};
 
+use light_compressible_client::CompressibleConfig;
+
 use raydium_cp_swap::accounts as raydium_cp_accounts;
 use raydium_cp_swap::instruction as raydium_cp_instructions;
 use raydium_cp_swap::{
@@ -89,6 +91,19 @@ pub fn initialize_pool_instr(
         &program.id(),
     );
 
+    // add ZK Compression params
+    let mut compression_config_key = CompressibleConfig::derive_default_pda(&program.id()).0;
+
+    // let mut compression_params = raydium_cp_instructions::InitCompressibleParams {
+    //     pool_compressed_address: [0; 32],
+    //     pool_address_tree_info: PackedAddressTreeInfo::default(),
+    //     observation_compressed_address: [0; 32],
+    //     observation_address_tree_info: PackedAddressTreeInfo::default(),
+    //     proof: ValidityProof::default(),
+    // };
+
+    
+
     let mut instructions = program
         .request()
         .accounts(raydium_cp_accounts::Initialize {
@@ -115,11 +130,14 @@ pub fn initialize_pool_instr(
             associated_token_program: spl_associated_token_account::id(),
             system_program: system_program::id(),
             rent: sysvar::rent::id(),
+            config: compression_config_key,
+            rent_recipient: program.payer(),
         })
         .args(raydium_cp_instructions::Initialize {
             init_amount_0,
             init_amount_1,
             open_time,
+            compression_params,
         })
         .instructions()?;
     if random_pool_id.is_some() {

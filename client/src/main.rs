@@ -1,10 +1,13 @@
 #![allow(dead_code)]
 use anchor_client::{Client, Cluster};
+use anchor_lang::solana_program::example_mocks::solana_sdk::sysvar::rent;
 use anchor_spl::{associated_token::spl_associated_token_account, token::spl_token};
 use anyhow::{format_err, Result};
 use arrayref::array_ref;
 use clap::Parser;
 use configparser::ini::Ini;
+use light_compressible_client::CompressibleInstruction;
+use light_program_test::program_test::compressible_setup;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -128,6 +131,9 @@ pub enum RaydiumCpCommands {
     },
     DecodeTxLog {
         tx_id: String,
+    },
+    CompressibleInit {
+        pool_id: Pubkey,
     },
 }
 
@@ -779,6 +785,36 @@ fn main() -> Result<()> {
             )?;
             // decode logs
             parse_program_event(&pool_config.raydium_cp_program.to_string(), meta.clone())?;
+        }
+        RaydiumCpCommands::CompressibleInit { pool_id } => {
+            // TODO: get constants from elsewhere.
+            let address_space: [Pubkey; 1] =
+                [pubkey!("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK")];
+            let rent_recipient: Pubkey = pubkey!("CLEuMG7pzJX9xAuKCFzBP154uiG1GaNo4Fq7x6KAcAfG");
+
+            let pool_state: raydium_cp_swap::states::PoolState = program.account(pool_id)?;
+
+            let initialize_compression_config_intr =
+                CompressibleInstruction::initialize_compression_config(
+                    &pool_config.raydium_cp_program,
+                    &CompressibleInstruction::INITIALIZE_COMPRESSION_CONFIG_DISCRIMINATOR,
+                    &payer.pubkey(),
+                    &authority.pubkey(),
+                    100,
+                    rent_recipient,
+                    address_space,
+                    None,
+                );
+
+            let recent_hash = rpc_client.get_latest_blockhash()?;
+            let txn = Transaction::new_signed_with_payer(
+                &initialize_compression_config_intr,
+                Some(&payer.pubkey()),
+                &[&payer, &authority],
+                recent_hash,
+            );
+            let signature = send_txn(&rpc_client, &txn, true)?;
+            println!("initialize compression config: {}", signature);
         }
     }
     Ok(())

@@ -32,4 +32,9 @@ pub enum ErrorCode {
     InitLpAmountTooLess,
     #[msg("TransferFee calculate not match")]
     TransferFeeCalculateNotMatch,
+    /// ZK Compression.
+    #[msg("Invalid account count: PDAs and compressed accounts must match")]
+    InvalidAccountCount,
+    #[msg("Rent recipient does not match config")]
+    InvalidRentRecipient,
 }

@@ -32,3 +32,9 @@ regex = "1"
 colorful = "0.3.2"
 base64 = "0.21.0"
 bytemuck = { version = "1.23.0", features = ["derive"] }
+
+light-program-test = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["v2"] }
+light-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["v2"] }
+light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor"] }
+light-test-utils = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
+

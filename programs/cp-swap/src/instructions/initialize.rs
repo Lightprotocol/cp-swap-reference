@@ -13,7 +13,14 @@ use anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
+use light_sdk::compressible::prepare_accounts_for_compression_on_init;
+use light_sdk::cpi::CpiInputs;
+use light_sdk::instruction::PackedAddressTreeInfo;
+use light_sdk::instruction::ValidityProof;
 
+use crate::LIGHT_CPI_SIGNER;
+use light_sdk::compressible::CompressibleConfig;
+use light_sdk::cpi::CpiAccounts;
 use spl_token_2022;
 use std::ops::Deref;
 
@@ -170,13 +177,23 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
     /// Sysvar for program account
     pub rent: Sysvar<'info, Rent>,
+    /// For ZK Compression.
+    ///
+    ///  The global config account CHECK: Config is validated by the SDK's
+    /// load_checked method
+    pub config: AccountInfo<'info>,
+    /// Rent recipient - must match config
+    /// CHECK: Rent recipient is validated against the config
+    #[account(mut)]
+    pub rent_recipient: AccountInfo<'info>,
 }
 
-pub fn initialize(
-    ctx: Context<Initialize>,
+pub fn initialize<'info>(
+    ctx: Context<'_, '_, '_, 'info, Initialize<'info>>,
     init_amount_0: u64,
     init_amount_1: u64,
     mut open_time: u64,
+    compression_params: InitCompressibleParams,
 ) -> Result<()> {
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
         && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
@@ -221,9 +238,11 @@ pub fn initialize(
             &[ctx.bumps.token_1_vault][..],
         ],
     )?;
-    let pool_state_key = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state;
 
+    let pool_state_key = ctx.accounts.pool_state.key();
+    let observation_state_key = ctx.accounts.observation_state.key();
+
+    let pool_state = &mut ctx.accounts.pool_state;
     let observation_state = &mut ctx.accounts.observation_state;
     observation_state.pool_id = pool_state_key;
 
@@ -328,8 +347,82 @@ pub fn initialize(
         &ctx.accounts.token_0_mint,
         &ctx.accounts.token_1_mint,
         &ctx.accounts.lp_mint,
-        ctx.accounts.observation_state.key(),
+        observation_state_key,
     );
+
+    // Makes PoolState and ObservationState compressible. Note that the accounts
+    // remain onchain until after compression_delay runs out, or until after
+    // compress_accounts_after_init is called.
+    {
+        // Load config checked.
+        let config = CompressibleConfig::load_checked(&ctx.accounts.config, &crate::ID)?;
+
+        // Check that rent recipient matches your config.
+        if ctx.accounts.rent_recipient.key() != config.rent_recipient {
+            return err!(ErrorCode::InvalidRentRecipient);
+        }
+        // Create CPI accounts
+        let cpi_accounts = CpiAccounts::new(
+            &ctx.accounts.creator,
+            &ctx.remaining_accounts,
+            LIGHT_CPI_SIGNER,
+        );
+
+        // Prepare new address params. One per pda account.
+        let pool_new_address_params = compression_params
+            .pool_address_tree_info
+            .into_new_address_params_packed(pool_state.key().to_bytes());
+        let observation_new_address_params = compression_params
+            .observation_address_tree_info
+            .into_new_address_params_packed(observation_state.key().to_bytes());
+
+        let mut all_compressed_infos = Vec::new();
+
+        // Prepares the firstpda account for compression. compress the pda
+        // account safely. This also closes the pda account. safely. This also
+        // closes the pda account. The account can then be decompressed by
+        // anyone at any time via the decompress_accounts_idempotent
+        // instruction. Creates a unique cPDA to ensure that the account cannot
+        // be re-inited only decompressed.
+        let user_compressed_infos = prepare_accounts_for_compression_on_init::<PoolState>(
+            &mut [pool_state],
+            &[compression_params.pool_compressed_address],
+            &[pool_new_address_params],
+            &[compression_params.output_state_tree_index],
+            &cpi_accounts,
+            &config.address_space,
+            &ctx.accounts.rent_recipient,
+        )?;
+
+        all_compressed_infos.extend(user_compressed_infos);
+
+        // Process GameSession for compression. compress the pda account safely.
+        // This also closes the pda account. The account can then be
+        // decompressed by anyone at any time via the
+        // decompress_accounts_idempotent instruction. Creates a unique cPDA to
+        // ensure that the account cannot be re-inited only decompressed.
+        let game_compressed_infos = prepare_accounts_for_compression_on_init::<ObservationState>(
+            &mut [observation_state],
+            &[compression_params.observation_compressed_address],
+            &[observation_new_address_params],
+            &[compression_params.output_state_tree_index],
+            &cpi_accounts,
+            &config.address_space,
+            &ctx.accounts.rent_recipient,
+        )?;
+        all_compressed_infos.extend(game_compressed_infos);
+
+        // Create CPI inputs with all compressed accounts and new addresses
+        let cpi_inputs = CpiInputs::new_with_address(
+            compression_params.proof,
+            all_compressed_infos,
+            vec![pool_new_address_params, observation_new_address_params],
+        );
+
+        // Invoke light system program to create all compressed accounts in one
+        // CPI. Call at the end of your init instruction.
+        cpi_inputs.invoke_light_system_program(cpi_accounts)?;
+    }
 
     Ok(())
 }
@@ -376,4 +469,14 @@ pub fn create_pool<'info>(
     )?;
 
     Ok(())
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct InitCompressibleParams {
+    pub pool_compressed_address: [u8; 32],
+    pub pool_address_tree_info: PackedAddressTreeInfo,
+    pub observation_compressed_address: [u8; 32],
+    pub observation_address_tree_info: PackedAddressTreeInfo,
+    pub proof: ValidityProof,
+    pub output_state_tree_index: u8,
 }
