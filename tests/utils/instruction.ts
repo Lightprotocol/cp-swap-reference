@@ -343,7 +343,11 @@ export async function initialize(
       systemProgram: SystemProgram.programId,
       rent: SYSVAR_RENT_PUBKEY,
     })
-    .rpc(confirmOptions);
+    .rpc(confirmOptions)
+    .catch((e) => {
+      console.log("error: ", e);
+      throw e;
+    });
   const poolState = await program.account.poolState.fetch(poolAddress);
   return { poolAddress, poolState };
 }
