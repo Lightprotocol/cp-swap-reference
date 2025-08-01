@@ -4,9 +4,18 @@ use anchor_spl::{
     token_2022::spl_token_2022,
 };
 use anyhow::Result;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_program, sysvar};
+use light_sdk::{
+    address::v1::derive_address,
+    compressible::CompressibleConfig,
+    instruction::{PackedAccounts, SystemAccountMetaConfig, ValidityProof},
+};
 
-use light_compressible_client::CompressibleConfig;
+use light_client::{
+    indexer::{AddressWithTree, Indexer},
+    rpc::{LightClient, Rpc},
+};
+
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_program, sysvar};
 
 use raydium_cp_swap::accounts as raydium_cp_accounts;
 use raydium_cp_swap::instruction as raydium_cp_instructions;
@@ -18,7 +27,8 @@ use std::rc::Rc;
 
 use super::super::{read_keypair_file, ClientConfig};
 
-pub fn initialize_pool_instr(
+pub async fn initialize_pool_instr(
+    light_client: &mut LightClient,
     config: &ClientConfig,
     token_0_mint: Pubkey,
     token_1_mint: Pubkey,
@@ -92,17 +102,66 @@ pub fn initialize_pool_instr(
     );
 
     // add ZK Compression params
-    let mut compression_config_key = CompressibleConfig::derive_default_pda(&program.id()).0;
+    let compression_config_key = CompressibleConfig::derive_default_pda(&program.id()).0;
+    let mut remaining_accounts = PackedAccounts::default();
+    let system_config = SystemAccountMetaConfig::new(program.id());
+    let _ = remaining_accounts.add_system_accounts(system_config);
+    let address_tree_info = light_client.get_address_tree_v2();
+    let state_tree_info = light_client.get_random_state_tree_info().unwrap();
 
-    // let mut compression_params = raydium_cp_instructions::InitCompressibleParams {
-    //     pool_compressed_address: [0; 32],
-    //     pool_address_tree_info: PackedAddressTreeInfo::default(),
-    //     observation_compressed_address: [0; 32],
-    //     observation_address_tree_info: PackedAddressTreeInfo::default(),
-    //     proof: ValidityProof::default(),
-    // };
+    let pool_compressed_address = derive_address(
+        &[pool_account_key.to_bytes().as_ref()],
+        &address_tree_info.tree,
+        &program.id(),
+    )
+    .0;
+    let observation_compressed_address = derive_address(
+        &[observation_key.to_bytes().as_ref()],
+        &address_tree_info.tree,
+        &program.id(),
+    )
+    .0;
+    let rpc_result = light_client
+        .get_validity_proof(
+            vec![],
+            vec![
+                AddressWithTree {
+                    address: pool_compressed_address,
+                    tree: address_tree_info.tree,
+                },
+                AddressWithTree {
+                    address: observation_compressed_address,
+                    tree: address_tree_info.tree,
+                },
+            ],
+            None,
+        )
+        .await
+        .unwrap()
+        .value;
 
-    
+    // Pack tree infos into remaining accounts
+    let packed_tree_infos = rpc_result.pack_tree_infos(&mut remaining_accounts);
+
+    // Get the packed address tree info
+    let pool_address_tree_info = packed_tree_infos.address_trees[0];
+    let observation_address_tree_info = packed_tree_infos.address_trees[1];
+
+    // Get output state tree index
+    let output_state_tree_index = remaining_accounts.insert_or_get(state_tree_info.queue);
+
+    // Get system accounts for the instruction
+    let (system_accounts, _, _) = remaining_accounts.to_account_metas();
+
+    // Create compression params with default values
+    let compression_params = raydium_cp_swap::instructions::initialize::InitCompressibleParams {
+        pool_compressed_address,
+        pool_address_tree_info,
+        observation_compressed_address,
+        observation_address_tree_info,
+        proof: ValidityProof::default(),
+        output_state_tree_index,
+    };
 
     let mut instructions = program
         .request()
@@ -133,6 +192,7 @@ pub fn initialize_pool_instr(
             config: compression_config_key,
             rent_recipient: program.payer(),
         })
+        .accounts(system_accounts)
         .args(raydium_cp_instructions::Initialize {
             init_amount_0,
             init_amount_1,
