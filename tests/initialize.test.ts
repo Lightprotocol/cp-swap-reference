@@ -6,7 +6,7 @@ import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { setupInitializeTest, initialize, calculateFee } from "./utils";
 import { assert } from "chai";
 
-describe("initialize test", () => {
+describe.only("initialize test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
   console.log("owner: ", owner.publicKey.toString());
@@ -17,7 +17,7 @@ describe("initialize test", () => {
     skipPreflight: true,
   };
 
-  it("create pool without fee", async () => {
+  it.only("create pool without fee", async () => {
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(
         program,

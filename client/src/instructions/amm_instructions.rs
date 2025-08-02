@@ -4,8 +4,8 @@ use anchor_spl::{
     token_2022::spl_token_2022,
 };
 use anyhow::Result;
+use light_compressed_account::address::derive_address;
 use light_sdk::{
-    address::v1::derive_address,
     compressible::CompressibleConfig,
     instruction::{PackedAccounts, SystemAccountMetaConfig, ValidityProof},
 };
@@ -110,17 +110,17 @@ pub async fn initialize_pool_instr(
     let state_tree_info = light_client.get_random_state_tree_info().unwrap();
 
     let pool_compressed_address = derive_address(
-        &[pool_account_key.to_bytes().as_ref()],
-        &address_tree_info.tree,
-        &program.id(),
-    )
-    .0;
+        &pool_account_key.to_bytes(),
+        &address_tree_info.tree.to_bytes(),
+        &program.id().to_bytes(),
+    );
+
     let observation_compressed_address = derive_address(
-        &[observation_key.to_bytes().as_ref()],
-        &address_tree_info.tree,
-        &program.id(),
-    )
-    .0;
+        &observation_key.to_bytes(),
+        &address_tree_info.tree.to_bytes(),
+        &program.id().to_bytes(),
+    );
+
     let rpc_result = light_client
         .get_validity_proof(
             vec![],

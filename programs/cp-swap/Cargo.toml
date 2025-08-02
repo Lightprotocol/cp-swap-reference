@@ -35,6 +35,7 @@ light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", bra
 light-hasher = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
 light-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
 light-sdk-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
+light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
 
 [dev-dependencies]
 quickcheck = "1.0.3"

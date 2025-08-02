@@ -14,6 +14,8 @@ use anchor_spl::{
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
 use light_sdk::compressible::prepare_accounts_for_compression_on_init;
+use light_sdk::compressible::prepare_empty_compressed_accounts_on_init;
+use light_sdk::compressible::HasCompressionInfo;
 use light_sdk::cpi::CpiInputs;
 use light_sdk::instruction::PackedAddressTreeInfo;
 use light_sdk::instruction::ValidityProof;
@@ -244,8 +246,15 @@ pub fn initialize<'info>(
 
     let pool_state = &mut ctx.accounts.pool_state;
     let observation_state = &mut ctx.accounts.observation_state;
+
     observation_state.pool_id = pool_state_key;
 
+    msg!("poolstate0: {:?}", pool_state);
+    msg!("poolstate0: {:?}", pool_state_key);
+    msg!(
+        "poolstate0 compression_info_mut_opt: {:?}",
+        pool_state.compression_info_mut_opt()
+    );
     transfer_from_user_to_pool_vault(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.creator_token_0.to_account_info(),
@@ -335,7 +344,6 @@ pub fn initialize<'info>(
             ],
         )?;
     }
-
     pool_state.initialize(
         ctx.bumps.authority,
         liquidity,
@@ -349,6 +357,11 @@ pub fn initialize<'info>(
         &ctx.accounts.lp_mint,
         observation_state_key,
     );
+    // Account data is only in memory at this point - discriminator not written to blockchain yet
+
+    let creator = &mut ctx.accounts.creator;
+    let lamp = creator.to_account_info().lamports();
+    msg!("lamp before LIGHT: {}", lamp);
 
     // Makes PoolState and ObservationState compressible. Note that the accounts
     // remain onchain until after compression_delay runs out, or until after
@@ -361,21 +374,41 @@ pub fn initialize<'info>(
         if ctx.accounts.rent_recipient.key() != config.rent_recipient {
             return err!(ErrorCode::InvalidRentRecipient);
         }
+        msg!("remaining_accounts: {:?}", &ctx.remaining_accounts);
         // Create CPI accounts
-        let cpi_accounts = CpiAccounts::new(
-            &ctx.accounts.creator,
-            &ctx.remaining_accounts,
-            LIGHT_CPI_SIGNER,
-        );
+        let cpi_accounts = CpiAccounts::new(&creator, &ctx.remaining_accounts, LIGHT_CPI_SIGNER);
 
+        msg!("cpi_accounts (infos): {:?}", &cpi_accounts.account_infos());
         // Prepare new address params. One per pda account.
         let pool_new_address_params = compression_params
             .pool_address_tree_info
             .into_new_address_params_packed(pool_state.key().to_bytes());
+
+        let pool_address_tree = cpi_accounts
+            .tree_accounts()
+            .unwrap()
+            .get(pool_new_address_params.address_queue_account_index as usize)
+            .unwrap();
+
+        msg!("pool_address_tree: {:?} ", pool_address_tree);
+
+        msg!(
+            "pool_address_tree_info: {:?}",
+            compression_params.pool_address_tree_info
+        );
+        msg!("pool_new_address_params: {:?}", pool_new_address_params);
         let observation_new_address_params = compression_params
             .observation_address_tree_info
             .into_new_address_params_packed(observation_state.key().to_bytes());
 
+        msg!(
+            "observation_address_tree_info: {:?}",
+            compression_params.observation_address_tree_info
+        );
+        msg!(
+            "observation_new_address_params: {:?}",
+            observation_new_address_params
+        );
         let mut all_compressed_infos = Vec::new();
 
         // Prepares the firstpda account for compression. compress the pda
@@ -384,31 +417,31 @@ pub fn initialize<'info>(
         // anyone at any time via the decompress_accounts_idempotent
         // instruction. Creates a unique cPDA to ensure that the account cannot
         // be re-inited only decompressed.
-        let user_compressed_infos = prepare_accounts_for_compression_on_init::<PoolState>(
+        let user_compressed_infos = prepare_empty_compressed_accounts_on_init::<PoolState>(
             &mut [pool_state],
             &[compression_params.pool_compressed_address],
             &[pool_new_address_params],
             &[compression_params.output_state_tree_index],
             &cpi_accounts,
             &config.address_space,
-            &ctx.accounts.rent_recipient,
         )?;
 
         all_compressed_infos.extend(user_compressed_infos);
+
+        msg!("user was prepared");
 
         // Process GameSession for compression. compress the pda account safely.
         // This also closes the pda account. The account can then be
         // decompressed by anyone at any time via the
         // decompress_accounts_idempotent instruction. Creates a unique cPDA to
         // ensure that the account cannot be re-inited only decompressed.
-        let game_compressed_infos = prepare_accounts_for_compression_on_init::<ObservationState>(
+        let game_compressed_infos = prepare_empty_compressed_accounts_on_init::<ObservationState>(
             &mut [observation_state],
             &[compression_params.observation_compressed_address],
             &[observation_new_address_params],
             &[compression_params.output_state_tree_index],
             &cpi_accounts,
             &config.address_space,
-            &ctx.accounts.rent_recipient,
         )?;
         all_compressed_infos.extend(game_compressed_infos);
 
@@ -419,10 +452,17 @@ pub fn initialize<'info>(
             vec![pool_new_address_params, observation_new_address_params],
         );
 
+        let tree_pubkeys = cpi_accounts.tree_pubkeys().unwrap();
+        msg!("tree_pubkeys: {:?}", tree_pubkeys);
         // Invoke light system program to create all compressed accounts in one
         // CPI. Call at the end of your init instruction.
         cpi_inputs.invoke_light_system_program(cpi_accounts)?;
     }
+    // No reload needed - pool_state and observation_state unchanged by Light Protocol CPI
+    // creator.to_account_info().lamports() reads current balance directly
+
+    let lamp = creator.to_account_info().lamports();
+    msg!("lamp after LIGHT: {}", lamp);
 
     Ok(())
 }
