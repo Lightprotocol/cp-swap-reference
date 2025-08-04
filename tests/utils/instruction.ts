@@ -9,7 +9,6 @@ import {
   SystemProgram,
   SYSVAR_RENT_PUBKEY,
   TransactionMessage,
-  SendTransactionError,
   ComputeBudgetProgram,
 } from "@solana/web3.js";
 import {
@@ -29,7 +28,6 @@ import {
   createTokenMintAndAssociatedTokenAccount,
   getOrcleAccountAddress,
 } from "./index";
-process.env.LIGHT_PROTOCOL_VERSION = "V2";
 import {
   createRpc,
   bn,
@@ -46,10 +44,9 @@ import {
   createPackedAccounts,
 } from "@lightprotocol/stateless.js";
 
-featureFlags.version = VERSION.V2;
-
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 
+featureFlags.version = VERSION.V2;
 const COMPRESSION_DELAY = 100;
 const ADDRESS_SPACE = [
   new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK"),
