@@ -13,17 +13,13 @@ use anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-
-use light_sdk::compressible::prepare_empty_compressed_accounts_on_init;
-use light_sdk::cpi::CpiInputs;
-// use light_sdk::instruction::borsh_compat::ValidityProof;
-use light_sdk::instruction::PackedAddressTreeInfo;
-
-use light_compressed_account::instruction_data::compressed_proof::borsh_compat::ValidityProof;
+use light_sdk::{
+    compressible::{prepare_empty_compressed_accounts_on_init, CompressibleConfig},
+    cpi::{CpiAccounts, CpiInputs},
+    instruction::{borsh_compat::ValidityProof, PackedAddressTreeInfo},
+};
 
 use crate::LIGHT_CPI_SIGNER;
-use light_sdk::compressible::CompressibleConfig;
-use light_sdk::cpi::CpiAccounts;
 use spl_token_2022;
 use std::ops::Deref;
 
@@ -468,52 +464,12 @@ pub fn create_pool<'info>(
     Ok(())
 }
 
-// // Add to your initialize.rs imports
-// use light_compressed_account::instruction_data::compressed_proof::CompressedProof as ZeroCopyCompressedProof;
-
-// // Create a local version that's Anchor-compatible
-// #[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
-// pub struct CompressedProofForAnchor {
-//     pub a: [u8; 32],
-//     pub b: [u8; 64],
-//     pub c: [u8; 32],
-// }
-
-// #[derive(AnchorSerialize, AnchorDeserialize, Default, Clone, Debug)]
-// pub struct ValidityProofForAnchor(pub Option<CompressedProofForAnchor>);
-
 #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct InitCompressibleParams {
     pub pool_compressed_address: [u8; 32],
     pub pool_address_tree_info: PackedAddressTreeInfo,
     pub observation_compressed_address: [u8; 32],
     pub observation_address_tree_info: PackedAddressTreeInfo,
-    pub proof: ValidityProof, // Use your local version
+    pub proof: ValidityProof,
     pub output_state_tree_index: u8,
 }
-
-// impl From<ValidityProofForAnchor> for ValidityProof {
-//     fn from(anchor_proof: ValidityProofForAnchor) -> Self {
-//         match anchor_proof.0 {
-//             Some(anchor_compressed) => {
-//                 let zero_copy_proof = ZeroCopyCompressedProof {
-//                     a: anchor_compressed.a,
-//                     b: anchor_compressed.b,
-//                     c: anchor_compressed.c,
-//                 };
-//                 ValidityProof(Some(zero_copy_proof))
-//             }
-//             None => ValidityProof(None),
-//         }
-//     }
-// }
-
-// impl From<CompressedProofForAnchor> for ZeroCopyCompressedProof {
-//     fn from(anchor_proof: CompressedProofForAnchor) -> Self {
-//         ZeroCopyCompressedProof {
-//             a: anchor_proof.a,
-//             b: anchor_proof.b,
-//             c: anchor_proof.c,
-//         }
-//     }
-// }
