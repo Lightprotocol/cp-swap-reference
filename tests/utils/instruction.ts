@@ -50,6 +50,11 @@ featureFlags.version = VERSION.V2;
 
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 
+const COMPRESSION_DELAY = 100;
+const ADDRESS_SPACE = [
+  new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK"),
+];
+
 export async function setupInitializeTest(
   program: Program<RaydiumCpSwap>,
   connection: Rpc,
@@ -88,16 +93,15 @@ export async function setupInitializeTest(
 
   const [address, _] = deriveCompressionConfigAddress(program.programId);
   if (!(await accountExist(connection, address))) {
-    const txId = await initializeCompressionConfig(
+    await initializeCompressionConfig(
       connection,
       owner,
       program.programId,
       program.provider.wallet.payer,
-      100,
-      new PublicKey("CLEuMG7pzJX9xAuKCFzBP154uiG1GaNo4Fq7x6KAcAfG"),
-      [new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK")]
+      COMPRESSION_DELAY,
+      program.provider.wallet.payer.publicKey, // rent recipient
+      ADDRESS_SPACE
     );
-    console.log("compression config txId: ", txId);
   }
   return {
     configAddress,
@@ -149,16 +153,15 @@ export async function setupDepositTest(
   if (!(await accountExist(connection, address))) {
     // Create RPC client for compression
     const rpc = createRpc();
-    const txId = await initializeCompressionConfig(
+    await initializeCompressionConfig(
       rpc,
       owner,
       program.programId,
       program.provider.wallet.payer,
-      100,
-      new PublicKey("CLEuMG7pzJX9xAuKCFzBP154uiG1GaNo4Fq7x6KAcAfG"),
-      [new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK")]
+      COMPRESSION_DELAY,
+      program.provider.wallet.payer.publicKey, // rent recipient
+      ADDRESS_SPACE
     );
-    console.log("compression config txId: ", txId);
   }
 
   while (1) {
@@ -236,16 +239,15 @@ export async function setupSwapTest(
   if (!(await accountExist(connection, address))) {
     // Create RPC client for compression
     const rpc = createRpc();
-    const txId = await initializeCompressionConfig(
+    await initializeCompressionConfig(
       rpc,
       owner,
       program.programId,
       program.provider.wallet.payer,
-      100,
-      new PublicKey("CLEuMG7pzJX9xAuKCFzBP154uiG1GaNo4Fq7x6KAcAfG"),
-      [new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK")]
+      COMPRESSION_DELAY,
+      program.provider.wallet.payer.publicKey, // rent recipient
+      ADDRESS_SPACE
     );
-    console.log("compression config txId: ", txId);
   }
 
   const [{ token0, token0Program }, { token1, token1Program }] =
@@ -483,19 +485,12 @@ export async function initialize(
       rentRecipient: creator.publicKey,
     })
     .remainingAccounts(packedAccountMetas.remainingAccounts)
-    .instruction()
-    .catch((e) => {
-      console.log("error: ", e);
-      throw e;
-    });
+    .instruction();
 
-  const lookupTableAccountPubkey = new PublicKey(
-    "9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ"
-  );
   const lookupTableAccount = (
-    await rpc.getAddressLookupTable(lookupTableAccountPubkey, {
-      commitment: "confirmed",
-    })
+    await rpc.getAddressLookupTable(
+      new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+    )
   ).value;
 
   const messageV0 = new TransactionMessage({
@@ -507,19 +502,9 @@ export async function initialize(
       initializeIx,
     ],
   }).compileToV0Message([lookupTableAccount]);
-
   const versionedTx = new web3.VersionedTransaction(messageV0);
   versionedTx.sign([creator]);
-
-  const txId = await sendAndConfirmTx(rpc, versionedTx, {
-    skipPreflight: false,
-    commitment: "confirmed",
-  }).catch(async (e: SendTransactionError) => {
-    console.log("error: ", e);
-    console.log("getLogs: ", await e.getLogs(program.provider.connection));
-    throw e;
-  });
-  console.log("initialize txid: ", txId);
+  await sendAndConfirmTx(rpc, versionedTx, confirmOptions);
 
   const poolState = await program.account.poolState.fetch(poolAddress);
   return { poolAddress, poolState };
