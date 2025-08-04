@@ -40,7 +40,6 @@ address = "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2" # index 0 AMM Config ac
 address = "9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ" # standard LUT
 
 
-
 [idl]
 typescript = true
 idl_dir = "target/idl"

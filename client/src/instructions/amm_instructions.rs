@@ -7,7 +7,7 @@ use anyhow::Result;
 use light_compressed_account::address::derive_address;
 use light_sdk::{
     compressible::CompressibleConfig,
-    instruction::{PackedAccounts, SystemAccountMetaConfig, ValidityProof},
+    instruction::{PackedAccounts, SystemAccountMetaConfig},
 };
 
 use light_client::{
@@ -17,8 +17,8 @@ use light_client::{
 
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_program, sysvar};
 
-use raydium_cp_swap::accounts as raydium_cp_accounts;
 use raydium_cp_swap::instruction as raydium_cp_instructions;
+use raydium_cp_swap::{accounts as raydium_cp_accounts, instructions::ValidityProofForAnchor};
 use raydium_cp_swap::{
     states::{AMM_CONFIG_SEED, OBSERVATION_SEED, POOL_LP_MINT_SEED, POOL_SEED, POOL_VAULT_SEED},
     AUTH_SEED,
@@ -159,7 +159,7 @@ pub async fn initialize_pool_instr(
         pool_address_tree_info,
         observation_compressed_address,
         observation_address_tree_info,
-        proof: ValidityProof::default(),
+        proof: ValidityProofForAnchor::default(),
         output_state_tree_index,
     };
 

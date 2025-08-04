@@ -1,7 +1,7 @@
 /// Oracle provides price data useful for a wide variety of system designs
 ///
 use anchor_lang::prelude::*;
-use light_sdk::compressible::CompressAs;
+
 use light_sdk::{compressible::CompressionInfo, sha::LightHasher, LightDiscriminator};
 use light_sdk_macros::Compressible;
 

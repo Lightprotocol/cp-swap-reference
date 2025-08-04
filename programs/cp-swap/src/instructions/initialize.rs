@@ -13,9 +13,8 @@ use anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use light_sdk::compressible::prepare_accounts_for_compression_on_init;
+
 use light_sdk::compressible::prepare_empty_compressed_accounts_on_init;
-use light_sdk::compressible::HasCompressionInfo;
 use light_sdk::cpi::CpiInputs;
 use light_sdk::instruction::PackedAddressTreeInfo;
 use light_sdk::instruction::ValidityProof;
@@ -197,6 +196,21 @@ pub fn initialize<'info>(
     mut open_time: u64,
     compression_params: InitCompressibleParams,
 ) -> Result<()> {
+    msg!(
+        "Raw remaining_accounts at entry: len={}",
+        ctx.remaining_accounts.len()
+    );
+    // Log each account immediately
+    for (i, acc) in ctx.remaining_accounts.iter().enumerate() {
+        msg!(
+            "Account {}: key={}, owner={}, lamports={}",
+            i,
+            acc.key(),
+            acc.owner,
+            acc.lamports()
+        );
+    }
+
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
         && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
     {
@@ -206,6 +220,7 @@ pub fn initialize<'info>(
     if ctx.accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);
     }
+
     let block_timestamp = clock::Clock::get()?.unix_timestamp as u64;
     if open_time <= block_timestamp {
         open_time = block_timestamp + 1;
@@ -249,12 +264,6 @@ pub fn initialize<'info>(
 
     observation_state.pool_id = pool_state_key;
 
-    msg!("poolstate0: {:?}", pool_state);
-    msg!("poolstate0: {:?}", pool_state_key);
-    msg!(
-        "poolstate0 compression_info_mut_opt: {:?}",
-        pool_state.compression_info_mut_opt()
-    );
     transfer_from_user_to_pool_vault(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.creator_token_0.to_account_info(),
@@ -302,13 +311,7 @@ pub fn initialize<'info>(
         .integer_sqrt()
         .as_u64();
     let lock_lp_amount = 100;
-    msg!(
-        "liquidity:{}, lock_lp_amount:{}, vault_0_amount:{},vault_1_amount:{}",
-        liquidity,
-        lock_lp_amount,
-        token_0_vault.amount,
-        token_1_vault.amount
-    );
+
     token::token_mint_to(
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_program.to_account_info(),
@@ -361,7 +364,15 @@ pub fn initialize<'info>(
 
     let creator = &mut ctx.accounts.creator;
     let lamp = creator.to_account_info().lamports();
+    // msg!("user was prepared");
+    // msg!("compression_params onchain: {:?}", compression_params);
+    // msg!("borsh proof: {:?}", compression_params.proof);
+    let light_proof: ValidityProof = compression_params.proof.into();
+    // msg!("light_proof: {:?}", light_proof);
     msg!("lamp before LIGHT: {}", lamp);
+
+    msg!("accounts 2: {:?}", ctx.remaining_accounts);
+    msg!("accounts len: {:?}", ctx.remaining_accounts.len());
 
     // Makes PoolState and ObservationState compressible. Note that the accounts
     // remain onchain until after compression_delay runs out, or until after
@@ -374,42 +385,42 @@ pub fn initialize<'info>(
         if ctx.accounts.rent_recipient.key() != config.rent_recipient {
             return err!(ErrorCode::InvalidRentRecipient);
         }
-        msg!("remaining_accounts: {:?}", &ctx.remaining_accounts);
+        // msg!("remaining_accounts: {:?}", &ctx.remaining_accounts);
         // Create CPI accounts
         let cpi_accounts = CpiAccounts::new(&creator, &ctx.remaining_accounts, LIGHT_CPI_SIGNER);
 
-        msg!("cpi_accounts (infos): {:?}", &cpi_accounts.account_infos());
+        // msg!("cpi_accounts (infos): {:?}", &cpi_accounts.account_infos());
         // Prepare new address params. One per pda account.
         let pool_new_address_params = compression_params
             .pool_address_tree_info
             .into_new_address_params_packed(pool_state.key().to_bytes());
 
-        let pool_address_tree = cpi_accounts
+        let _pool_address_tree = cpi_accounts
             .tree_accounts()
             .unwrap()
             .get(pool_new_address_params.address_queue_account_index as usize)
             .unwrap();
 
-        msg!("pool_address_tree: {:?} ", pool_address_tree);
+        // msg!("pool_address_tree: {:?} ", pool_address_tree);
 
-        msg!(
-            "pool_address_tree_info: {:?}",
-            compression_params.pool_address_tree_info
-        );
-        msg!("pool_new_address_params: {:?}", pool_new_address_params);
+        // msg!(
+        //     "pool_address_tree_info: {:?}",
+        //     compression_params.pool_address_tree_info
+        // );
+        // msg!("pool_new_address_params: {:?}", pool_new_address_params);
         let observation_new_address_params = compression_params
             .observation_address_tree_info
             .into_new_address_params_packed(observation_state.key().to_bytes());
 
-        msg!(
-            "observation_address_tree_info: {:?}",
-            compression_params.observation_address_tree_info
-        );
-        msg!(
-            "observation_new_address_params: {:?}",
-            observation_new_address_params
-        );
-        let mut all_compressed_infos = Vec::new();
+        // msg!(
+        //     "observation_address_tree_info: {:?}",
+        //     compression_params.observation_address_tree_info
+        // );
+        // msg!(
+        //     "observation_new_address_params: {:?}",
+        //     observation_new_address_params
+        // );
+        let mut all_compressed_infos = Box::new(Vec::new());
 
         // Prepares the firstpda account for compression. compress the pda
         // account safely. This also closes the pda account. safely. This also
@@ -428,8 +439,6 @@ pub fn initialize<'info>(
 
         all_compressed_infos.extend(user_compressed_infos);
 
-        msg!("user was prepared");
-
         // Process GameSession for compression. compress the pda account safely.
         // This also closes the pda account. The account can then be
         // decompressed by anyone at any time via the
@@ -446,9 +455,10 @@ pub fn initialize<'info>(
         all_compressed_infos.extend(game_compressed_infos);
 
         // Create CPI inputs with all compressed accounts and new addresses
+
         let cpi_inputs = CpiInputs::new_with_address(
-            compression_params.proof,
-            all_compressed_infos,
+            light_proof,
+            *all_compressed_infos,
             vec![pool_new_address_params, observation_new_address_params],
         );
 
@@ -511,12 +521,63 @@ pub fn create_pool<'info>(
     Ok(())
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize)]
+// #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
+// pub struct InitCompressibleParams {
+//     pub pool_compressed_address: [u8; 32],
+//     pub pool_address_tree_info: PackedAddressTreeInfo,
+//     pub observation_compressed_address: [u8; 32],
+//     pub observation_address_tree_info: PackedAddressTreeInfo,
+//     pub proof: ValidityProof,
+//     pub output_state_tree_index: u8,
+// }
+
+// Add to your initialize.rs imports
+use light_compressed_account::instruction_data::compressed_proof::CompressedProof as ZeroCopyCompressedProof;
+
+// Create a local version that's Anchor-compatible
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
+pub struct CompressedProofForAnchor {
+    pub a: [u8; 32],
+    pub b: [u8; 64],
+    pub c: [u8; 32],
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Default, Clone, Debug)]
+pub struct ValidityProofForAnchor(pub Option<CompressedProofForAnchor>);
+
+// Update your params struct
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct InitCompressibleParams {
     pub pool_compressed_address: [u8; 32],
     pub pool_address_tree_info: PackedAddressTreeInfo,
     pub observation_compressed_address: [u8; 32],
     pub observation_address_tree_info: PackedAddressTreeInfo,
-    pub proof: ValidityProof,
+    pub proof: ValidityProofForAnchor, // Use your local version
     pub output_state_tree_index: u8,
+}
+
+impl From<ValidityProofForAnchor> for ValidityProof {
+    fn from(anchor_proof: ValidityProofForAnchor) -> Self {
+        match anchor_proof.0 {
+            Some(anchor_compressed) => {
+                let zero_copy_proof = ZeroCopyCompressedProof {
+                    a: anchor_compressed.a,
+                    b: anchor_compressed.b,
+                    c: anchor_compressed.c,
+                };
+                ValidityProof(Some(zero_copy_proof))
+            }
+            None => ValidityProof(None),
+        }
+    }
+}
+
+impl From<CompressedProofForAnchor> for ZeroCopyCompressedProof {
+    fn from(anchor_proof: CompressedProofForAnchor) -> Self {
+        ZeroCopyCompressedProof {
+            a: anchor_proof.a,
+            b: anchor_proof.b,
+            c: anchor_proof.c,
+        }
+    }
 }

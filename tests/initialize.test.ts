@@ -5,11 +5,11 @@ import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { setupInitializeTest, initialize, calculateFee } from "./utils";
 import { assert } from "chai";
+import { createRpc } from "@lightprotocol/stateless.js";
 
 describe.only("initialize test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
-  console.log("owner: ", owner.publicKey.toString());
 
   const program = anchor.workspace.RaydiumCpSwap as Program<RaydiumCpSwap>;
 
@@ -17,11 +17,14 @@ describe.only("initialize test", () => {
     skipPreflight: true,
   };
 
+  // We need Rpc here.
+  const connection = createRpc();
+
   it.only("create pool without fee", async () => {
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(
         program,
-        anchor.getProvider().connection,
+        connection,
         owner,
         {
           config_index: 0,
@@ -48,7 +51,7 @@ describe.only("initialize test", () => {
       { initAmount0, initAmount1 }
     );
     let vault0 = await getAccount(
-      anchor.getProvider().connection,
+      connection,
       poolState.token0Vault,
       "processed",
       poolState.token0Program
@@ -56,7 +59,7 @@ describe.only("initialize test", () => {
     assert.equal(vault0.amount.toString(), initAmount0.toString());
 
     let vault1 = await getAccount(
-      anchor.getProvider().connection,
+      connection,
       poolState.token1Vault,
       "processed",
       poolState.token1Program
@@ -68,7 +71,7 @@ describe.only("initialize test", () => {
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(
         program,
-        anchor.getProvider().connection,
+        connection,
         owner,
         {
           config_index: 0,
@@ -95,7 +98,7 @@ describe.only("initialize test", () => {
       { initAmount0, initAmount1 }
     );
     let vault0 = await getAccount(
-      anchor.getProvider().connection,
+      connection,
       poolState.token0Vault,
       "processed",
       poolState.token0Program
@@ -116,7 +119,7 @@ describe.only("initialize test", () => {
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(
         program,
-        anchor.getProvider().connection,
+        connection,
         owner,
         {
           config_index: 0,
