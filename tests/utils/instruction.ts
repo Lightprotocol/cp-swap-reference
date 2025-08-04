@@ -11,7 +11,6 @@ import {
   TransactionMessage,
   SendTransactionError,
   ComputeBudgetProgram,
-  AccountInfo,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -31,20 +30,20 @@ import {
   getOrcleAccountAddress,
 } from "./index";
 process.env.LIGHT_PROTOCOL_VERSION = "V2";
-
 import {
   createRpc,
   bn,
-  TreeType,
-  TreeInfo,
   sendAndConfirmTx,
   featureFlags,
   VERSION,
   Rpc,
   deriveAddressV2,
-  SystemAccountMetaConfig,
-  PackedAccounts,
   initializeCompressionConfig,
+  selectStateTreeInfo,
+  getDefaultAddressTreeInfo,
+  packTreeInfos,
+  deriveCompressionConfigAddress,
+  createPackedAccounts,
 } from "@lightprotocol/stateless.js";
 
 featureFlags.version = VERSION.V2;
@@ -87,17 +86,19 @@ export async function setupInitializeTest(
     confirmOptions
   );
 
-  const txId = await initializeCompressionConfig(
-    program.programId,
-    connection,
-    owner,
-    program.provider.wallet.payer,
-    100,
-    new PublicKey("CLEuMG7pzJX9xAuKCFzBP154uiG1GaNo4Fq7x6KAcAfG"),
-    [new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK")]
-  );
-  console.log("compression config txId: ", txId);
-
+  const [address, _] = deriveCompressionConfigAddress(program.programId);
+  if (!(await accountExist(connection, address))) {
+    const txId = await initializeCompressionConfig(
+      connection,
+      owner,
+      program.programId,
+      program.provider.wallet.payer,
+      100,
+      new PublicKey("CLEuMG7pzJX9xAuKCFzBP154uiG1GaNo4Fq7x6KAcAfG"),
+      [new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK")]
+    );
+    console.log("compression config txId: ", txId);
+  }
   return {
     configAddress,
     token0,
@@ -143,6 +144,22 @@ export async function setupDepositTest(
     config.create_fee,
     confirmOptions
   );
+
+  const [address, _] = deriveCompressionConfigAddress(program.programId);
+  if (!(await accountExist(connection, address))) {
+    // Create RPC client for compression
+    const rpc = createRpc();
+    const txId = await initializeCompressionConfig(
+      rpc,
+      owner,
+      program.programId,
+      program.provider.wallet.payer,
+      100,
+      new PublicKey("CLEuMG7pzJX9xAuKCFzBP154uiG1GaNo4Fq7x6KAcAfG"),
+      [new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK")]
+    );
+    console.log("compression config txId: ", txId);
+  }
 
   while (1) {
     const [{ token0, token0Program }, { token1, token1Program }] =
@@ -214,6 +231,22 @@ export async function setupSwapTest(
     config.create_fee,
     confirmOptions
   );
+
+  const [address, _] = deriveCompressionConfigAddress(program.programId);
+  if (!(await accountExist(connection, address))) {
+    // Create RPC client for compression
+    const rpc = createRpc();
+    const txId = await initializeCompressionConfig(
+      rpc,
+      owner,
+      program.programId,
+      program.provider.wallet.payer,
+      100,
+      new PublicKey("CLEuMG7pzJX9xAuKCFzBP154uiG1GaNo4Fq7x6KAcAfG"),
+      [new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK")]
+    );
+    console.log("compression config txId: ", txId);
+  }
 
   const [{ token0, token0Program }, { token1, token1Program }] =
     await createTokenMintAndAssociatedTokenAccount(
@@ -293,80 +326,6 @@ export async function createAmmConfig(
   return address;
 }
 
-/**
- * Derive the compression config address for a given program id and config
- * index.
- * @param programId     The program id to derive the config for.
- * @param configIndex   Index. Default = 0.
- * @returns             The compression config address.
- */
-export function deriveCompressionConfigAddress(
-  programId: PublicKey,
-  configIndex: number = 0
-) {
-  return PublicKey.findProgramAddressSync(
-    [Buffer.from("compressible_config"), Buffer.from([configIndex])],
-    programId
-  )[0];
-}
-
-/**
- * Get the program data account address and its raw data for a given program.
- * @param program     The program to check.
- * @param connection  The connection to use.
- * @returns           The program data address and its account data.
- */
-export async function getProgramDataAccount(
-  program: Program<RaydiumCpSwap>,
-  connection: Connection
-): Promise<{
-  programDataAddress: PublicKey;
-  programDataAccountInfo: AccountInfo<Buffer>;
-}> {
-  const programAccount = await connection.getAccountInfo(program.programId);
-  if (!programAccount) {
-    throw new Error("Program account does not exist");
-  }
-  const programDataAddress = new PublicKey(programAccount.data.slice(4, 36));
-  const programDataAccountInfo = await connection.getAccountInfo(
-    programDataAddress
-  );
-  if (!programDataAccountInfo) {
-    throw new Error("Program data account does not exist");
-  }
-  return { programDataAddress, programDataAccountInfo };
-}
-
-/**
- * Check that the provided authority matches the program's upgrade authority.
- * Throws if not matching or if no authority is set.
- * @param data                The raw data of the program data account.
- * @param providedAuthority   The expected upgrade authority public key.
- */
-export function checkProgramUpdateAuthority(
-  programDataAccountInfo: AccountInfo<Buffer>,
-  providedAuthority: PublicKey
-): void {
-  // Check discriminator (should be 3 for ProgramData)
-  const discriminator = programDataAccountInfo.data.readUInt32LE(0);
-  if (discriminator !== 3) {
-    throw new Error("Invalid program data discriminator");
-  }
-  // Check if authority exists
-  const hasAuthority = programDataAccountInfo.data[12] === 1;
-  if (!hasAuthority) {
-    throw new Error("Program has no upgrade authority");
-  }
-  // Extract upgrade authority (bytes 13-44)
-  const authorityBytes = programDataAccountInfo.data.slice(13, 45);
-  const upgradeAuthority = new PublicKey(authorityBytes);
-  if (!upgradeAuthority.equals(providedAuthority)) {
-    throw new Error(
-      `Provided authority ${providedAuthority.toBase58()} does not match program's upgrade authority ${upgradeAuthority.toBase58()}`
-    );
-  }
-}
-
 export async function initialize(
   program: Program<RaydiumCpSwap>,
   creator: Signer,
@@ -385,21 +344,8 @@ export async function initialize(
   // Create RPC client for compression
   const rpc = createRpc();
 
-  // Get Tree Infos
-  const addressTreeInfo: TreeInfo = {
-    tree: new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK"),
-    queue: new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK"),
-    cpiContext: null,
-    treeType: TreeType.AddressV2,
-    nextTreeInfo: null,
-  };
-  const stateTreeInfo: TreeInfo = {
-    tree: new PublicKey("HLKs5NJ8FXkJg8BrzJt56adFYYuwg5etzDtBbQYTsixu"),
-    queue: new PublicKey("6L7SzhYB3anwEQ9cphpJ1U7Scwj57bx2xueReg7R9cKU"),
-    cpiContext: PublicKey.default,
-    treeType: TreeType.StateV2,
-    nextTreeInfo: null,
-  };
+  const addressTreeInfo = getDefaultAddressTreeInfo();
+  const stateTreeInfo = selectStateTreeInfo(await rpc.getStateTreeInfos());
 
   const [auth] = await getAuthAddress(program.programId);
   const [poolAddress] = await getPoolAddress(
@@ -481,62 +427,29 @@ export async function initialize(
   );
 
   // Set up packed accounts for compression
-  const systemAccountConfig = SystemAccountMetaConfig.new(program.programId);
-  const remainingAccounts =
-    PackedAccounts.newWithSystemAccounts(systemAccountConfig);
-
-  // Insert tree accounts
-  const outputMerkleTreeIndex = remainingAccounts.insertOrGet(
+  const remainingAccounts = createPackedAccounts(program.programId);
+  const outputStateTreeIndex = remainingAccounts.insertOrGet(
     stateTreeInfo.queue
   );
-  const addressMerkleTreePubkeyIndex = remainingAccounts.insertOrGet(
-    addressTreeInfo.tree
-  );
-  const addressQueuePubkeyIndex = remainingAccounts.insertOrGet(
-    addressTreeInfo.queue
-  );
-
-  // Create packed address tree info for both addresses
-  const poolAddressTreeInfo = {
-    rootIndex: proofRpcResult.rootIndices[0],
-    addressMerkleTreePubkeyIndex,
-    addressQueuePubkeyIndex,
-  };
-
-  const observationAddressTreeInfo = {
-    rootIndex: proofRpcResult.rootIndices[1],
-    addressMerkleTreePubkeyIndex,
-    addressQueuePubkeyIndex,
-  };
+  const packedTreeInfos = packTreeInfos(proofRpcResult, remainingAccounts);
 
   // Create compression params
   // 229 Bytes +1
   const compressionParams = {
     poolCompressedAddress: Array.from(poolCompressedAddress),
-    poolAddressTreeInfo,
+    poolAddressTreeInfo: packedTreeInfos.addressTrees[0],
     observationCompressedAddress: Array.from(observationCompressedAddress),
-    observationAddressTreeInfo,
+    observationAddressTreeInfo: packedTreeInfos.addressTrees[1],
     proof: { 0: proofRpcResult.compressedProof },
-    outputStateTreeIndex: outputMerkleTreeIndex,
+    outputStateTreeIndex,
   };
 
   // Get compression config account
-  const compressionConfigKey = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from([
-        99, 111, 109, 112, 114, 101, 115, 115, 105, 98, 108, 101, 95, 99, 111,
-        110, 102, 105, 103,
-      ]),
-      Buffer.from([0]),
-    ],
+  const [compressionConfigKey] = deriveCompressionConfigAddress(
     program.programId
-  )[0];
+  );
 
-  const {
-    remainingAccounts: systemAccountMetas,
-    systemStart,
-    packedStart,
-  } = remainingAccounts.toAccountMetas();
+  const packedAccountMetas = remainingAccounts.toAccountMetas();
 
   const initializeIx = await program.methods
     .initialize(
@@ -569,7 +482,7 @@ export async function initialize(
       config: compressionConfigKey,
       rentRecipient: creator.publicKey,
     })
-    .remainingAccounts(systemAccountMetas)
+    .remainingAccounts(packedAccountMetas.remainingAccounts)
     .instruction()
     .catch((e) => {
       console.log("error: ", e);

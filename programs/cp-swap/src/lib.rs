@@ -163,7 +163,7 @@ pub mod raydium_cp_swap {
         open_time: u64,
         compression_params: InitCompressibleParams,
     ) -> Result<()> {
-        msg!("ctx: {:?}", &ctx.remaining_accounts[0]);
+        msg!("ctx: {:?}", &ctx.remaining_accounts[0]); // TODO: check lifetimes.
         instructions::initialize(
             ctx,
             init_amount_0,
