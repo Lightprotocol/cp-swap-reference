@@ -13,6 +13,9 @@ use anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
+use light_compressed_account::instruction_data::cpi_context::CompressedCpiContext;
+use light_sdk::compressible::prepare_accounts_for_compression_on_init;
+use light_sdk::cpi::CpiAccountsSmall;
 use light_sdk::{
     compressible::{prepare_empty_compressed_accounts_on_init, CompressibleConfig},
     cpi::{CpiAccounts, CpiInputs},
@@ -359,16 +362,21 @@ pub fn initialize<'info>(
         }
 
         // Create CPI accounts
-        let cpi_accounts = CpiAccounts::new(&creator, &ctx.remaining_accounts, LIGHT_CPI_SIGNER);
+        let cpi_accounts =
+            CpiAccountsSmall::new(&creator, &ctx.remaining_accounts, LIGHT_CPI_SIGNER);
 
         // Prepare new address params. One per pda account.
         let pool_new_address_params = compression_params
             .pool_address_tree_info
-            .into_new_address_params_packed(pool_state.key().to_bytes());
+            .into_new_address_params_assigned_packed(pool_state.key().to_bytes(), true, Some(0));
 
         let observation_new_address_params = compression_params
             .observation_address_tree_info
-            .into_new_address_params_packed(observation_state.key().to_bytes());
+            .into_new_address_params_assigned_packed(
+                observation_state.key().to_bytes(),
+                true,
+                Some(1),
+            );
 
         let mut all_compressed_infos = Box::new(Vec::new());
 
@@ -378,13 +386,14 @@ pub fn initialize<'info>(
         // anyone at any time via the decompress_accounts_idempotent
         // instruction. Creates a unique cPDA to ensure that the account cannot
         // be re-inited only decompressed.
-        let user_compressed_infos = prepare_empty_compressed_accounts_on_init::<PoolState>(
+        let user_compressed_infos = prepare_accounts_for_compression_on_init::<PoolState>(
             &mut [pool_state],
             &[compression_params.pool_compressed_address],
             &[pool_new_address_params],
             &[compression_params.output_state_tree_index],
             &cpi_accounts,
             &config.address_space,
+            &ctx.accounts.rent_recipient,
         )?;
 
         all_compressed_infos.extend(user_compressed_infos);
@@ -394,27 +403,42 @@ pub fn initialize<'info>(
         // decompressed by anyone at any time via the
         // decompress_accounts_idempotent instruction. Creates a unique cPDA to
         // ensure that the account cannot be re-inited only decompressed.
-        let game_compressed_infos = prepare_empty_compressed_accounts_on_init::<ObservationState>(
+        let game_compressed_infos = prepare_accounts_for_compression_on_init::<ObservationState>(
             &mut [observation_state],
             &[compression_params.observation_compressed_address],
             &[observation_new_address_params],
             &[compression_params.output_state_tree_index],
             &cpi_accounts,
             &config.address_space,
+            &ctx.accounts.rent_recipient,
         )?;
         all_compressed_infos.extend(game_compressed_infos);
 
         // Create CPI inputs with all compressed accounts and new addresses
         let light_proof = compression_params.proof.into();
-        let cpi_inputs = CpiInputs::new_with_address(
+        let cpi_inputs = CpiInputs::new_with_assigned_address(
             light_proof,
             *all_compressed_infos,
             vec![pool_new_address_params, observation_new_address_params],
         );
+        // let cpi_inputs = CpiInputs {
+        //     proof: light_proof,
+        //     account_infos: Some(all_compressed_infos.to_vec()),
+        //     new_assigned_addresses: Some(vec![
+        //         pool_new_address_params,
+        //         observation_new_address_params,
+        //     ]),
+        //     cpi_context: Some(CompressedCpiContext {
+        //         set_context: false,
+        //         first_set_context: true,
+        //         cpi_context_account_index: 0, // Unused
+        //     }),
+        //     ..Default::default()
+        // };
 
         // Invoke light system program to create all compressed accounts in one
         // CPI. Call at the end of your init instruction.
-        cpi_inputs.invoke_light_system_program(cpi_accounts)?;
+        cpi_inputs.invoke_light_system_program_small(cpi_accounts)?;
     }
 
     Ok(())

@@ -32,21 +32,32 @@ solana-security-txt = "1.1.1"
 bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor", "anchor-discriminator-compat"] }
-light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
-light-hasher = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
-light-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
-light-sdk-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor"] }
+light-sdk = { path = "../../../light-protocol/sdk-libs/sdk", features = ["anchor", "anchor-discriminator-compat"] }
+light-sdk-types = { path = "../../../light-protocol/sdk-libs/sdk-types" }
+light-hasher = { path = "../../../light-protocol/program-libs/hasher", features = ["solana"] }
+light-macros = { path = "../../../light-protocol/program-libs/macros", features = ["solana"] }
+light-sdk-macros = { path = "../../../light-protocol/sdk-libs/macros" }
+light-compressed-account = { path = "../../../light-protocol/program-libs/compressed-account", features = ["anchor"] }
+
+# light-sdk = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor", "anchor-discriminator-compat"] }
+# light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
+# light-hasher = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
+# light-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["solana"] }
+# light-sdk-macros = {  git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
+# light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor"] }
 
 [dev-dependencies]
 quickcheck = "1.0.3"
 proptest = "1.0"
 rand = "0.9.0"
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["v2"] }
-light-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["v2"] }
-light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor"] }
-light-test-utils = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
+light-program-test = { path = "../../../light-protocol/sdk-libs/program-test", features = ["v2"] }
+light-client = { path = "../../../light-protocol/sdk-libs/client", features = ["v2"] }
+light-compressible-client = { path = "../../../light-protocol/sdk-libs/light-compressible-client", features = ["anchor"] }
+# light-test-utils = { path = "../../../light-protocol/sdk-libs/test-utils" }
+# light-program-test = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["v2"] }
+# light-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["v2"] }
+# light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok", features = ["anchor"] }
+# light-test-utils = { git = "https://github.com/lightprotocol/light-protocol", branch = "swen-0011-proc-ctok" }
 
 
 [profile.release]
