@@ -520,6 +520,7 @@ export async function initialize(
 
   const poolState = await getParsedCompressibleAccount(
     poolAddress,
+    addressTreeInfo,
     (data: Buffer) => program.coder.accounts.decodeUnchecked("poolState", data),
     program.programId,
     rpc

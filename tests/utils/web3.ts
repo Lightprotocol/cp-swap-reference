@@ -89,18 +89,17 @@ export async function getParsedCompressibleAccount<T = any>(
   const promises = [];
 
   // Try onchain (Rpc extends Connection)
-  promises.push(
-    rpc
-      .getAccountInfo(address)
-      .then((info) => (info ? decoder(info.data) : null))
-      .catch(() => null)
-  );
+  // promises.push(
+  //   rpc
+  //     .getAccountInfo(address)
+  //     .then((info) => (info ? decoder(info.data) : null))
+  //     .catch(() => null)
+  // );
 
   // Try compressed
   promises.push(
     (async () => {
       try {
-        const addressTreeInfo = getDefaultAddressTreeInfo();
         const compressedAddress = deriveAddressV2(
           address.toBytes(),
           addressTreeInfo.tree.toBytes(),
@@ -110,7 +109,13 @@ export async function getParsedCompressibleAccount<T = any>(
           bn(Array.from(compressedAddress))
         );
         // Skip discriminator bytes
-        return decoder(Buffer.concat([Buffer.alloc(8, 0), cAccount.data.data]));
+        return decoder(
+          Buffer.concat([
+            Buffer.from(cAccount.data.discriminator), // FIXME: this seems not to match anchor discriminator.
+            cAccount.data.data,
+          ])
+        );
+        // return decoder(Buffer.concat([Buffer.alloc(8, 0), cAccount.data.data]));
       } catch {
         return null;
       }
