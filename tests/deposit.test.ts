@@ -7,6 +7,8 @@ import {
   deposit,
   getUserAndPoolVaultAmount,
   setupDepositTest,
+  getParsedCompressibleAccount,
+  getCompressionInfo,
 } from "./utils";
 import { assert } from "chai";
 import { MAX_FEE_BASIS_POINTS, TOKEN_PROGRAM_ID } from "@solana/spl-token";
@@ -67,6 +69,13 @@ describe("deposit test", () => {
       confirmOptions
     );
     const newPoolState = await program.account.poolState.fetch(poolAddress);
+
+    // Log compression info
+    const { compressionInfo, isCompressed } = getCompressionInfo(newPoolState);
+    console.log("Pool compression info after deposit:", {
+      isCompressed,
+      compressionInfo,
+    });
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {
@@ -175,7 +184,19 @@ describe("deposit test", () => {
       new BN(200000000000),
       confirmOptions
     );
-    const newPoolState2 = await program.account.poolState.fetch(poolAddress2);
+    const newPoolState2 = await getPoolState(
+      poolAddress2,
+      program,
+      anchor.getProvider().connection
+    );
+
+    // Log compression info for second pool
+    const { compressionInfo: compressionInfo2, isCompressed: isCompressed2 } =
+      getCompressionInfo(newPoolState2);
+    console.log("Pool 2 compression info after deposit:", {
+      isCompressed: isCompressed2,
+      compressionInfo: compressionInfo2,
+    });
     assert(newPoolState2.lpSupply.eq(liquidity.add(poolState2.lpSupply)));
 
     const {
@@ -289,6 +310,13 @@ describe("deposit test", () => {
       confirmOptions
     );
     const newPoolState = await program.account.poolState.fetch(poolAddress);
+
+    // Log compression info
+    const { compressionInfo, isCompressed } = getCompressionInfo(newPoolState);
+    console.log("Pool compression info after deposit:", {
+      isCompressed,
+      compressionInfo,
+    });
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {

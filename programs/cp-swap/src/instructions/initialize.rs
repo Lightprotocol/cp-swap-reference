@@ -380,13 +380,26 @@ pub fn initialize<'info>(
 
         let mut all_compressed_infos = Box::new(Vec::new());
 
+        // msg!("pool_state before compression: {:?}", pool_state);
+        // msg!(
+        //     "pool_state data len: {:?}",
+        //     pool_state.to_account_info().data_len()
+        // );
+        let serialized = pool_state
+            .try_to_vec()
+            .map_err(|_| ErrorCode::InvalidRentRecipient)?;
+        msg!("pool_state auth_bump: {}", pool_state.auth_bump);
+        msg!("pool_state openTime: {}", pool_state.open_time);
+        msg!("pool_state serialized bytes: {:?}", serialized);
+        msg!("pool_state serialized bytes len: {:?}", serialized.len());
+
         // Prepares the firstpda account for compression. compress the pda
         // account safely. This also closes the pda account. safely. This also
         // closes the pda account. The account can then be decompressed by
         // anyone at any time via the decompress_accounts_idempotent
         // instruction. Creates a unique cPDA to ensure that the account cannot
         // be re-inited only decompressed.
-        let user_compressed_infos = prepare_accounts_for_compression_on_init::<PoolState>(
+        let pool_state_compressed_info = prepare_accounts_for_compression_on_init::<PoolState>(
             &mut [pool_state],
             &[compression_params.pool_compressed_address],
             &[pool_new_address_params],
@@ -396,7 +409,21 @@ pub fn initialize<'info>(
             &ctx.accounts.rent_recipient,
         )?;
 
-        all_compressed_infos.extend(user_compressed_infos);
+        msg!(
+            "pool_state data compressed len: {:?}",
+            &pool_state_compressed_info[0]
+                .output
+                .as_ref()
+                .unwrap()
+                .data
+                .len()
+        );
+        msg!(
+            "pool state data compressed: {:?}",
+            &pool_state_compressed_info[0].output.as_ref().unwrap().data
+        );
+
+        all_compressed_infos.extend(pool_state_compressed_info);
 
         // Process GameSession for compression. compress the pda account safely.
         // This also closes the pda account. The account can then be
@@ -421,24 +448,23 @@ pub fn initialize<'info>(
             *all_compressed_infos,
             vec![pool_new_address_params, observation_new_address_params],
         );
-        // let cpi_inputs = CpiInputs {
-        //     proof: light_proof,
-        //     account_infos: Some(all_compressed_infos.to_vec()),
-        //     new_assigned_addresses: Some(vec![
-        //         pool_new_address_params,
-        //         observation_new_address_params,
-        //     ]),
-        //     cpi_context: Some(CompressedCpiContext {
-        //         set_context: false,
-        //         first_set_context: true,
-        //         cpi_context_account_index: 0, // Unused
-        //     }),
-        //     ..Default::default()
-        // };
 
         // Invoke light system program to create all compressed accounts in one
         // CPI. Call at the end of your init instruction.
         cpi_inputs.invoke_light_system_program_small(cpi_accounts)?;
+
+        pool_state
+            .close(ctx.accounts.rent_recipient.clone())
+            .map_err(|err| {
+                msg!("Failed to close pool_state: {:?}", err);
+                ErrorCode::InvalidRentRecipient
+            })?;
+        observation_state
+            .close(ctx.accounts.rent_recipient.clone())
+            .map_err(|err| {
+                msg!("Failed to close observation_state: {:?}", err);
+                ErrorCode::InvalidRentRecipient
+            })?;
     }
 
     Ok(())

@@ -27,6 +27,8 @@ import {
   getPoolVaultAddress,
   createTokenMintAndAssociatedTokenAccount,
   getOrcleAccountAddress,
+  getParsedCompressibleAccount,
+  getCompressionInfo,
 } from "./index";
 import {
   createRpc,
@@ -42,6 +44,7 @@ import {
   packTreeInfos,
   deriveCompressionConfigAddress,
   createPackedAccounts,
+  createPackedAccountsSmall,
 } from "@lightprotocol/stateless.js";
 
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
@@ -426,12 +429,15 @@ export async function initialize(
   );
 
   // Set up packed accounts for compression
-  const remainingAccounts = createPackedAccounts(program.programId);
+  const remainingAccounts = createPackedAccountsSmall(program.programId);
+  const packedTreeInfos = packTreeInfos(proofRpcResult, remainingAccounts);
   const outputStateTreeIndex = remainingAccounts.insertOrGet(
     stateTreeInfo.queue
   );
-  const packedTreeInfos = packTreeInfos(proofRpcResult, remainingAccounts);
 
+  console.log("pool_atree_info", packedTreeInfos.addressTrees[0]);
+  console.log("observation_atree_info", packedTreeInfos.addressTrees[1]);
+  console.log("outputStateTreeIndex", outputStateTreeIndex);
   // Create compression params
   // 229 Bytes +1
   const compressionParams = {
@@ -450,6 +456,14 @@ export async function initialize(
 
   const packedAccountMetas = remainingAccounts.toAccountMetas();
 
+  console.log("EXPECTS THESE ACCOUNTS TO BE CREATED");
+  console.log("poolAddress", poolAddress.toBase58());
+  console.log("token0", token0.toBase58());
+  console.log("token1", token1.toBase58());
+  console.log("lpMintAddress", lpMintAddress.toBase58());
+  console.log("vault0", vault0.toBase58());
+  console.log("vault1", vault1.toBase58());
+  console.log("creatorToken0", creatorToken0.toBase58());
   const initializeIx = await program.methods
     .initialize(
       initAmount.initAmount0,
@@ -501,9 +515,20 @@ export async function initialize(
   }).compileToV0Message([lookupTableAccount]);
   const versionedTx = new web3.VersionedTransaction(messageV0);
   versionedTx.sign([creator]);
-  await sendAndConfirmTx(rpc, versionedTx, confirmOptions);
+  const txId = await sendAndConfirmTx(rpc, versionedTx, confirmOptions);
+  console.log("initialize txId", txId);
 
-  const poolState = await program.account.poolState.fetch(poolAddress);
+  const poolState = await getParsedCompressibleAccount(
+    poolAddress,
+    (data: Buffer) => program.coder.accounts.decodeUnchecked("poolState", data),
+    program.programId,
+    rpc
+  );
+
+  if (!poolState) {
+    throw new Error("Failed to fetch pool state");
+  }
+
   return { poolAddress, poolState };
 }
 

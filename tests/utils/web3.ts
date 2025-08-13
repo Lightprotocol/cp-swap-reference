@@ -1,4 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
+import { Program, Idl } from "@coral-xyz/anchor";
 import {
   Connection,
   Signer,
@@ -6,7 +7,17 @@ import {
   TransactionInstruction,
   TransactionSignature,
   ConfirmOptions,
+  PublicKey,
 } from "@solana/web3.js";
+import {
+  createRpc,
+  bn,
+  Rpc,
+  deriveAddressV2,
+  getDefaultAddressTreeInfo,
+  AddressTreeInfo,
+  TreeInfo,
+} from "@lightprotocol/stateless.js";
 
 export async function accountExist(
   connection: anchor.web3.Connection,
@@ -62,4 +73,72 @@ export async function getBlockTimestamp(
 ): Promise<number> {
   let slot = await connection.getSlot();
   return await connection.getBlockTime(slot);
+}
+
+/**
+ * Get parsed account data from compressed or onchain storage
+ * ONLY accepts Rpc - if you don't have Rpc, don't use this function
+ */
+export async function getParsedCompressibleAccount<T = any>(
+  address: PublicKey,
+  addressTreeInfo: TreeInfo,
+  decoder: (data: Buffer) => T,
+  programId: PublicKey,
+  rpc: Rpc
+): Promise<T | null> {
+  const promises = [];
+
+  // Try onchain (Rpc extends Connection)
+  promises.push(
+    rpc
+      .getAccountInfo(address)
+      .then((info) => (info ? decoder(info.data) : null))
+      .catch(() => null)
+  );
+
+  // Try compressed
+  promises.push(
+    (async () => {
+      try {
+        const addressTreeInfo = getDefaultAddressTreeInfo();
+        const compressedAddress = deriveAddressV2(
+          address.toBytes(),
+          addressTreeInfo.tree.toBytes(),
+          programId.toBytes()
+        );
+        const cAccount = await rpc.getCompressedAccount(
+          bn(Array.from(compressedAddress))
+        );
+        // Skip discriminator bytes
+        return decoder(Buffer.concat([Buffer.alloc(8, 0), cAccount.data.data]));
+      } catch {
+        return null;
+      }
+    })()
+  );
+
+  const results = await Promise.allSettled(promises);
+
+  // Return first successful result
+  for (const result of results) {
+    if (result.status === "fulfilled" && result.value) {
+      return result.value;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Helper to check if account data has compression info
+ */
+export function getCompressionInfo(accountData: any): {
+  compressionInfo: any | null;
+  isCompressed: boolean;
+} {
+  const compressionInfo = accountData?.compression_info || null;
+  return {
+    compressionInfo,
+    isCompressed: compressionInfo !== null,
+  };
 }

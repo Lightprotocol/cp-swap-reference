@@ -7,6 +7,8 @@ import {
   isEqual,
   setupDepositTest,
   withdraw,
+  getParsedCompressibleAccount,
+  getCompressionInfo,
 } from "./utils";
 import { assert } from "chai";
 
@@ -61,6 +63,13 @@ describe("withdraw test", () => {
       confirmOptions
     );
     const newPoolState = await program.account.poolState.fetch(poolAddress);
+
+    // Log compression info
+    const { compressionInfo, isCompressed } = getCompressionInfo(newPoolState);
+    console.log("Pool compression info after withdraw:", {
+      isCompressed,
+      compressionInfo,
+    });
     assert(newPoolState.lpSupply.eq(liquidity.divn(2).add(poolState.lpSupply)));
   });
 
@@ -122,6 +131,13 @@ describe("withdraw test", () => {
     );
 
     const newPoolState = await program.account.poolState.fetch(poolAddress);
+
+    // Log compression info
+    const { compressionInfo, isCompressed } = getCompressionInfo(newPoolState);
+    console.log("Pool compression info after withdraw:", {
+      isCompressed,
+      compressionInfo,
+    });
     assert(newPoolState.lpSupply.eq(poolState.lpSupply));
 
     const {

@@ -32,8 +32,8 @@ solana-security-txt = "1.1.1"
 bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 
-light-sdk = { path = "../../../light-protocol/sdk-libs/sdk", features = ["anchor", "anchor-discriminator-compat"] }
-light-sdk-types = { path = "../../../light-protocol/sdk-libs/sdk-types" }
+light-sdk = { path = "../../../light-protocol/sdk-libs/sdk", features = ["anchor", "anchor-discriminator-compat", "v2"] }
+light-sdk-types = { path = "../../../light-protocol/sdk-libs/sdk-types", features = ["v2"] }
 light-hasher = { path = "../../../light-protocol/program-libs/hasher", features = ["solana"] }
 light-macros = { path = "../../../light-protocol/program-libs/macros", features = ["solana"] }
 light-sdk-macros = { path = "../../../light-protocol/sdk-libs/macros" }
