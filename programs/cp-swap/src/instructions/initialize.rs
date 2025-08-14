@@ -380,18 +380,9 @@ pub fn initialize<'info>(
 
         let mut all_compressed_infos = Box::new(Vec::new());
 
-        // msg!("pool_state before compression: {:?}", pool_state);
-        // msg!(
-        //     "pool_state data len: {:?}",
-        //     pool_state.to_account_info().data_len()
-        // );
         let serialized = pool_state
             .try_to_vec()
             .map_err(|_| ErrorCode::InvalidRentRecipient)?;
-        msg!("pool_state auth_bump: {}", pool_state.auth_bump);
-        msg!("pool_state openTime: {}", pool_state.open_time);
-        msg!("pool_state serialized bytes: {:?}", serialized);
-        msg!("pool_state serialized bytes len: {:?}", serialized.len());
 
         // Prepares the firstpda account for compression. compress the pda
         // account safely. This also closes the pda account. safely. This also
@@ -408,28 +399,6 @@ pub fn initialize<'info>(
             &config.address_space,
             &ctx.accounts.rent_recipient,
         )?;
-
-        msg!(
-            "pool_state data compressed len: {:?}",
-            &pool_state_compressed_info[0]
-                .output
-                .as_ref()
-                .unwrap()
-                .data
-                .len()
-        );
-        msg!(
-            "pool state data compressed: {:?}",
-            &pool_state_compressed_info[0].output.as_ref().unwrap().data
-        );
-        msg!(
-            "pool_state_compressed_info discriminator: {:?}",
-            pool_state_compressed_info[0]
-                .output
-                .as_ref()
-                .unwrap()
-                .discriminator
-        );
 
         all_compressed_infos.extend(pool_state_compressed_info);
 

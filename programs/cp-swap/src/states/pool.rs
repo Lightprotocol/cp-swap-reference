@@ -129,7 +129,6 @@ impl PoolState {
 
     pub fn set_status(&mut self, status: u8) {
         self.status = status;
-        // PoolState::DISCRIMINATOR;
     }
 
     pub fn set_status_by_bit(&mut self, bit: PoolStatusBitIndex, flag: PoolStatusBitFlag) {
