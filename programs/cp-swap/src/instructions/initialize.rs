@@ -422,6 +422,14 @@ pub fn initialize<'info>(
             "pool state data compressed: {:?}",
             &pool_state_compressed_info[0].output.as_ref().unwrap().data
         );
+        msg!(
+            "pool_state_compressed_info discriminator: {:?}",
+            pool_state_compressed_info[0]
+                .output
+                .as_ref()
+                .unwrap()
+                .discriminator
+        );
 
         all_compressed_infos.extend(pool_state_compressed_info);
 

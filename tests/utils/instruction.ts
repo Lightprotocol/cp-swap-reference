@@ -27,8 +27,9 @@ import {
   getPoolVaultAddress,
   createTokenMintAndAssociatedTokenAccount,
   getOrcleAccountAddress,
-  getParsedCompressibleAccount,
+  getCompressibleAccountInfo,
   getCompressionInfo,
+  fetchCompressibleAccount,
 } from "./index";
 import {
   createRpc,
@@ -435,9 +436,6 @@ export async function initialize(
     stateTreeInfo.queue
   );
 
-  console.log("pool_atree_info", packedTreeInfos.addressTrees[0]);
-  console.log("observation_atree_info", packedTreeInfos.addressTrees[1]);
-  console.log("outputStateTreeIndex", outputStateTreeIndex);
   // Create compression params
   // 229 Bytes +1
   const compressionParams = {
@@ -456,14 +454,6 @@ export async function initialize(
 
   const packedAccountMetas = remainingAccounts.toAccountMetas();
 
-  console.log("EXPECTS THESE ACCOUNTS TO BE CREATED");
-  console.log("poolAddress", poolAddress.toBase58());
-  console.log("token0", token0.toBase58());
-  console.log("token1", token1.toBase58());
-  console.log("lpMintAddress", lpMintAddress.toBase58());
-  console.log("vault0", vault0.toBase58());
-  console.log("vault1", vault1.toBase58());
-  console.log("creatorToken0", creatorToken0.toBase58());
   const initializeIx = await program.methods
     .initialize(
       initAmount.initAmount0,
@@ -518,11 +508,11 @@ export async function initialize(
   const txId = await sendAndConfirmTx(rpc, versionedTx, confirmOptions);
   console.log("initialize txId", txId);
 
-  const poolState = await getParsedCompressibleAccount(
+  const poolState = await fetchCompressibleAccount(
     poolAddress,
     addressTreeInfo,
-    (data: Buffer) => program.coder.accounts.decodeUnchecked("poolState", data),
-    program.programId,
+    program,
+    "poolState",
     rpc
   );
 
