@@ -7,13 +7,20 @@ import {
   deposit,
   getUserAndPoolVaultAmount,
   setupDepositTest,
-  getParsedCompressibleAccount,
   getCompressionInfo,
+  fetchCompressibleAccount,
 } from "./utils";
 import { assert } from "chai";
 import { MAX_FEE_BASIS_POINTS, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
-describe("deposit test", () => {
+import {
+  CompressibleInstruction,
+  compressibleInstruction,
+  createRpc,
+  getDefaultAddressTreeInfo,
+} from "@lightprotocol/stateless.js";
+
+describe.only("deposit test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 
@@ -23,7 +30,7 @@ describe("deposit test", () => {
     skipPreflight: true,
   };
 
-  it("deposit test, add the same liquidity and check the correctness of the values with and without transfer fees", async () => {
+  it.only("deposit test, add the same liquidity and check the correctness of the values with and without transfer fees", async () => {
     /// deposit without fee
     const { poolAddress, poolState } = await setupDepositTest(
       program,
@@ -68,14 +75,15 @@ describe("deposit test", () => {
       new BN(20000000000),
       confirmOptions
     );
-    const newPoolState = await program.account.poolState.fetch(poolAddress);
 
-    // Log compression info
-    const { compressionInfo, isCompressed } = getCompressionInfo(newPoolState);
-    console.log("Pool compression info after deposit:", {
-      isCompressed,
-      compressionInfo,
-    });
+    const { account: newPoolState } = await fetchCompressibleAccount(
+      poolAddress,
+      getDefaultAddressTreeInfo(),
+      program,
+      "poolState",
+      createRpc()
+    );
+
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {
@@ -111,6 +119,7 @@ describe("deposit test", () => {
       MaxFee: 50000000000,
     }; // %10
 
+    console.log("setupDepositTest with fee...");
     // Ensure that the initialization state is the same with depsoit without fee
     const { poolAddress: poolAddress2, poolState: poolState2 } =
       await setupDepositTest(
@@ -170,6 +179,7 @@ describe("deposit test", () => {
       poolVault1TokenAccountBefore2.amount,
       poolVault1TokenAccountBefore.amount
     );
+    console.log("deposit with fee...");
 
     await deposit(
       program,
@@ -184,19 +194,16 @@ describe("deposit test", () => {
       new BN(200000000000),
       confirmOptions
     );
-    const newPoolState2 = await getPoolState(
+    console.log("fetchCompressibleAccount with fee...");
+    const { account: newPoolState2 } = await fetchCompressibleAccount(
       poolAddress2,
+      getDefaultAddressTreeInfo(),
       program,
-      anchor.getProvider().connection
+      "poolState",
+      createRpc()
     );
+    console.log("newPoolState2", newPoolState2);
 
-    // Log compression info for second pool
-    const { compressionInfo: compressionInfo2, isCompressed: isCompressed2 } =
-      getCompressionInfo(newPoolState2);
-    console.log("Pool 2 compression info after deposit:", {
-      isCompressed: isCompressed2,
-      compressionInfo: compressionInfo2,
-    });
     assert(newPoolState2.lpSupply.eq(liquidity.add(poolState2.lpSupply)));
 
     const {

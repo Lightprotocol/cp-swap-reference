@@ -1,5 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Program, Idl } from "@coral-xyz/anchor";
+import { Program, Idl, IdlAccounts } from "@coral-xyz/anchor";
 import {
   Connection,
   Signer,
@@ -75,13 +75,19 @@ export async function getBlockTimestamp(
 }
 
 // Anchor-only
-export async function fetchCompressibleAccount<T, TIdl extends Idl = Idl>(
+export async function fetchCompressibleAccount<
+  TIdl extends Idl,
+  TAccountName extends keyof IdlAccounts<TIdl>
+>(
   address: PublicKey,
   addressTreeInfo: TreeInfo,
   anchorProgram: Program<TIdl>,
-  type: string,
+  accountName: TAccountName,
   rpc: Rpc
-): Promise<T | null> {
+): Promise<{
+  account: IdlAccounts<TIdl>[TAccountName];
+  merkleContext?: MerkleContext;
+} | null> {
   const info = await getCompressibleAccountInfo(
     address,
     anchorProgram.programId,
@@ -90,10 +96,11 @@ export async function fetchCompressibleAccount<T, TIdl extends Idl = Idl>(
   );
 
   if (info) {
-    return anchorProgram.coder.accounts.decode(
-      type,
+    const account = anchorProgram.coder.accounts.decode(
+      accountName as string,
       info.accountInfo.data
-    ) as T;
+    ) as IdlAccounts<TIdl>[TAccountName];
+    return { account, merkleContext: info.merkleContext };
   }
 
   return null;
@@ -135,8 +142,8 @@ export async function getCompressibleAccountInfo(
   const compressedAccount =
     compressedResult.status === "fulfilled" ? compressedResult.value : null;
 
-  // is decompressed.
   if (onchainAccount) {
+    console.log("is onchainAccount");
     return { accountInfo: onchainAccount, merkleContext: undefined };
   }
 

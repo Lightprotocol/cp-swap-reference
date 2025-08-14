@@ -65,7 +65,7 @@ pub struct Initialize<'info> {
         ],
         bump,
         payer = creator,
-        space = PoolState::LEN
+        space = PoolState::INIT_SPACE
     )]
     pub pool_state: Box<Account<'info, PoolState>>,
 
@@ -485,7 +485,7 @@ pub fn create_pool<'info>(
             token_1_mint.key().as_ref(),
             &[bump],
         ],
-        PoolState::LEN,
+        PoolState::INIT_SPACE,
     )?;
 
     Ok(())

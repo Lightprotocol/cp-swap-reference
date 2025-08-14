@@ -3,16 +3,14 @@ import { Program, BN } from "@coral-xyz/anchor";
 import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 
 import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import {
-  setupInitializeTest,
-  initialize,
-  calculateFee,
-  getCompressionInfo,
-} from "./utils";
+import { setupInitializeTest, initialize, calculateFee } from "./utils";
 import { assert } from "chai";
-import { createRpc } from "@lightprotocol/stateless.js";
+import {
+  compressibleInstruction,
+  createRpc,
+} from "@lightprotocol/stateless.js";
 
-describe.only("initialize test", () => {
+describe("initialize test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 
@@ -25,7 +23,7 @@ describe.only("initialize test", () => {
   // We need Rpc here.
   const connection = createRpc();
 
-  it.only("create pool without fee", async () => {
+  it("create pool without fee", async () => {
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(
         program,
@@ -56,10 +54,6 @@ describe.only("initialize test", () => {
       { initAmount0, initAmount1 }
     );
     console.log("poolAddress", poolAddress.toBase58());
-
-    // Check compression info
-    const { compressionInfo, isCompressed } = getCompressionInfo(poolState);
-    console.log("Pool compression info:", { isCompressed, compressionInfo });
 
     console.log("token0Vault", poolState.token0Vault.toBase58());
     let vault0 = await getAccount(
@@ -112,12 +106,6 @@ describe.only("initialize test", () => {
     );
 
     // Check compression info for second test
-    const { compressionInfo: compressionInfo2, isCompressed: isCompressed2 } =
-      getCompressionInfo(poolState);
-    console.log("Pool compression info (with fee):", {
-      isCompressed: isCompressed2,
-      compressionInfo: compressionInfo2,
-    });
 
     let vault0 = await getAccount(
       connection,
@@ -167,14 +155,6 @@ describe.only("initialize test", () => {
       confirmOptions,
       { initAmount0, initAmount1 }
     );
-
-    // Check compression info for third test
-    const { compressionInfo: compressionInfo3, isCompressed: isCompressed3 } =
-      getCompressionInfo(poolState);
-    console.log("Pool compression info (with transfer fee):", {
-      isCompressed: isCompressed3,
-      compressionInfo: compressionInfo3,
-    });
 
     let vault0 = await getAccount(
       anchor.getProvider().connection,

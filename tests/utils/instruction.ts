@@ -1,4 +1,4 @@
-import { Program, BN, web3 } from "@coral-xyz/anchor";
+import { Program, BN, IdlTypes } from "@coral-xyz/anchor";
 import { RaydiumCpSwap } from "../../target/types/raydium_cp_swap";
 import {
   Connection,
@@ -10,6 +10,7 @@ import {
   SYSVAR_RENT_PUBKEY,
   TransactionMessage,
   ComputeBudgetProgram,
+  VersionedTransaction,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -46,6 +47,12 @@ import {
   deriveCompressionConfigAddress,
   createPackedAccounts,
   createPackedAccountsSmall,
+  compressibleInstruction,
+  CompressedAccountData,
+  DecompressMultipleAccountsIdempotentData,
+  buildAndSignTx,
+  TreeInfo,
+  PackedStateTreeInfo,
 } from "@lightprotocol/stateless.js";
 
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
@@ -55,6 +62,9 @@ const COMPRESSION_DELAY = 100;
 const ADDRESS_SPACE = [
   new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK"),
 ];
+
+type CompressedAccountVariant =
+  IdlTypes<RaydiumCpSwap>["compressedAccountVariant"];
 
 export async function setupInitializeTest(
   program: Program<RaydiumCpSwap>,
@@ -503,12 +513,12 @@ export async function initialize(
       initializeIx,
     ],
   }).compileToV0Message([lookupTableAccount]);
-  const versionedTx = new web3.VersionedTransaction(messageV0);
+  const versionedTx = new VersionedTransaction(messageV0);
   versionedTx.sign([creator]);
   const txId = await sendAndConfirmTx(rpc, versionedTx, confirmOptions);
   console.log("initialize txId", txId);
 
-  const poolState = await fetchCompressibleAccount(
+  const { account: poolState } = await fetchCompressibleAccount(
     poolAddress,
     addressTreeInfo,
     program,
@@ -536,8 +546,11 @@ export async function deposit(
   maximum_token_1_amount: BN,
   confirmOptions?: ConfirmOptions
 ) {
+  // Create RPC client for compression
+  const rpc = createRpc();
+  const addressTreeInfo = getDefaultAddressTreeInfo();
   const [auth] = await getAuthAddress(program.programId);
-  const [poolAddress] = await getPoolAddress(
+  const [poolAddress, poolBump] = await getPoolAddress(
     configAddress,
     token0,
     token1,
@@ -580,7 +593,141 @@ export async function deposit(
     token1Program
   );
 
-  const tx = await program.methods
+  const { account: poolState, merkleContext: poolMerkleContext } =
+    await fetchCompressibleAccount(
+      poolAddress,
+      addressTreeInfo,
+      program,
+      "poolState",
+      rpc
+    );
+
+  // Fetch observation state
+  const [observationAddress, observationBump] = await getOrcleAccountAddress(
+    poolAddress,
+    program.programId
+  );
+
+  const { account: observationState, merkleContext: observationMerkleContext } =
+    await fetchCompressibleAccount(
+      observationAddress,
+      addressTreeInfo,
+      program,
+      "observationState",
+      rpc
+    );
+
+  if (!poolState || !observationState) {
+    throw new Error("Failed to fetch compressed account states");
+  }
+
+  // TODO: consider hiding. TODO: review abstractions for this process. TODO:
+  // consider optimized atomic version of decompressAccountsIdempotent. (dynamic
+  // seeds, deriving addresses, data via indices). Current size >1k bytes.
+  const poolCompressedAddress = deriveAddressV2(
+    poolAddress.toBytes(),
+    poolMerkleContext.treeInfo.tree.toBytes(),
+    program.programId.toBytes()
+  );
+
+  const observationCompressedAddress = deriveAddressV2(
+    observationAddress.toBytes(),
+    observationMerkleContext.treeInfo.tree.toBytes(),
+    program.programId.toBytes()
+  );
+
+  const hashWithTree = {
+    hash: poolMerkleContext.hash,
+    tree: poolMerkleContext.treeInfo.tree,
+    queue: poolMerkleContext.treeInfo.queue,
+  };
+  const hashWithTree2 = {
+    hash: observationMerkleContext.hash,
+    tree: observationMerkleContext.treeInfo.tree,
+    queue: observationMerkleContext.treeInfo.queue,
+  };
+
+  const proof = await rpc.getValidityProofV0([hashWithTree, hashWithTree2]);
+
+  const remainingAccounts = createPackedAccountsSmall(program.programId);
+  const packedTreeInfos = packTreeInfos(proof, remainingAccounts);
+
+  const compressedAccountsData: {
+    meta: {
+      treeInfo: PackedStateTreeInfo;
+      address: number[];
+      outputStateTreeIndex: number;
+    };
+    data: CompressedAccountVariant;
+    seeds: Buffer[];
+  }[] = [
+    {
+      meta: {
+        treeInfo: packedTreeInfos.stateTrees[0],
+        address: Array.from(poolCompressedAddress),
+        outputStateTreeIndex: 0,
+      },
+      data: { poolState: [poolState] },
+      seeds: [
+        Buffer.from("pool"),
+        configAddress.toBuffer(),
+        token0.toBuffer(),
+        token1.toBuffer(),
+      ],
+    },
+    {
+      meta: {
+        treeInfo: packedTreeInfos.stateTrees[1],
+        address: Array.from(observationCompressedAddress),
+        outputStateTreeIndex: 0,
+      },
+      data: { observationState: [observationState] },
+      seeds: [Buffer.from("observation"), poolAddress.toBuffer()],
+    },
+  ];
+
+  const ix = await program.methods
+    .decompressAccountsIdempotent(
+      { 0: proof.compressedProof },
+      compressedAccountsData,
+      Buffer.from([poolBump, observationBump]),
+      compressedAccountsData.length
+    )
+    .accountsStrict({
+      feePayer: owner.publicKey,
+      rentPayer: owner.publicKey,
+      config: configAddress,
+    })
+    .remainingAccounts(remainingAccounts.toAccountMetas().remainingAccounts)
+    .instruction();
+
+  const lookupTableAccount = (
+    await rpc.getAddressLookupTable(
+      new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+    )
+  ).value;
+
+  const decompressMessageV0 = new TransactionMessage({
+    payerKey: owner.publicKey,
+    recentBlockhash: (await program.provider.connection.getLatestBlockhash())
+      .blockhash,
+    instructions: [
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
+      ix,
+    ],
+  }).compileToV0Message([lookupTableAccount]);
+
+  const decompressVersionedTx = new VersionedTransaction(decompressMessageV0);
+
+  decompressVersionedTx.sign([owner]);
+  const decompressTxId = await sendAndConfirmTx(
+    rpc,
+    decompressVersionedTx,
+    confirmOptions
+  );
+  console.log("decompressTxId", decompressTxId);
+
+  const depositIx = await program.methods
     .deposit(lp_token_amount, maximum_token_0_amount, maximum_token_1_amount)
     .accountsStrict({
       owner: owner.publicKey,
@@ -597,8 +744,19 @@ export async function deposit(
       vault1Mint: token1,
       lpMint: lpMintAddress,
     })
-    .rpc(confirmOptions);
-  return tx;
+    .instruction();
+
+  const messageV0 = new TransactionMessage({
+    payerKey: owner.publicKey,
+    recentBlockhash: (await program.provider.connection.getLatestBlockhash())
+      .blockhash,
+    instructions: [depositIx],
+  }).compileToV0Message([lookupTableAccount]);
+  const versionedTx = new VersionedTransaction(messageV0);
+  versionedTx.sign([owner]);
+  const txId = await sendAndConfirmTx(rpc, versionedTx, confirmOptions);
+  console.log("deposit txId", txId);
+  return txId;
 }
 
 export async function withdraw(
@@ -660,7 +818,7 @@ export async function withdraw(
 
   const tx = await program.methods
     .withdraw(lp_token_amount, minimum_token_0_amount, minimum_token_1_amount)
-    .accounts({
+    .accountsPartial({
       owner: owner.publicKey,
       authority: auth,
       poolState: poolAddress,
@@ -676,8 +834,7 @@ export async function withdraw(
       lpMint: lpMintAddress,
       memoProgram: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
     })
-    .rpc(confirmOptions)
-    .catch();
+    .rpc(confirmOptions);
 
   return tx;
 }
@@ -735,7 +892,7 @@ export async function swap_base_input(
 
   const ix = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
-    .accounts({
+    .accountsPartial({
       payer: owner.publicKey,
       authority: auth,
       ammConfig: configAddress,
@@ -810,7 +967,7 @@ export async function swap_base_output(
 
   const tx = await program.methods
     .swapBaseOutput(max_amount_in, amount_out_less_fee)
-    .accounts({
+    .accountsPartial({
       payer: owner.publicKey,
       authority: auth,
       ammConfig: configAddress,

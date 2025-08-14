@@ -87,7 +87,7 @@ pub struct PoolState {
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 8 * 31;
+    // pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 10 + 8 * 1;
 
     pub fn initialize(
         &mut self,
@@ -173,7 +173,7 @@ pub mod pool_test {
 
     #[test]
     fn pool_state_size_test() {
-        assert_eq!(std::mem::size_of::<PoolState>(), PoolState::LEN - 8)
+        assert_eq!(std::mem::size_of::<PoolState>(), PoolState::INIT_SPACE - 8);
     }
 
     mod pool_status_test {

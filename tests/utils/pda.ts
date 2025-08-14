@@ -92,6 +92,22 @@ export async function getPoolAddress(
   return [address, bump];
 }
 
+export function getPoolSignerSeeds(
+  ammConfig: PublicKey,
+  tokenMint0: PublicKey,
+  tokenMint1: PublicKey,
+  programId: PublicKey
+): Buffer[] {
+  const seeds = [
+    POOL_SEED,
+    ammConfig.toBuffer(),
+    tokenMint0.toBuffer(),
+    tokenMint1.toBuffer(),
+  ];
+  const [_, bump] = PublicKey.findProgramAddressSync(seeds, programId);
+  return Array.from(seeds).concat([Buffer.from([bump])]);
+}
+
 export async function getPoolVaultAddress(
   pool: PublicKey,
   vaultTokenMint: PublicKey,
