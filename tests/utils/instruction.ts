@@ -31,6 +31,8 @@ import {
   getCompressibleAccountInfo,
   getCompressionInfo,
   fetchCompressibleAccount,
+  POOL_SEED,
+  ORACLE_SEED,
 } from "./index";
 import {
   createRpc,
@@ -56,6 +58,7 @@ import {
 } from "@lightprotocol/stateless.js";
 
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
+import { bytes } from "@coral-xyz/anchor/dist/cjs/utils";
 
 featureFlags.version = VERSION.V2;
 const COMPRESSION_DELAY = 100;
@@ -164,7 +167,7 @@ export async function setupDepositTest(
   if (!(await accountExist(connection, address))) {
     // Create RPC client for compression
     const rpc = createRpc();
-    await initializeCompressionConfig(
+    const txId = await initializeCompressionConfig(
       rpc,
       owner,
       program.programId,
@@ -173,6 +176,7 @@ export async function setupDepositTest(
       program.provider.wallet.payer.publicKey, // rent recipient
       ADDRESS_SPACE
     );
+    console.log("initializeCompressionConfig txId", txId);
   }
 
   while (1) {
@@ -626,13 +630,13 @@ export async function deposit(
   // seeds, deriving addresses, data via indices). Current size >1k bytes.
   const poolCompressedAddress = deriveAddressV2(
     poolAddress.toBytes(),
-    poolMerkleContext.treeInfo.tree.toBytes(),
+    addressTreeInfo.tree.toBytes(),
     program.programId.toBytes()
   );
 
   const observationCompressedAddress = deriveAddressV2(
     observationAddress.toBytes(),
-    observationMerkleContext.treeInfo.tree.toBytes(),
+    addressTreeInfo.tree.toBytes(),
     program.programId.toBytes()
   );
 
@@ -650,6 +654,16 @@ export async function deposit(
   const proof = await rpc.getValidityProofV0([hashWithTree, hashWithTree2]);
 
   const remainingAccounts = createPackedAccountsSmall(program.programId);
+  remainingAccounts.addPreAccountsMeta({
+    isSigner: false,
+    isWritable: true,
+    pubkey: poolAddress,
+  });
+  remainingAccounts.addPreAccountsMeta({
+    isSigner: false,
+    isWritable: true,
+    pubkey: observationAddress,
+  });
   const packedTreeInfos = packTreeInfos(proof, remainingAccounts);
 
   const compressedAccountsData: {
@@ -663,13 +677,13 @@ export async function deposit(
   }[] = [
     {
       meta: {
-        treeInfo: packedTreeInfos.stateTrees[0],
+        treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[0],
         address: Array.from(poolCompressedAddress),
-        outputStateTreeIndex: 0,
+        outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
       },
       data: { poolState: [poolState] },
       seeds: [
-        Buffer.from("pool"),
+        POOL_SEED,
         configAddress.toBuffer(),
         token0.toBuffer(),
         token1.toBuffer(),
@@ -677,12 +691,12 @@ export async function deposit(
     },
     {
       meta: {
-        treeInfo: packedTreeInfos.stateTrees[1],
+        treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[1],
         address: Array.from(observationCompressedAddress),
-        outputStateTreeIndex: 0,
+        outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
       },
       data: { observationState: [observationState] },
-      seeds: [Buffer.from("observation"), poolAddress.toBuffer()],
+      seeds: [ORACLE_SEED, poolAddress.toBuffer()],
     },
   ];
 
@@ -696,7 +710,7 @@ export async function deposit(
     .accountsStrict({
       feePayer: owner.publicKey,
       rentPayer: owner.publicKey,
-      config: configAddress,
+      config: deriveCompressionConfigAddress(program.programId)[0],
     })
     .remainingAccounts(remainingAccounts.toAccountMetas().remainingAccounts)
     .instruction();

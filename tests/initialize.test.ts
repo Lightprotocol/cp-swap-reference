@@ -10,7 +10,7 @@ import {
   createRpc,
 } from "@lightprotocol/stateless.js";
 
-describe("initialize test", () => {
+describe.only("initialize test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 

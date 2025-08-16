@@ -30,7 +30,7 @@ describe.only("deposit test", () => {
     skipPreflight: true,
   };
 
-  it.only("deposit test, add the same liquidity and check the correctness of the values with and without transfer fees", async () => {
+  it("deposit test, add the same liquidity and check the correctness of the values with and without transfer fees", async () => {
     /// deposit without fee
     const { poolAddress, poolState } = await setupDepositTest(
       program,
@@ -119,7 +119,6 @@ describe.only("deposit test", () => {
       MaxFee: 50000000000,
     }; // %10
 
-    console.log("setupDepositTest with fee...");
     // Ensure that the initialization state is the same with depsoit without fee
     const { poolAddress: poolAddress2, poolState: poolState2 } =
       await setupDepositTest(
@@ -179,7 +178,6 @@ describe.only("deposit test", () => {
       poolVault1TokenAccountBefore2.amount,
       poolVault1TokenAccountBefore.amount
     );
-    console.log("deposit with fee...");
 
     await deposit(
       program,
@@ -194,7 +192,7 @@ describe.only("deposit test", () => {
       new BN(200000000000),
       confirmOptions
     );
-    console.log("fetchCompressibleAccount with fee...");
+
     const { account: newPoolState2 } = await fetchCompressibleAccount(
       poolAddress2,
       getDefaultAddressTreeInfo(),
@@ -202,7 +200,6 @@ describe.only("deposit test", () => {
       "poolState",
       createRpc()
     );
-    console.log("newPoolState2", newPoolState2);
 
     assert(newPoolState2.lpSupply.eq(liquidity.add(poolState2.lpSupply)));
 
@@ -318,12 +315,6 @@ describe.only("deposit test", () => {
     );
     const newPoolState = await program.account.poolState.fetch(poolAddress);
 
-    // Log compression info
-    const { compressionInfo, isCompressed } = getCompressionInfo(newPoolState);
-    console.log("Pool compression info after deposit:", {
-      isCompressed,
-      compressionInfo,
-    });
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {
