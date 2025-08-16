@@ -7,7 +7,6 @@ import {
   isEqual,
   setupDepositTest,
   withdraw,
-  getParsedCompressibleAccount,
   getCompressionInfo,
 } from "./utils";
 import { assert } from "chai";

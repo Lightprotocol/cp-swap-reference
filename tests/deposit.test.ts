@@ -7,34 +7,31 @@ import {
   deposit,
   getUserAndPoolVaultAmount,
   setupDepositTest,
-  getCompressionInfo,
   fetchCompressibleAccount,
 } from "./utils";
 import { assert } from "chai";
 import { MAX_FEE_BASIS_POINTS, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-
 import {
-  CompressibleInstruction,
-  compressibleInstruction,
   createRpc,
   getDefaultAddressTreeInfo,
 } from "@lightprotocol/stateless.js";
 
-describe.only("deposit test", () => {
+describe("deposit test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
+  const connection = createRpc(); // connection with additional compression endpoints.
   const owner = anchor.Wallet.local().payer;
 
   const program = anchor.workspace.RaydiumCpSwap as Program<RaydiumCpSwap>;
 
   const confirmOptions = {
-    skipPreflight: true,
+    skipPreflight: false,
   };
 
   it("deposit test, add the same liquidity and check the correctness of the values with and without transfer fees", async () => {
     /// deposit without fee
     const { poolAddress, poolState } = await setupDepositTest(
       program,
-      anchor.getProvider().connection,
+      connection,
       owner,
       {
         config_index: 0,
@@ -81,7 +78,7 @@ describe.only("deposit test", () => {
       getDefaultAddressTreeInfo(),
       program,
       "poolState",
-      createRpc()
+      connection
     );
 
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
@@ -123,7 +120,7 @@ describe.only("deposit test", () => {
     const { poolAddress: poolAddress2, poolState: poolState2 } =
       await setupDepositTest(
         program,
-        anchor.getProvider().connection,
+        connection,
         owner,
         {
           config_index: 0,
@@ -198,7 +195,7 @@ describe.only("deposit test", () => {
       getDefaultAddressTreeInfo(),
       program,
       "poolState",
-      createRpc()
+      connection
     );
 
     assert(newPoolState2.lpSupply.eq(liquidity.add(poolState2.lpSupply)));
@@ -272,7 +269,7 @@ describe.only("deposit test", () => {
 
     const { poolAddress, poolState } = await setupDepositTest(
       program,
-      anchor.getProvider().connection,
+      connection,
       owner,
       {
         config_index: 0,

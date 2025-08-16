@@ -173,17 +173,21 @@ export async function getCompressibleAccountInfo(
   return null;
 }
 
-// TODO: fix.
 /**
  * Helper to check if account data has compression info
  */
 export function getCompressionInfo(accountData: any): {
   compressionInfo: any | null;
   isCompressed: boolean;
+  isInitialized: boolean;
+  isCompressible: boolean;
 } {
   const compressionInfo = accountData?.compression_info || null;
+  const isInitialized = accountData ? true : false;
   return {
     compressionInfo,
-    isCompressed: compressionInfo !== null,
+    isCompressed: compressionInfo === null && isInitialized,
+    isInitialized,
+    isCompressible: compressionInfo === null && isInitialized,
   };
 }

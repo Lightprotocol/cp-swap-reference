@@ -10,7 +10,7 @@ import {
   createRpc,
 } from "@lightprotocol/stateless.js";
 
-describe.only("initialize test", () => {
+describe("initialize test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 
@@ -19,10 +19,7 @@ describe.only("initialize test", () => {
   const confirmOptions = {
     skipPreflight: false,
   };
-
-  // We need Rpc here.
   const connection = createRpc();
-
   it("create pool without fee", async () => {
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(
