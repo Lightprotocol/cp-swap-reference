@@ -207,7 +207,7 @@ async fn main() -> Result<()> {
 
             let lookup_table = load_lookup_table(&rpc_client, &LOOKUP_TABLE_ADDRESS)?;
 
-            let _ = send_versioned_txn(
+            send_versioned_txn(
                 &rpc_client,
                 &initialize_pool_instr,
                 &signers,
@@ -312,7 +312,7 @@ async fn main() -> Result<()> {
             let lookup_table = load_lookup_table(&rpc_client, &LOOKUP_TABLE_ADDRESS)?;
             let lookup_tables = vec![lookup_table];
 
-            let _ = send_versioned_txn(
+            send_versioned_txn(
                 &rpc_client,
                 &instructions,
                 &signers,
@@ -437,7 +437,7 @@ async fn main() -> Result<()> {
             let lookup_table = load_lookup_table(&rpc_client, &LOOKUP_TABLE_ADDRESS)?;
             let lookup_tables = vec![lookup_table];
 
-            let _ = send_versioned_txn(
+            send_versioned_txn(
                 &rpc_client,
                 &instructions,
                 &signers,
@@ -613,7 +613,7 @@ async fn main() -> Result<()> {
             // Load lookup table
             let lookup_table = load_lookup_table(&rpc_client, &LOOKUP_TABLE_ADDRESS)?;
 
-            let _ = send_versioned_txn(
+            send_versioned_txn(
                 &rpc_client,
                 &instructions,
                 &signers,
@@ -792,7 +792,7 @@ async fn main() -> Result<()> {
             // Load lookup table
             let lookup_table = load_lookup_table(&rpc_client, &LOOKUP_TABLE_ADDRESS)?;
 
-            let _ = send_versioned_txn(
+            send_versioned_txn(
                 &rpc_client,
                 &instructions,
                 &signers,

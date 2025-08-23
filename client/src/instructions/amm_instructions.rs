@@ -116,12 +116,10 @@ pub async fn initialize_pool_instr(
     let mut remaining_accounts = PackedAccounts::default();
     let address_tree_info = light_client.get_address_tree_v2();
     let state_tree_info = light_client.get_state_tree_infos()[0];
-    let _ = remaining_accounts.add_system_accounts_small(
-        SystemAccountMetaConfig::new_with_cpi_context(
-            program.id(),
-            state_tree_info.cpi_context.unwrap(),
-        ),
-    );
+    remaining_accounts.add_system_accounts_small(SystemAccountMetaConfig::new_with_cpi_context(
+        program.id(),
+        state_tree_info.cpi_context.unwrap(),
+    ))?;
 
     // Derive compressed addresses of all to-be-initialized compressible accounts.
     let pool_compressed_address = derive_address(
