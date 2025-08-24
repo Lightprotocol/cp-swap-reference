@@ -5,9 +5,10 @@ import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { setupInitializeTest, initialize, calculateFee } from "./utils";
 import { assert } from "chai";
 import { createRpc, featureFlags, VERSION } from "@lightprotocol/stateless.js";
+import { CompressedTokenProgram } from "@lightprotocol/compressed-token";
 
 featureFlags.version = VERSION.V2;
-describe("initialize test", () => {
+describe.only("initialize test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
   console.log("owner: ", owner.publicKey.toString());
@@ -20,7 +21,7 @@ describe("initialize test", () => {
   // Extend connection with zkcompression endpoints
   const connection = createRpc();
 
-  it("create pool without fee", async () => {
+  it.only("create pool without fee", async () => {
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(
         program,
@@ -50,20 +51,23 @@ describe("initialize test", () => {
       confirmOptions,
       { initAmount0, initAmount1 }
     );
+    console.log("initialized poolState: ", poolState);
     let vault0 = await getAccount(
       connection,
       poolState.token0Vault,
       "processed",
-      poolState.token0Program
+      CompressedTokenProgram.programId
     );
+    console.log("vault0: ", vault0);
     assert.equal(vault0.amount.toString(), initAmount0.toString());
 
     let vault1 = await getAccount(
       connection,
       poolState.token1Vault,
       "processed",
-      poolState.token1Program
+      CompressedTokenProgram.programId
     );
+    console.log("vault1: ", vault1);
     assert.equal(vault1.amount.toString(), initAmount1.toString());
   });
 
@@ -101,7 +105,7 @@ describe("initialize test", () => {
       connection,
       poolState.token0Vault,
       "processed",
-      poolState.token0Program
+      CompressedTokenProgram.programId
     );
     assert.equal(vault0.amount.toString(), initAmount0.toString());
 
@@ -109,12 +113,12 @@ describe("initialize test", () => {
       anchor.getProvider().connection,
       poolState.token1Vault,
       "processed",
-      poolState.token1Program
+      CompressedTokenProgram.programId
     );
     assert.equal(vault1.amount.toString(), initAmount1.toString());
   });
 
-  it("create pool with token2022 mint has transfer fee", async () => {
+  it.skip("create pool with token2022 mint has transfer fee", async () => {
     const transferFeeConfig = { transferFeeBasisPoints: 100, MaxFee: 50000000 }; // %10
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(

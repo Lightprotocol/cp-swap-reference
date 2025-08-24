@@ -177,12 +177,9 @@ pub async fn initialize_pool_instr(
 
     let compression_params =
         raydium_cp_swap::instructions::initialize::InitializeCompressionParams {
-            pool_compressed_address,
             pool_address_tree_info,
-            observation_compressed_address,
             observation_address_tree_info,
             lp_mint_address_tree_info,
-            lp_mint_compressed_address,
             lp_mint_bump,
             proof: rpc_result.proof.into(),
             output_state_tree_index,

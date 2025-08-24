@@ -1,9 +1,15 @@
 use crate::error::ErrorCode;
-use anchor_lang::{prelude::*, system_program};
+use anchor_lang::{
+    prelude::*,
+    system_program::{self, transfer},
+};
 use anchor_spl::{
     token::{Token, TokenAccount},
     token_2022,
     token_interface::{initialize_account3, InitializeAccount3, Mint},
+};
+use light_compressed_token_sdk::instructions::transfer2::{
+    transfer_ctoken_to_spl_signed, transfer_spl_to_ctoken,
 };
 use spl_token_2022::{
     self,
@@ -13,6 +19,7 @@ use spl_token_2022::{
     },
 };
 use std::collections::HashSet;
+// use light_compressed_token_sdk::instructions::transfer2::
 
 const MINT_WHITELIST: [&'static str; 4] = [
     "HVbpJAQGNpkgBaYBZQBR1t7yFdvaYVp2vCQQfKKEN4tM",
@@ -21,31 +28,32 @@ const MINT_WHITELIST: [&'static str; 4] = [
     "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
 ];
 
-pub fn transfer_from_user_to_pool_vault<'a>(
+pub fn transfer_from_user_to_pool_vault<'a, 'b>(
     authority: AccountInfo<'a>,
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
     amount: u64,
-    mint_decimals: u8,
+    token_pool_pda: AccountInfo<'a>,
+    token_pool_pda_bump: u8,
+    token_program_authority: AccountInfo<'a>,
+    // remaining_accounts: Option<&[AccountInfo<'b>]>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    token_2022::transfer_checked(
-        CpiContext::new(
-            token_program.to_account_info(),
-            token_2022::TransferChecked {
-                from,
-                to: to_vault,
-                authority,
-                mint,
-            },
-        ),
+    transfer_spl_to_ctoken(
+        from,
+        to_vault,
         amount,
-        mint_decimals,
-    )
+        authority,
+        mint,
+        token_pool_pda,
+        token_pool_pda_bump,
+        token_program_authority,
+        // remaining_accounts.unwrap_or(&[]),
+    )?;
+    Ok(())
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
@@ -53,28 +61,23 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
+    token_pool_pda: AccountInfo<'a>,
     amount: u64,
-    mint_decimals: u8,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    token_2022::transfer_checked(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            token_2022::TransferChecked {
-                from: from_vault,
-                to,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
+    transfer_ctoken_to_spl_signed(
+        from_vault,
+        to,
         amount,
-        mint_decimals,
-    )
+        authority,
+        mint,
+        token_pool_pda,
+        signer_seeds,
+    )?;
+    Ok(())
 }
 
 /// Calculate the fee for output amount
@@ -143,12 +146,7 @@ pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> 
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
     let extensions = mint.get_extension_types()?;
     for e in extensions {
-        if e != ExtensionType::TransferFeeConfig
-            && e != ExtensionType::MetadataPointer
-            && e != ExtensionType::TokenMetadata
-            && e != ExtensionType::InterestBearingConfig
-            && e != ExtensionType::ScaledUiAmount
-        {
+        if e != ExtensionType::TokenMetadata {
             return Ok(false);
         }
     }

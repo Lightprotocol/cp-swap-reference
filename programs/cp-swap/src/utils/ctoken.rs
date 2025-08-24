@@ -11,7 +11,7 @@ use light_compressed_token_sdk::{
     instructions::{
         create_compressible_associated_token_account_with_bump as initialize_compressible_associated_token_account_with_bump,
         create_compressible_token_account as initialize_compressible_token_account,
-        create_mint_action_cpi, transfer, transfer_signed,
+        create_mint_action_cpi, derive_compressed_mint_address, transfer, transfer_signed,
         CreateCompressibleAssociatedTokenAccountInputs, CreateCompressibleTokenAccount,
         MintActionInputs, MintActionType,
     },
@@ -155,21 +155,21 @@ pub fn create_and_mint_lp<'a, 'b, 'info>(
     vault_lp_amount: u64,
     pool_auth_bump: u8,
 ) -> Result<()> {
-    let compressed_mint_with_context = CompressedMintWithContext::new(
-        compression_params.lp_mint_compressed_address,
-        compression_params.lp_mint_address_tree_info.root_index,
-        9, // Our Lp mints always have 9 decimals.
-        Some(authority.key().into()),
-        Some(authority.key().into()),
-        lp_mint_key.into(),
-    );
-
     // Get tree accounts
     let output_state_queue_idx: u8 = 0;
     let address_tree_idx: u8 = 1;
     let output_state_queue =
         *cpi_accounts.tree_accounts().unwrap()[output_state_queue_idx as usize].key;
     let address_tree_pubkey = *cpi_accounts.tree_accounts().unwrap()[address_tree_idx as usize].key;
+
+    let compressed_mint_with_context = CompressedMintWithContext::new(
+        derive_compressed_mint_address(lp_mint_key, &address_tree_pubkey),
+        compression_params.lp_mint_address_tree_info.root_index,
+        9, // Our Lp mints always have 9 decimals.
+        Some(authority.key().into()),
+        Some(authority.key().into()),
+        lp_mint_key.into(),
+    );
 
     // The cmint creation is implicit. Here we additionally
     // mint to the creator and the pool vault.

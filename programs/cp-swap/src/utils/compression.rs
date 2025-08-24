@@ -1,6 +1,7 @@
 use crate::instructions::InitializeCompressionParams;
 use crate::states::*;
 use anchor_lang::prelude::*;
+use light_compressed_account::address::derive_address;
 use light_sdk::compressible::prepare_accounts_for_compression_on_init;
 use light_sdk::cpi::CpiAccountsSmall;
 use light_sdk::cpi::CpiInputs;
@@ -36,6 +37,25 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
             true,
             Some(OBSERVATION_STATE_CREATION_INDEX),
         );
+    // To save CU in exchange for ix data, you canpass the addresses via client.
+    let pool_compressed_address = derive_address(
+        &pool_state.key().to_bytes(),
+        &cpi_accounts
+            .get_tree_address(pool_new_address_params.address_merkle_tree_account_index)
+            .unwrap()
+            .key
+            .to_bytes(),
+        &crate::ID.to_bytes(),
+    );
+    let observation_compressed_address = derive_address(
+        &observation_state.key().to_bytes(),
+        &cpi_accounts
+            .get_tree_address(observation_new_address_params.address_merkle_tree_account_index)
+            .unwrap()
+            .key
+            .to_bytes(),
+        &crate::ID.to_bytes(),
+    );
 
     // 2. Prepare accounts for compression
     // prepare_accounts_for_compression_on_init is for direct compression. To
@@ -48,7 +68,7 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
 
     let pool_state_compressed_info = prepare_accounts_for_compression_on_init::<PoolState>(
         &[pool_state],
-        &[compression_params.pool_compressed_address],
+        &[pool_compressed_address],
         &[pool_new_address_params],
         &[compression_params.output_state_tree_index],
         &cpi_accounts,
@@ -59,7 +79,7 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
 
     let observation_compressed_infos = prepare_accounts_for_compression_on_init::<ObservationState>(
         &[observation_state],
-        &[compression_params.observation_compressed_address],
+        &[observation_compressed_address],
         &[observation_new_address_params],
         &[compression_params.output_state_tree_index],
         &cpi_accounts,

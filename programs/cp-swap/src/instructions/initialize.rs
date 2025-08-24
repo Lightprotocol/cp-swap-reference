@@ -182,7 +182,20 @@ pub struct Initialize<'info> {
     pub compressed_token_program_cpi_authority: AccountInfo<'info>,
     /// CHECK: checked by protocol.
     pub compressed_token_program: AccountInfo<'info>,
+    /// CHECK: checked by protocol.
+    #[account(mut)]
+    pub compressed_token_0_pool_pda: AccountInfo<'info>,
+    /// CHECK: checked by protocol.
+    #[account(mut)]
+    pub compressed_token_1_pool_pda: AccountInfo<'info>,
 }
+
+// This instruction:
+// 0. Runs checks and loads compression config.
+// 1. Creates token vault accounts for pool tokens.
+// 2. Initializes PoolState and ObservationState, and compresses them.
+// 3. Creates compressed token mint for LP tokens.
+// 4. Mints initial liquidity to user and vault.
 
 pub fn initialize<'info>(
     ctx: Context<'_, '_, '_, 'info, Initialize<'info>>,
@@ -191,6 +204,52 @@ pub fn initialize<'info>(
     mut open_time: u64,
     compression_params: InitializeCompressionParams,
 ) -> Result<()> {
+    msg!("authority: {}", ctx.accounts.authority.key());
+    msg!("creator: {}", ctx.accounts.creator.key());
+    msg!("pool_state: {}", ctx.accounts.pool_state.key());
+    msg!("token_0_mint: {}", ctx.accounts.token_0_mint.key());
+    msg!("token_1_mint: {}", ctx.accounts.token_1_mint.key());
+    msg!("token_0_vault: {}", ctx.accounts.token_0_vault.key());
+    msg!("token_1_vault: {}", ctx.accounts.token_1_vault.key());
+    msg!("creator_token_0: {}", ctx.accounts.creator_token_0.key());
+    msg!("creator_token_1: {}", ctx.accounts.creator_token_1.key());
+    msg!("creator_lp_token: {}", ctx.accounts.creator_lp_token.key());
+    msg!("lp_mint: {}", ctx.accounts.lp_mint.key());
+    msg!("lp_vault: {}", ctx.accounts.lp_vault.key());
+    msg!(
+        "observation_state: {}",
+        ctx.accounts.observation_state.key()
+    );
+    msg!("token_program: {}", ctx.accounts.token_program.key());
+    msg!("token_0_program: {}", ctx.accounts.token_0_program.key());
+    msg!("token_1_program: {}", ctx.accounts.token_1_program.key());
+    msg!(
+        "associated_token_program: {}",
+        ctx.accounts.associated_token_program.key()
+    );
+    msg!("system_program: {}", ctx.accounts.system_program.key());
+    msg!("rent: {}", ctx.accounts.rent.key());
+    msg!(
+        "compression_config: {}",
+        ctx.accounts.compression_config.key()
+    );
+    msg!("rent_recipient: {}", ctx.accounts.rent_recipient.key());
+    msg!(
+        "compressed_token_program_cpi_authority: {}",
+        ctx.accounts.compressed_token_program_cpi_authority.key()
+    );
+    msg!(
+        "compressed_token_program: {}",
+        ctx.accounts.compressed_token_program.key()
+    );
+    msg!(
+        "compressed_token_0_pool_pda: {}",
+        ctx.accounts.compressed_token_0_pool_pda.key()
+    );
+    msg!(
+        "compressed_token_1_pool_pda: {}",
+        ctx.accounts.compressed_token_1_pool_pda.key()
+    );
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
         && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
     {
@@ -213,36 +272,57 @@ pub fn initialize<'info>(
     if open_time <= block_timestamp {
         open_time = block_timestamp + 1;
     }
-    // due to stack/heap limitations, we have to create redundant new accounts ourselves.
-    create_token_account(
+
+    create_compressible_token_account(
         &ctx.accounts.authority.to_account_info(),
         &ctx.accounts.creator.to_account_info(),
         &ctx.accounts.token_0_vault.to_account_info(),
         &ctx.accounts.token_0_mint.to_account_info(),
         &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.token_0_program.to_account_info(),
+        &ctx.accounts.compressed_token_program.to_account_info(),
         &[
             POOL_VAULT_SEED.as_bytes(),
             ctx.accounts.pool_state.key().as_ref(),
             ctx.accounts.token_0_mint.key().as_ref(),
             &[ctx.bumps.token_0_vault][..],
         ],
+        &ctx.accounts.rent.to_account_info(),
+        &ctx.accounts.rent_recipient.to_account_info(),
+        compression_config.compression_delay as u64,
     )?;
 
-    create_token_account(
+    msg!(
+        "created token 0 vault: {}",
+        ctx.accounts.token_0_vault.key()
+    );
+
+    create_compressible_token_account(
         &ctx.accounts.authority.to_account_info(),
         &ctx.accounts.creator.to_account_info(),
         &ctx.accounts.token_1_vault.to_account_info(),
         &ctx.accounts.token_1_mint.to_account_info(),
         &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.token_1_program.to_account_info(),
+        &ctx.accounts.compressed_token_program.to_account_info(),
         &[
             POOL_VAULT_SEED.as_bytes(),
             ctx.accounts.pool_state.key().as_ref(),
             ctx.accounts.token_1_mint.key().as_ref(),
             &[ctx.bumps.token_1_vault][..],
         ],
+        &ctx.accounts.rent.to_account_info(),
+        &ctx.accounts.rent_recipient.to_account_info(),
+        compression_config.compression_delay as u64,
     )?;
+
+    msg!(
+        "created token 1 vault: {}",
+        ctx.accounts.token_1_vault.key()
+    );
+    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
+        ctx.accounts.token_0_mint.key(),
+        ctx.accounts.token_1_mint.key(),
+        ctx.accounts.compressed_token_program.key(),
+    );
 
     let pool_state = &mut ctx.accounts.pool_state;
     let pool_state_key = pool_state.key();
@@ -255,20 +335,36 @@ pub fn initialize<'info>(
         ctx.accounts.creator_token_0.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.token_0_mint.to_account_info(),
-        ctx.accounts.token_0_program.to_account_info(),
         init_amount_0,
-        ctx.accounts.token_0_mint.decimals,
+        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
+        compressed_token_0_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
     )?;
+
+    msg!(
+        "transferred token 0 from user to vault: {}",
+        ctx.accounts.token_0_vault.key()
+    );
 
     transfer_from_user_to_pool_vault(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.creator_token_1.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_mint.to_account_info(),
-        ctx.accounts.token_1_program.to_account_info(),
         init_amount_1,
-        ctx.accounts.token_1_mint.decimals,
+        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
+        compressed_token_1_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
     )?;
+
+    msg!(
+        "transferred token 1 from user to vault: {}",
+        ctx.accounts.token_1_vault.key()
+    );
 
     let token_0_vault =
         spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
@@ -388,7 +484,6 @@ pub fn initialize<'info>(
         &ctx.accounts.rent_recipient.to_account_info(),
         compression_config.compression_delay as u64,
     )?;
-    // For user.
     create_compressible_associated_token_account(
         &ctx.accounts.creator.to_account_info(),
         &ctx.accounts.creator.to_account_info(),
@@ -423,15 +518,18 @@ pub fn initialize<'info>(
         pool_auth_bump,
     )?;
 
-    // ZK Compression Step 6: Clean up compressed onchain PDAs. LP token
-    // accounts are not compressed here; they can be compressed after meeting
-    // their condition. pool_state and observation_state are compressed now to
-    // demonstrate dynamic de-compression. You are flexible to choose whether to
-    // compress_at_init or only after inactivity. Compress later means traders
-    // do not have to add a decompress_accounts_idempotent instructions for the
-    // first trade of a compressed market. Whereas compress_at_init immediately
-    // saves rent fees for the creator. Depending on your usage pattern, one
-    // might be more suitable than the other.
+    // ZK Compression Step 6: Clean up compressed onchain PDAs. Do this at the
+    // end of your instruction. Only PoolState and ObservationState are being
+    // compressed right away. LP token accounts are not compressed yet; they can
+    // be compressed after meeting their compression condition. pool_state and
+    // observation_state are compressed now to demonstrate dynamic
+    // de-compression flow in our test suite. You are flexible to choose whether
+    // to compress_at_init or only after they've become inactive. If you
+    // compress later, traders do not have to add a
+    // decompress_accounts_idempotent instructions for the first trade of a
+    // compressed market. Whereas compress_at_init immediately saves rent fees
+    // for the creator. Depending on your usage pattern, one might be more
+    // suitable than the other.
     pool_state.close(rent_recipient.clone())?;
     observation_state.close(rent_recipient.clone())?;
 
@@ -443,17 +541,41 @@ pub fn initialize<'info>(
 #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct InitializeCompressionParams {
     // pool state
-    pub pool_compressed_address: [u8; 32],
     pub pool_address_tree_info: PackedAddressTreeInfo,
     // observation state
-    pub observation_compressed_address: [u8; 32],
     pub observation_address_tree_info: PackedAddressTreeInfo,
     // lp mint
-    pub lp_mint_compressed_address: [u8; 32],
     pub lp_mint_address_tree_info: PackedAddressTreeInfo,
     pub lp_mint_bump: u8,
     pub creator_lp_token_bump: u8,
     // shared
     pub proof: ValidityProof,
     pub output_state_tree_index: u8,
+}
+
+pub fn get_bumps(
+    token_0_mint: Pubkey,
+    token_1_mint: Pubkey,
+    compressed_token_program: Pubkey,
+) -> (u8, u8) {
+    // TODO: move to client + ixdata
+    let compressed_token_0_pool_bump = Pubkey::find_program_address(
+        &[b"pool".as_ref(), token_0_mint.as_ref()],
+        &compressed_token_program,
+    )
+    .1;
+    let compressed_token_1_pool_bump = Pubkey::find_program_address(
+        &[b"pool".as_ref(), token_1_mint.as_ref()],
+        &compressed_token_program,
+    )
+    .1;
+    msg!(
+        "compressed_token_0_pool_bump: {}",
+        compressed_token_0_pool_bump
+    );
+    msg!(
+        "compressed_token_1_pool_bump: {}",
+        compressed_token_1_pool_bump
+    );
+    (compressed_token_0_pool_bump, compressed_token_1_pool_bump)
 }

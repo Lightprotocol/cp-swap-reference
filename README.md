@@ -1,6 +1,13 @@
 # raydium-cp-swap
 
-A revamped constant product AMM program optimized for straightforward pool deployment along with additional features and integrations:
+A constant product AMM program reference implementation based to Raydiun's CP AMM.
+
+We added, with minimal code changes:
+
+- rent-free
+
+Original readme:
+
 - No Openbook market ID is required for pool creation
 - Token22 is supported
 - Built-in price oracle
@@ -30,7 +37,7 @@ The program assets are in-scope for Raydium’s [Immunefi bug bounty program](ht
 3. install `Anchor`
 
    ```shell
-   # Installing using Anchor version manager (avm) 
+   # Installing using Anchor version manager (avm)
    cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
    # Install anchor
    avm install 0.31.0

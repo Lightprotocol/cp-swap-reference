@@ -55,6 +55,7 @@ import {
 
 import {
   CompressedTokenProgram,
+  createTokenPool,
   getAssociatedCTokenAddressAndBump,
 } from "@lightprotocol/compressed-token";
 
@@ -473,14 +474,11 @@ export async function initialize(
   // 229 Bytes +1
   const compressionParams = {
     // poolstate
-    poolCompressedAddress,
     poolAddressTreeInfo: packedTreeInfos.addressTrees[0],
     // observation
-    observationCompressedAddress,
     observationAddressTreeInfo: packedTreeInfos.addressTrees[1],
     // mint
     lpMintAddressTreeInfo: packedTreeInfos.addressTrees[2],
-    lpMintCompressedAddress,
     lpMintBump,
     // shared
     proof: { 0: proofRpcResult.compressedProof },
@@ -491,8 +489,32 @@ export async function initialize(
   const [compressionConfig] = deriveCompressionConfigAddress(program.programId);
 
   const packedAccountMetas = remainingAccounts.toAccountMetas();
+  console.log("REM packedAccountMetas: ", remainingAccounts.getNamedMetas());
+  console.log("REM packed rem: ", packedAccountMetas.remainingAccounts);
 
   const [lpVault] = await getLpVaultAddress(lpMintAddress, program.programId);
+
+  const ct0pId = await createTokenPool(
+    rpc,
+    creator,
+    token0,
+    confirmOptions,
+    token0Program
+  );
+  console.log("token0: ", token0.toString());
+  console.log("token0Program: ", token0Program.toString());
+  console.log("ct0pId: ", ct0pId.toString());
+
+  const ct1pId = await createTokenPool(
+    rpc,
+    creator,
+    token1,
+    confirmOptions,
+    token1Program
+  );
+  console.log("token1: ", token1.toString());
+  console.log("token1Program: ", token1Program.toString());
+  console.log("ct1pId: ", ct1pId.toString());
 
   const initializeIx = await program.methods
     .initialize(
@@ -529,6 +551,10 @@ export async function initialize(
       compressedTokenProgramCpiAuthority:
         CompressedTokenProgram.deriveCpiAuthorityPda,
       compressedTokenProgram: COMPRESSED_TOKEN_PROGRAM_ID,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token0),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token1),
     })
     .remainingAccounts(packedAccountMetas.remainingAccounts)
     .instruction();
@@ -820,6 +846,12 @@ export async function deposit(
       vault1Mint: token1,
       lpVault: lpVaultAddress,
       compressedTokenProgram: COMPRESSED_TOKEN_PROGRAM_ID,
+      compressedTokenProgramCpiAuthority:
+        CompressedTokenProgram.deriveCpiAuthorityPda,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token0),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token1),
     })
     .instruction();
 
@@ -922,6 +954,12 @@ export async function withdraw(
       vault1Mint: token1,
       lpVault: lpVaultAddress,
       compressedTokenProgram: COMPRESSED_TOKEN_PROGRAM_ID,
+      compressedTokenProgramCpiAuthority:
+        CompressedTokenProgram.deriveCpiAuthorityPda,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token0),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token1),
       memoProgram: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
     })
     .instruction();
@@ -1088,6 +1126,13 @@ export async function swap_base_output(
       inputTokenMint: inputToken,
       outputTokenMint: outputToken,
       observationState: observationAddress,
+      compressedTokenProgram: COMPRESSED_TOKEN_PROGRAM_ID,
+      compressedTokenProgramCpiAuthority:
+        CompressedTokenProgram.deriveCpiAuthorityPda,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(inputToken),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
     .rpc(confirmOptions);
 

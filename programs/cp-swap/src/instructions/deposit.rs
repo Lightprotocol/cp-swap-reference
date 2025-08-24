@@ -1,6 +1,7 @@
 use crate::curve::CurveCalculator;
 use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
+use crate::instructions::get_bumps;
 use crate::states::*;
 use crate::utils::token::*;
 use crate::utils::transfer_ctoken_from_pool_vault_to_user;
@@ -92,7 +93,13 @@ pub struct Deposit<'info> {
     pub lp_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: checked by protocol.
+    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
+    /// CHECK: checked by protocol.
     pub compressed_token_program: AccountInfo<'info>,
+    /// CHECK: checked by protocol.
+    pub compressed_token_0_pool_pda: AccountInfo<'info>,
+    /// CHECK: checked by protocol.
+    pub compressed_token_1_pool_pda: AccountInfo<'info>,
 }
 
 pub fn deposit(
@@ -171,19 +178,24 @@ pub fn deposit(
     {
         return Err(ErrorCode::ExceededSlippage.into());
     }
+    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
+        ctx.accounts.vault_0_mint.key(),
+        ctx.accounts.vault_1_mint.key(),
+        ctx.accounts.compressed_token_program.key(),
+    );
 
     transfer_from_user_to_pool_vault(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.token_0_account.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.vault_0_mint.to_account_info(),
-        if ctx.accounts.vault_0_mint.to_account_info().owner == ctx.accounts.token_program.key {
-            ctx.accounts.token_program.to_account_info()
-        } else {
-            ctx.accounts.token_program_2022.to_account_info()
-        },
         transfer_token_0_amount,
-        ctx.accounts.vault_0_mint.decimals,
+        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
+        compressed_token_0_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
+        // &ctx.remaining_accounts,
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -191,13 +203,13 @@ pub fn deposit(
         ctx.accounts.token_1_account.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.vault_1_mint.to_account_info(),
-        if ctx.accounts.vault_1_mint.to_account_info().owner == ctx.accounts.token_program.key {
-            ctx.accounts.token_program.to_account_info()
-        } else {
-            ctx.accounts.token_program_2022.to_account_info()
-        },
         transfer_token_1_amount,
-        ctx.accounts.vault_1_mint.decimals,
+        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
+        compressed_token_1_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
+        // &ctx.remaining_accounts,
     )?;
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
 

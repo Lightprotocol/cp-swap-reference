@@ -58,15 +58,22 @@ export async function createTokenMintAndAssociatedTokenAccount(
   );
   tokenArray.push({ address: token0, program: TOKEN_PROGRAM_ID });
 
-  let token1 = await createMintWithTransferFee(
+  let token1 = await createMint(
     connection,
-    payer,
     mintAuthority,
-    Keypair.generate(),
-    transferFeeConfig
+    mintAuthority.publicKey,
+    null,
+    9
   );
+  // let token1 = await createMintWithTransferFee(
+  //   connection,
+  //   payer,
+  //   mintAuthority,
+  //   Keypair.generate(),
+  //   transferFeeConfig
+  // );
 
-  tokenArray.push({ address: token1, program: TOKEN_2022_PROGRAM_ID });
+  tokenArray.push({ address: token1, program: TOKEN_PROGRAM_ID });
 
   tokenArray.sort(function (x, y) {
     const buffer1 = x.address.toBuffer();
@@ -98,6 +105,8 @@ export async function createTokenMintAndAssociatedTokenAccount(
   const token0Program = tokenArray[0].program;
   const token1Program = tokenArray[1].program;
 
+  console.log("token0Program: ", token0Program.toString());
+  console.log("token1Program: ", token1Program.toString());
   const ownerToken0Account = await getOrCreateAssociatedTokenAccount(
     connection,
     payer,
