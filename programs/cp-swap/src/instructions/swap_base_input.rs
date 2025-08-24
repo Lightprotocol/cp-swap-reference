@@ -79,8 +79,10 @@ pub struct Swap<'info> {
     /// CHECK: checked by protocol.
     pub compressed_token_program: AccountInfo<'info>,
     /// CHECK: checked by protocol.
+    #[account(mut)]
     pub compressed_token_0_pool_pda: AccountInfo<'info>,
     /// CHECK: checked by protocol.
+    #[account(mut)]
     pub compressed_token_1_pool_pda: AccountInfo<'info>,
 }
 
@@ -252,6 +254,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
+        ctx.accounts.input_token_program.to_account_info(), // TODO: DYNAMIC T22
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -262,6 +265,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
         output_transfer_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        // ctx.accounts.output_token_program.to_account_info(), // TODO: DYNAMIC T22
     )?;
 
     // update the previous price to the observation

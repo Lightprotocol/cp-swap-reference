@@ -100,8 +100,10 @@ pub struct Withdraw<'info> {
     /// CHECK: checked by protocol.
     pub compressed_token_program: AccountInfo<'info>,
     /// CHECK: checked by protocol.
+    #[account(mut)]
     pub compressed_token_0_pool_pda: AccountInfo<'info>,
     /// CHECK: checked by protocol.
+    #[account(mut)]
     pub compressed_token_1_pool_pda: AccountInfo<'info>,
 
     /// memo program

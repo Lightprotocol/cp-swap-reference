@@ -25,6 +25,7 @@ import {
 } from "@solana/spl-token";
 import { sendTransaction } from "./index";
 import { COMPRESSED_TOKEN_PROGRAM_ID } from "@lightprotocol/stateless.js";
+import { CompressedTokenProgram } from "@lightprotocol/compressed-token";
 
 // create a token mint and a token2022 mint with transferFeeConfig
 export async function createTokenMintAndAssociatedTokenAccount(
@@ -260,14 +261,14 @@ export async function getUserAndPoolVaultAmount(
     anchor.getProvider().connection,
     poolToken0Vault,
     "processed",
-    token0Program
+    CompressedTokenProgram.programId
   );
 
   const poolVault1TokenAccount = await getAccount(
     anchor.getProvider().connection,
     poolToken1Vault,
     "processed",
-    token1Program
+    CompressedTokenProgram.programId
   );
   return {
     onwerToken0Account,

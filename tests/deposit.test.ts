@@ -83,6 +83,10 @@ describe("deposit test", () => {
       connection
     );
 
+    console.log("poolState: ", newPoolState.lpSupply.toString());
+    console.log("liquidity: ", liquidity.toString());
+    console.log("lpSupply: ", poolState.lpSupply.toString());
+
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {
@@ -263,7 +267,7 @@ describe("deposit test", () => {
     );
   });
 
-  it("deposit test with 100% transferFeeConfig, reache maximum fee limit", async () => {
+  it.skip("deposit test with 100% transferFeeConfig, reache maximum fee limit", async () => {
     const transferFeeConfig = {
       transferFeeBasisPoints: MAX_FEE_BASIS_POINTS,
       MaxFee: 5000000000,

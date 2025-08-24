@@ -47,6 +47,7 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
             .to_bytes(),
         &crate::ID.to_bytes(),
     );
+
     let observation_compressed_address = derive_address(
         &observation_state.key().to_bytes(),
         &cpi_accounts

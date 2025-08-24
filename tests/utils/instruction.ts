@@ -49,7 +49,6 @@ import {
   createPackedAccountsSmall,
   buildAndSignTx,
   PackedStateTreeInfo,
-  COMPRESSED_TOKEN_PROGRAM_ID,
   createPackedAccountsSmallWithCpiContext,
 } from "@lightprotocol/stateless.js";
 
@@ -550,7 +549,7 @@ export async function initialize(
       lpMintSigner: lpMintSignerAddress,
       compressedTokenProgramCpiAuthority:
         CompressedTokenProgram.deriveCpiAuthorityPda,
-      compressedTokenProgram: COMPRESSED_TOKEN_PROGRAM_ID,
+      compressedTokenProgram: CompressedTokenProgram.programId,
       compressedToken0PoolPda:
         CompressedTokenProgram.deriveTokenPoolPda(token0),
       compressedToken1PoolPda:
@@ -786,8 +785,8 @@ export async function deposit(
     lpMintAddress,
     owner.publicKey,
     false,
-    COMPRESSED_TOKEN_PROGRAM_ID,
-    COMPRESSED_TOKEN_PROGRAM_ID
+    CompressedTokenProgram.programId,
+    CompressedTokenProgram.programId
   );
   console.log("ownerLpToken", ownerLpToken.toString());
 
@@ -845,7 +844,7 @@ export async function deposit(
       vault0Mint: token0,
       vault1Mint: token1,
       lpVault: lpVaultAddress,
-      compressedTokenProgram: COMPRESSED_TOKEN_PROGRAM_ID,
+      compressedTokenProgram: CompressedTokenProgram.programId,
       compressedTokenProgramCpiAuthority:
         CompressedTokenProgram.deriveCpiAuthorityPda,
       compressedToken0PoolPda:
@@ -918,10 +917,10 @@ export async function withdraw(
   const [ownerLpToken] = await PublicKey.findProgramAddress(
     [
       owner.publicKey.toBuffer(),
-      COMPRESSED_TOKEN_PROGRAM_ID.toBuffer(),
+      CompressedTokenProgram.programId.toBuffer(),
       lpMintAddress.toBuffer(),
     ],
-    COMPRESSED_TOKEN_PROGRAM_ID
+    CompressedTokenProgram.programId
   );
 
   const onwerToken0 = getAssociatedTokenAddressSync(
@@ -939,7 +938,7 @@ export async function withdraw(
 
   const withdrawIx = await program.methods
     .withdraw(lp_token_amount, minimum_token_0_amount, minimum_token_1_amount)
-    .accountsPartial({
+    .accountsStrict({
       owner: owner.publicKey,
       authority: auth,
       poolState: poolAddress,
@@ -953,7 +952,7 @@ export async function withdraw(
       vault0Mint: token0,
       vault1Mint: token1,
       lpVault: lpVaultAddress,
-      compressedTokenProgram: COMPRESSED_TOKEN_PROGRAM_ID,
+      compressedTokenProgram: CompressedTokenProgram.programId,
       compressedTokenProgramCpiAuthority:
         CompressedTokenProgram.deriveCpiAuthorityPda,
       compressedToken0PoolPda:
@@ -1126,7 +1125,7 @@ export async function swap_base_output(
       inputTokenMint: inputToken,
       outputTokenMint: outputToken,
       observationState: observationAddress,
-      compressedTokenProgram: COMPRESSED_TOKEN_PROGRAM_ID,
+      compressedTokenProgram: CompressedTokenProgram.programId,
       compressedTokenProgramCpiAuthority:
         CompressedTokenProgram.deriveCpiAuthorityPda,
       compressedToken0PoolPda:

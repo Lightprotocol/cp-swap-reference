@@ -37,7 +37,7 @@ pub fn transfer_from_user_to_pool_vault<'a, 'b>(
     token_pool_pda: AccountInfo<'a>,
     token_pool_pda_bump: u8,
     token_program_authority: AccountInfo<'a>,
-    // remaining_accounts: Option<&[AccountInfo<'b>]>,
+    spl_program: AccountInfo<'a>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
@@ -51,7 +51,7 @@ pub fn transfer_from_user_to_pool_vault<'a, 'b>(
         token_pool_pda,
         token_pool_pda_bump,
         token_program_authority,
-        // remaining_accounts.unwrap_or(&[]),
+        spl_program,
     )?;
     Ok(())
 }

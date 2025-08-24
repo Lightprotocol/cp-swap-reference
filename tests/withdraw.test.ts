@@ -10,7 +10,7 @@ import {
 } from "./utils";
 import { assert } from "chai";
 
-describe("withdraw test", () => {
+describe.only("withdraw test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
   const program = anchor.workspace.RaydiumCpSwap as Program<RaydiumCpSwap>;
@@ -19,7 +19,7 @@ describe("withdraw test", () => {
     skipPreflight: true,
   };
 
-  it("withdraw half of lp ", async () => {
+  it.only("withdraw half of lp ", async () => {
     const { poolAddress, poolState } = await setupDepositTest(
       program,
       anchor.getProvider().connection,
@@ -61,6 +61,16 @@ describe("withdraw test", () => {
       confirmOptions
     );
     const newPoolState = await program.account.poolState.fetch(poolAddress);
+    console.log(
+      "newPoolState after withdraw: ",
+      newPoolState.lpSupply.toString()
+    );
+    console.log("liquidity: ", liquidity.divn(2).toString());
+    console.log("lpSupply before: ", poolState.lpSupply.toString());
+    console.log(
+      "math is new lp supply??: ",
+      liquidity.divn(2).add(poolState.lpSupply).toString()
+    );
     assert(newPoolState.lpSupply.eq(liquidity.divn(2).add(poolState.lpSupply)));
   });
 

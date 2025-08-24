@@ -184,6 +184,7 @@ pub fn swap_base_output(
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
+        ctx.accounts.input_token_program.to_account_info(), // TODO: DYNAMIC T22
     )?;
 
     transfer_from_pool_vault_to_user(
