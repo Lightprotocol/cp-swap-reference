@@ -2,7 +2,7 @@
 
 A constant product AMM program reference implementation based to Raydiun's CP AMM.
 
-We added, with minimal code changes:
+We added:
 
 - rent-free
 
