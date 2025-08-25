@@ -1,7 +1,7 @@
 use crate::curve::CurveCalculator;
 use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
-use crate::instructions::get_bumps;
+use crate::utils::ctoken::get_bumps;
 use crate::states::*;
 use crate::utils::token::*;
 use crate::utils::transfer_ctoken_from_user_to_pool_vault;
@@ -201,8 +201,6 @@ pub fn withdraw(
         lp_token_amount,
     )?;
 
-    msg!("transfered user->vault lp");
-
     pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
 
     let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
@@ -222,12 +220,14 @@ pub fn withdraw(
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.token_program.to_account_info(), // TODO: DYNAMIC T22
+            if ctx.accounts.vault_0_mint.to_account_info().owner == ctx.accounts.token_program.key {
+                ctx.accounts.token_program.to_account_info()
+            } else {
+                ctx.accounts.token_program_2022.to_account_info()
+            },
         token_0_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
-
-    msg!("transfered vault->user token_0");
 
     transfer_from_pool_vault_to_user(
         ctx.accounts.owner.to_account_info(),
@@ -240,12 +240,14 @@ pub fn withdraw(
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.token_program.to_account_info(), // TODO: DYNAMIC T22
+        if ctx.accounts.vault_1_mint.to_account_info().owner == ctx.accounts.token_program.key {
+            ctx.accounts.token_program.to_account_info()
+        } else {
+            ctx.accounts.token_program_2022.to_account_info()
+        },
         token_1_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
-
-    msg!("transfered vault->user token_1");
 
     pool_state.recent_epoch = Clock::get()?.epoch;
 

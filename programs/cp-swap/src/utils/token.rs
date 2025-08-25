@@ -1,8 +1,5 @@
 use crate::error::ErrorCode;
-use anchor_lang::{
-    prelude::*,
-    system_program::{self, transfer},
-};
+use anchor_lang::{prelude::*, system_program};
 use anchor_spl::{
     token::{Token, TokenAccount},
     token_2022,
@@ -19,7 +16,6 @@ use spl_token_2022::{
     },
 };
 use std::collections::HashSet;
-// use light_compressed_token_sdk::instructions::transfer2::
 
 const MINT_WHITELIST: [&'static str; 4] = [
     "HVbpJAQGNpkgBaYBZQBR1t7yFdvaYVp2vCQQfKKEN4tM",

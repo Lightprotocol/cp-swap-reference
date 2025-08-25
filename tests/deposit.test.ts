@@ -82,11 +82,6 @@ describe("deposit test", () => {
       "poolState",
       connection
     );
-
-    console.log("poolState: ", newPoolState.lpSupply.toString());
-    console.log("liquidity: ", liquidity.toString());
-    console.log("lpSupply: ", poolState.lpSupply.toString());
-
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {
@@ -116,11 +111,11 @@ describe("deposit test", () => {
       input_token1_amount
     );
 
-    /// deposit with fee
+    // TransferFeeConfig extension is not supported.
     const transferFeeConfig = {
-      transferFeeBasisPoints: 100,
-      MaxFee: 50000000000,
-    }; // %10
+      transferFeeBasisPoints: 0,
+      MaxFee: 0,
+    }; // %0
 
     // Ensure that the initialization state is the same with depsoit without fee
     const { poolAddress: poolAddress2, poolState: poolState2 } =
@@ -172,6 +167,7 @@ describe("deposit test", () => {
       poolState2.token0Vault,
       poolState2.token1Vault
     );
+
     // check vault init state
     assert.equal(
       poolVault0TokenAccountBefore2.amount,
@@ -267,6 +263,7 @@ describe("deposit test", () => {
     );
   });
 
+  // t22 transferFeeConfig is not supported.
   it.skip("deposit test with 100% transferFeeConfig, reache maximum fee limit", async () => {
     const transferFeeConfig = {
       transferFeeBasisPoints: MAX_FEE_BASIS_POINTS,

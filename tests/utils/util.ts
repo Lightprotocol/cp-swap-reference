@@ -24,8 +24,14 @@ import {
   getAccount,
 } from "@solana/spl-token";
 import { sendTransaction } from "./index";
-import { COMPRESSED_TOKEN_PROGRAM_ID } from "@lightprotocol/stateless.js";
-import { CompressedTokenProgram } from "@lightprotocol/compressed-token";
+import {
+  COMPRESSED_TOKEN_PROGRAM_ID,
+  createRpc,
+} from "@lightprotocol/stateless.js";
+import {
+  CompressedTokenProgram,
+  createTokenPool,
+} from "@lightprotocol/compressed-token";
 
 // create a token mint and a token2022 mint with transferFeeConfig
 export async function createTokenMintAndAssociatedTokenAccount(
@@ -64,7 +70,10 @@ export async function createTokenMintAndAssociatedTokenAccount(
     mintAuthority,
     mintAuthority.publicKey,
     null,
-    9
+    9,
+    undefined,
+    undefined,
+    TOKEN_2022_PROGRAM_ID
   );
   // let token1 = await createMintWithTransferFee(
   //   connection,
@@ -74,7 +83,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
   //   transferFeeConfig
   // );
 
-  tokenArray.push({ address: token1, program: TOKEN_PROGRAM_ID });
+  tokenArray.push({ address: token1, program: TOKEN_2022_PROGRAM_ID });
 
   tokenArray.sort(function (x, y) {
     const buffer1 = x.address.toBuffer();
@@ -106,8 +115,6 @@ export async function createTokenMintAndAssociatedTokenAccount(
   const token0Program = tokenArray[0].program;
   const token1Program = tokenArray[1].program;
 
-  console.log("token0Program: ", token0Program.toString());
-  console.log("token1Program: ", token1Program.toString());
   const ownerToken0Account = await getOrCreateAssociatedTokenAccount(
     connection,
     payer,
@@ -146,10 +153,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
     { skipPreflight: true },
     token1Program
   );
-  // console.log(
-  //   "ownerToken1Account key: ",
-  //   ownerToken1Account.address.toString()
-  // );
+
   await mintTo(
     connection,
     payer,
@@ -158,6 +162,24 @@ export async function createTokenMintAndAssociatedTokenAccount(
     mintAuthority,
     100_000_000_000_000,
     [],
+    { skipPreflight: true },
+    token1Program
+  );
+
+  // SPL mints have to be registered in the compression protocol.
+  const rpc = createRpc();
+  await createTokenPool(
+    rpc,
+    payer,
+    token0,
+    { skipPreflight: true },
+    token0Program
+  );
+
+  await createTokenPool(
+    rpc,
+    payer,
+    token1,
     { skipPreflight: true },
     token1Program
   );
@@ -270,6 +292,7 @@ export async function getUserAndPoolVaultAmount(
     "processed",
     CompressedTokenProgram.programId
   );
+
   return {
     ownerToken0Account,
     ownerToken1Account,

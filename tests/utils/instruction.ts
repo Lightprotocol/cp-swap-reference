@@ -175,7 +175,7 @@ export async function setupDepositTest(
       program.provider.wallet.payer.publicKey,
       ADDRESS_SPACE
     );
-    console.log("initializeCompressionConfig txId", txId);
+    console.log("initializeCompressionConfig signature:", txId);
   }
 
   while (1) {
@@ -187,14 +187,11 @@ export async function setupDepositTest(
         transferFeeConfig
       );
 
-    console.log("Created tokens:", token0.toString(), token1.toString());
-
     if (tokenProgramRequired != undefined) {
       if (
         token0Program.equals(tokenProgramRequired.token0Program) &&
         token1Program.equals(tokenProgramRequired.token1Program)
       ) {
-        console.log("Found matching programs, using these tokens");
         return await initialize(
           program,
           owner,
@@ -489,32 +486,8 @@ export async function initialize(
   const [compressionConfig] = deriveCompressionConfigAddress(program.programId);
 
   const packedAccountMetas = remainingAccounts.toAccountMetas();
-  console.log("REM packedAccountMetas: ", remainingAccounts.getNamedMetas());
-  console.log("REM packed rem: ", packedAccountMetas.remainingAccounts);
 
   const [lpVault] = await getLpVaultAddress(lpMintAddress, program.programId);
-
-  const ct0pId = await createTokenPool(
-    rpc,
-    creator,
-    token0,
-    confirmOptions,
-    token0Program
-  );
-  console.log("token0: ", token0.toString());
-  console.log("token0Program: ", token0Program.toString());
-  console.log("ct0pId: ", ct0pId.toString());
-
-  const ct1pId = await createTokenPool(
-    rpc,
-    creator,
-    token1,
-    confirmOptions,
-    token1Program
-  );
-  console.log("token1: ", token1.toString());
-  console.log("token1Program: ", token1Program.toString());
-  console.log("ct1pId: ", ct1pId.toString());
 
   const initializeIx = await program.methods
     .initialize(
@@ -575,7 +548,7 @@ export async function initialize(
     [lookupTableAccount]
   );
   const txId = await sendAndConfirmTx(rpc, tx, confirmOptions);
-  console.log("initialize txId", txId);
+  console.log("initialize signature:", txId);
 
   const { account: poolState } = await fetchCompressibleAccount(
     poolAddress,
@@ -789,7 +762,6 @@ export async function deposit(
     CompressedTokenProgram.programId,
     CompressedTokenProgram.programId
   );
-  console.log("ownerLpToken", ownerLpToken.toString());
 
   const ownerToken0 = getAssociatedTokenAddressSync(
     token0,
@@ -824,10 +796,6 @@ export async function deposit(
     rpc,
     confirmOptions
   );
-
-  console.log("lpVaultAddress", lpVaultAddress.toString());
-  console.log("ownerLpToken", ownerLpToken.toString());
-  console.log("authority", auth.toString());
 
   const depositIx = await program.methods
     .deposit(lp_token_amount, maximum_token_0_amount, maximum_token_1_amount)
@@ -870,7 +838,7 @@ export async function deposit(
     [lookupTableAccount]
   );
   const depositTxId = await sendAndConfirmTx(rpc, depositTx, confirmOptions);
-  console.log("deposit txId", depositTxId);
+  console.log("deposit signature:", depositTxId);
   return depositTxId;
 }
 
@@ -978,9 +946,8 @@ export async function withdraw(
     [],
     [lookupTableAccount]
   );
-  console.log("withdrawTx", bs58.encode(withdrawTx.signatures[0]));
   const withdrawTxId = await sendAndConfirmTx(rpc, withdrawTx, confirmOptions);
-  console.log("withdrawTxId", withdrawTxId);
+  console.log("withdraw signature:", withdrawTxId);
   return withdrawTxId;
 }
 
@@ -1037,7 +1004,7 @@ export async function swap_base_input(
 
   const ix = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
-    .accountsPartial({
+    .accountsStrict({
       payer: owner.publicKey,
       authority: auth,
       ammConfig: configAddress,
@@ -1051,6 +1018,13 @@ export async function swap_base_input(
       inputTokenMint: inputToken,
       outputTokenMint: outputToken,
       observationState: observationAddress,
+      compressedTokenProgram: CompressedTokenProgram.programId,
+      compressedTokenProgramCpiAuthority:
+        CompressedTokenProgram.deriveCpiAuthorityPda,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(inputToken),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
     .instruction();
   const tx = await sendTransaction(
@@ -1059,6 +1033,7 @@ export async function swap_base_input(
     [owner],
     confirmOptions
   );
+  console.log("swap signature:", tx);
   return tx;
 }
 
@@ -1112,7 +1087,7 @@ export async function swap_base_output(
 
   const tx = await program.methods
     .swapBaseOutput(max_amount_in, amount_out_less_fee)
-    .accountsPartial({
+    .accountsStrict({
       payer: owner.publicKey,
       authority: auth,
       ammConfig: configAddress,
@@ -1135,6 +1110,8 @@ export async function swap_base_output(
         CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
     .rpc(confirmOptions);
+
+  console.log("swap signature:", tx);
 
   return tx;
 }

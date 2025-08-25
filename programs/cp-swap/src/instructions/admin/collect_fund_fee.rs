@@ -1,6 +1,6 @@
 use crate::error::ErrorCode;
-use crate::instructions::get_bumps;
 use crate::states::*;
+use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
@@ -113,7 +113,11 @@ pub fn collect_fund_fee(
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.token_program.to_account_info(), // TODO: DYNAMIC T22
+        if ctx.accounts.vault_0_mint.to_account_info().owner == ctx.accounts.token_program.key {
+            ctx.accounts.token_program.to_account_info()
+        } else {
+            ctx.accounts.token_program_2022.to_account_info()
+        },
         amount_0,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
@@ -129,7 +133,11 @@ pub fn collect_fund_fee(
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.token_program.to_account_info(), // TODO: DYNAMIC T22
+        if ctx.accounts.vault_1_mint.to_account_info().owner == ctx.accounts.token_program.key {
+            ctx.accounts.token_program.to_account_info()
+        } else {
+            ctx.accounts.token_program_2022.to_account_info()
+        },
         amount_1,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;

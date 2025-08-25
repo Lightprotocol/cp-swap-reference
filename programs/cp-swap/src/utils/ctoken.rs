@@ -63,7 +63,6 @@ pub fn create_compressible_token_account<'a>(
     rent_recipient: &AccountInfo<'a>,
     slots_until_compression: u64,
 ) -> Result<()> {
-    // Note this does not support token account extensions.
     let space = COMPRESSIBLE_TOKEN_ACCOUNT_SIZE as usize;
 
     create_or_allocate_account(
@@ -136,6 +135,25 @@ pub fn create_compressible_associated_token_account<'a>(
     )?;
 
     Ok(())
+}
+
+// To reduce CU usage, you can instead also pass the bumps as instruction data.
+pub fn get_bumps(
+    token_0_mint: Pubkey,
+    token_1_mint: Pubkey,
+    compressed_token_program: Pubkey,
+) -> (u8, u8) {
+    let compressed_token_0_pool_bump = Pubkey::find_program_address(
+        &[b"pool".as_ref(), token_0_mint.as_ref()],
+        &compressed_token_program,
+    )
+    .1;
+    let compressed_token_1_pool_bump = Pubkey::find_program_address(
+        &[b"pool".as_ref(), token_1_mint.as_ref()],
+        &compressed_token_program,
+    )
+    .1;
+    (compressed_token_0_pool_bump, compressed_token_1_pool_bump)
 }
 
 pub fn create_and_mint_lp<'a, 'b, 'info>(

@@ -51,14 +51,12 @@ describe("initialize test", () => {
       confirmOptions,
       { initAmount0, initAmount1 }
     );
-    console.log("initialized poolState: ", poolState);
     let vault0 = await getAccount(
       connection,
       poolState.token0Vault,
       "processed",
       CompressedTokenProgram.programId
     );
-    console.log("vault0: ", vault0);
     assert.equal(vault0.amount.toString(), initAmount0.toString());
 
     let vault1 = await getAccount(
@@ -67,7 +65,6 @@ describe("initialize test", () => {
       "processed",
       CompressedTokenProgram.programId
     );
-    console.log("vault1: ", vault1);
     assert.equal(vault1.amount.toString(), initAmount1.toString());
   });
 
@@ -118,6 +115,7 @@ describe("initialize test", () => {
     assert.equal(vault1.amount.toString(), initAmount1.toString());
   });
 
+  // t22 transferFeeConfig is not supported.
   it.skip("create pool with token2022 mint has transfer fee", async () => {
     const transferFeeConfig = { transferFeeBasisPoints: 100, MaxFee: 50000000 }; // %10
     const { configAddress, token0, token0Program, token1, token1Program } =

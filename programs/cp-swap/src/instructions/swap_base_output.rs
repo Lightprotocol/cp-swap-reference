@@ -1,8 +1,8 @@
 use super::swap_base_input::Swap;
 use crate::curve::{calculator::CurveCalculator, TradeDirection};
 use crate::error::ErrorCode;
-use crate::instructions::get_bumps;
 use crate::states::*;
+use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
@@ -168,8 +168,8 @@ pub fn swap_base_output(
     require_gte!(constant_after, constant_before);
 
     let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
-        ctx.accounts.output_token_mint.key(),
         ctx.accounts.input_token_mint.key(),
+        ctx.accounts.output_token_mint.key(),
         ctx.accounts.compressed_token_program.key(),
     );
 
@@ -184,7 +184,7 @@ pub fn swap_base_output(
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.input_token_program.to_account_info(), // TODO: DYNAMIC T22
+        ctx.accounts.input_token_program.to_account_info(),
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -198,7 +198,7 @@ pub fn swap_base_output(
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.output_token_program.to_account_info(), // TODO: DYNAMIC T22
+        ctx.accounts.output_token_program.to_account_info(),
         output_transfer_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;

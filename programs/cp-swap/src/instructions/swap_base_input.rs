@@ -1,8 +1,8 @@
 use crate::curve::calculator::CurveCalculator;
 use crate::curve::TradeDirection;
 use crate::error::ErrorCode;
-use crate::instructions::get_bumps;
 use crate::states::*;
+use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
@@ -254,7 +254,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.input_token_program.to_account_info(), // TODO: DYNAMIC T22
+        ctx.accounts.input_token_program.to_account_info(),
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -268,7 +268,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.output_token_program.to_account_info(), // TODO: DYNAMIC T22
+        ctx.accounts.output_token_program.to_account_info(),
         output_transfer_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;

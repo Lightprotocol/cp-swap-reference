@@ -258,7 +258,7 @@ pub fn initialize<'info>(
             ctx.accounts.token_1_mint.key().as_ref(),
             &[ctx.bumps.token_1_vault][..],
         ],
-        &ctx.accounts.rent.to_account_info(),
+        &ctx.accounts.rent_recipient.to_account_info(),
         &ctx.accounts.rent_recipient.to_account_info(),
         compression_config.compression_delay as u64,
     )?;
@@ -355,14 +355,7 @@ pub fn initialize<'info>(
         .integer_sqrt()
         .as_u64();
     let lock_lp_amount = 100;
-    #[cfg(feature = "enable-log")]
-    msg!(
-        "liquidity:{}, lock_lp_amount:{}, vault_0_amount:{},vault_1_amount:{}",
-        liquidity,
-        lock_lp_amount,
-        token_0_vault.amount,
-        token_1_vault.amount
-    );
+
     let user_lp_amount = liquidity
         .checked_sub(lock_lp_amount)
         .ok_or(ErrorCode::InitLpAmountTooLess)?;
@@ -489,23 +482,4 @@ pub struct InitializeCompressionParams {
     // shared
     pub proof: ValidityProof,
     pub output_state_tree_index: u8,
-}
-
-// TODO: move to client + ixdata
-pub fn get_bumps(
-    token_0_mint: Pubkey,
-    token_1_mint: Pubkey,
-    compressed_token_program: Pubkey,
-) -> (u8, u8) {
-    let compressed_token_0_pool_bump = Pubkey::find_program_address(
-        &[b"pool".as_ref(), token_0_mint.as_ref()],
-        &compressed_token_program,
-    )
-    .1;
-    let compressed_token_1_pool_bump = Pubkey::find_program_address(
-        &[b"pool".as_ref(), token_1_mint.as_ref()],
-        &compressed_token_program,
-    )
-    .1;
-    (compressed_token_0_pool_bump, compressed_token_1_pool_bump)
 }

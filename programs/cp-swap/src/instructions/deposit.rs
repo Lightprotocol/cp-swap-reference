@@ -1,8 +1,8 @@
 use crate::curve::CurveCalculator;
 use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
-use crate::instructions::get_bumps;
 use crate::states::*;
+use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
 use crate::utils::transfer_ctoken_from_pool_vault_to_user;
 use anchor_lang::prelude::*;
@@ -110,13 +110,6 @@ pub fn deposit(
     maximum_token_0_amount: u64,
     maximum_token_1_amount: u64,
 ) -> Result<()> {
-    msg!("token_0_vault: {:?}", ctx.accounts.token_0_vault.key());
-    msg!("token_1_vault: {:?}", ctx.accounts.token_1_vault.key());
-    msg!("token_0_account: {:?}", ctx.accounts.token_0_account.key());
-    msg!("token_1_account: {:?}", ctx.accounts.token_1_account.key());
-    msg!("vault_0_mint: {:?}", ctx.accounts.vault_0_mint.key());
-    msg!("vault_1_mint: {:?}", ctx.accounts.vault_1_mint.key());
-
     require_gt!(lp_token_amount, 0);
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state;
@@ -193,6 +186,11 @@ pub fn deposit(
         ctx.accounts.compressed_token_program.key(),
     );
 
+    msg!(
+        "transfer_token_0_amount: {}",
+        transfer_token_0_amount.to_string()
+    );
+
     transfer_from_user_to_pool_vault(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.token_0_account.to_account_info(),
@@ -204,11 +202,17 @@ pub fn deposit(
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.token_program.to_account_info(), // TODO: DYNAMIC T22
+        if ctx.accounts.vault_0_mint.to_account_info().owner == ctx.accounts.token_program.key {
+            ctx.accounts.token_program.to_account_info()
+        } else {
+            ctx.accounts.token_program_2022.to_account_info()
+        },
     )?;
 
-    msg!("transfered user->vault token_0");
-
+    msg!(
+        "transfer_token_1_amount: {}",
+        transfer_token_1_amount.to_string()
+    );
     transfer_from_user_to_pool_vault(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.token_1_account.to_account_info(),
@@ -220,9 +224,12 @@ pub fn deposit(
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.token_program.to_account_info(),
+        if ctx.accounts.vault_1_mint.to_account_info().owner == ctx.accounts.token_program.key {
+            ctx.accounts.token_program.to_account_info()
+        } else {
+            ctx.accounts.token_program_2022.to_account_info()
+        },
     )?;
-    msg!("transfered user->vault token_1");
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
 
