@@ -57,11 +57,15 @@ pub fn transfer_from_user_to_pool_vault<'a, 'b>(
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
+    payer: AccountInfo<'a>,
     authority: AccountInfo<'a>,
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
     token_pool_pda: AccountInfo<'a>,
+    token_pool_pda_bump: u8,
+    token_program_authority: AccountInfo<'a>,
+    spl_program: AccountInfo<'a>,
     amount: u64,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
@@ -73,8 +77,12 @@ pub fn transfer_from_pool_vault_to_user<'a>(
         to,
         amount,
         authority,
+        payer,
         mint,
         token_pool_pda,
+        token_pool_pda_bump,
+        token_program_authority,
+        spl_program,
         signer_seeds,
     )?;
     Ok(())

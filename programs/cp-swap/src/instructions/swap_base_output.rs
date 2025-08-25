@@ -188,11 +188,17 @@ pub fn swap_base_output(
     )?;
 
     transfer_from_pool_vault_to_user(
+        ctx.accounts.payer.to_account_info(),
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.output_vault.to_account_info(),
         ctx.accounts.output_token_account.to_account_info(),
         ctx.accounts.output_token_mint.to_account_info(),
         ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
+        compressed_token_1_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
+        ctx.accounts.output_token_program.to_account_info(), // TODO: DYNAMIC T22
         output_transfer_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;

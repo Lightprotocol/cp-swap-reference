@@ -61,17 +61,15 @@ describe.only("withdraw test", () => {
       confirmOptions
     );
     const newPoolState = await program.account.poolState.fetch(poolAddress);
-    console.log(
-      "newPoolState after withdraw: ",
-      newPoolState.lpSupply.toString()
-    );
+
     console.log("liquidity: ", liquidity.divn(2).toString());
     console.log("lpSupply before: ", poolState.lpSupply.toString());
+    console.log("left side is: ", newPoolState.lpSupply.toString());
     console.log(
-      "math is new lp supply??: ",
-      liquidity.divn(2).add(poolState.lpSupply).toString()
+      "right side is: ",
+      poolState.lpSupply.sub(liquidity.divn(2)).toString()
     );
-    assert(newPoolState.lpSupply.eq(liquidity.divn(2).add(poolState.lpSupply)));
+    assert(newPoolState.lpSupply.eq(poolState.lpSupply.sub(liquidity.divn(2))));
   });
 
   it("withdraw all lp ", async () => {
@@ -90,8 +88,8 @@ describe.only("withdraw test", () => {
     );
     const liquidity = new BN(10000000000);
     const {
-      onwerToken0Account: ownerToken0AccountBefore,
-      onwerToken1Account: ownerToken1AccountBefore,
+      ownerToken0Account: ownerToken0AccountBefore,
+      ownerToken1Account: ownerToken1AccountBefore,
       poolVault0TokenAccount: poolVault0TokenAccountBefore,
       poolVault1TokenAccount: poolVault1TokenAccountBefore,
     } = await getUserAndPoolVaultAmount(
@@ -135,8 +133,8 @@ describe.only("withdraw test", () => {
     assert(newPoolState.lpSupply.eq(poolState.lpSupply));
 
     const {
-      onwerToken0Account: ownerToken0AccountAfter,
-      onwerToken1Account: ownerToken1AccountAfter,
+      ownerToken0Account: ownerToken0AccountAfter,
+      ownerToken1Account: ownerToken1AccountAfter,
       poolVault0TokenAccount: poolVault0TokenAccountAfter,
       poolVault1TokenAccount: poolVault1TokenAccountAfter,
     } = await getUserAndPoolVaultAmount(

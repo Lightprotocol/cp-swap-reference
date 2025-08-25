@@ -1,4 +1,5 @@
 use crate::error::ErrorCode;
+use crate::instructions::get_bumps;
 use crate::states::*;
 use crate::utils::*;
 use anchor_lang::prelude::*;
@@ -107,22 +108,40 @@ pub fn collect_protocol_fee(
         pool_state.recent_epoch = Clock::get()?.epoch;
     }
 
+    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
+        ctx.accounts.vault_0_mint.key(),
+        ctx.accounts.vault_1_mint.key(),
+        ctx.accounts.compressed_token_program.key(),
+    );
+
     transfer_from_pool_vault_to_user(
+        ctx.accounts.owner.to_account_info(),
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.recipient_token_0_account.to_account_info(),
         ctx.accounts.vault_0_mint.to_account_info(),
         ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
+        compressed_token_0_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
+        ctx.accounts.token_program.to_account_info(), // TODO: DYNAMIC T22
         amount_0,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 
     transfer_from_pool_vault_to_user(
+        ctx.accounts.owner.to_account_info(),
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.recipient_token_1_account.to_account_info(),
         ctx.accounts.vault_1_mint.to_account_info(),
         ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
+        compressed_token_1_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
+        ctx.accounts.token_program.to_account_info(), // TODO: DYNAMIC T22
         amount_1,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;

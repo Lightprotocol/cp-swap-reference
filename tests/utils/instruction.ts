@@ -57,6 +57,7 @@ import {
   createTokenPool,
   getAssociatedCTokenAddressAndBump,
 } from "@lightprotocol/compressed-token";
+import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 
 featureFlags.version = VERSION.V2;
 const COMPRESSION_DELAY = 100;
@@ -790,13 +791,13 @@ export async function deposit(
   );
   console.log("ownerLpToken", ownerLpToken.toString());
 
-  const onwerToken0 = getAssociatedTokenAddressSync(
+  const ownerToken0 = getAssociatedTokenAddressSync(
     token0,
     owner.publicKey,
     false,
     token0Program
   );
-  const onwerToken1 = getAssociatedTokenAddressSync(
+  const ownerToken1 = getAssociatedTokenAddressSync(
     token1,
     owner.publicKey,
     false,
@@ -835,8 +836,8 @@ export async function deposit(
       authority: auth,
       poolState: poolAddress,
       ownerLpToken,
-      token0Account: onwerToken0,
-      token1Account: onwerToken1,
+      token0Account: ownerToken0,
+      token1Account: ownerToken1,
       token0Vault: vault0,
       token1Vault: vault1,
       tokenProgram: TOKEN_PROGRAM_ID,
@@ -914,22 +915,21 @@ export async function withdraw(
     token1,
     program.programId
   );
-  const [ownerLpToken] = await PublicKey.findProgramAddress(
-    [
-      owner.publicKey.toBuffer(),
-      CompressedTokenProgram.programId.toBuffer(),
-      lpMintAddress.toBuffer(),
-    ],
+  const ownerLpToken = getAssociatedTokenAddressSync(
+    lpMintAddress,
+    owner.publicKey,
+    false,
+    CompressedTokenProgram.programId,
     CompressedTokenProgram.programId
   );
 
-  const onwerToken0 = getAssociatedTokenAddressSync(
+  const ownerToken0 = getAssociatedTokenAddressSync(
     token0,
     owner.publicKey,
     false,
     token0Program
   );
-  const onwerToken1 = getAssociatedTokenAddressSync(
+  const ownerToken1 = getAssociatedTokenAddressSync(
     token1,
     owner.publicKey,
     false,
@@ -943,8 +943,8 @@ export async function withdraw(
       authority: auth,
       poolState: poolAddress,
       ownerLpToken,
-      token0Account: onwerToken0,
-      token1Account: onwerToken1,
+      token0Account: ownerToken0,
+      token1Account: ownerToken1,
       token0Vault: vault0,
       token1Vault: vault1,
       tokenProgram: TOKEN_PROGRAM_ID,
@@ -978,8 +978,9 @@ export async function withdraw(
     [],
     [lookupTableAccount]
   );
+  console.log("withdrawTx", bs58.encode(withdrawTx.signatures[0]));
   const withdrawTxId = await sendAndConfirmTx(rpc, withdrawTx, confirmOptions);
-
+  console.log("withdrawTxId", withdrawTxId);
   return withdrawTxId;
 }
 

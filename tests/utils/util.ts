@@ -229,30 +229,30 @@ export async function getUserAndPoolVaultAmount(
   poolToken0Vault: PublicKey,
   poolToken1Vault: PublicKey
 ) {
-  const onwerToken0AccountAddr = getAssociatedTokenAddressSync(
+  const ownerToken0AccountAddr = getAssociatedTokenAddressSync(
     token0Mint,
     owner,
     false,
     token0Program
   );
 
-  const onwerToken1AccountAddr = getAssociatedTokenAddressSync(
+  const ownerToken1AccountAddr = getAssociatedTokenAddressSync(
     token1Mint,
     owner,
     false,
     token1Program
   );
 
-  const onwerToken0Account = await getAccount(
+  const ownerToken0Account = await getAccount(
     anchor.getProvider().connection,
-    onwerToken0AccountAddr,
+    ownerToken0AccountAddr,
     "processed",
     token0Program
   );
 
-  const onwerToken1Account = await getAccount(
+  const ownerToken1Account = await getAccount(
     anchor.getProvider().connection,
-    onwerToken1AccountAddr,
+    ownerToken1AccountAddr,
     "processed",
     token1Program
   );
@@ -271,8 +271,8 @@ export async function getUserAndPoolVaultAmount(
     CompressedTokenProgram.programId
   );
   return {
-    onwerToken0Account,
-    onwerToken1Account,
+    ownerToken0Account,
+    ownerToken1Account,
     poolVault0TokenAccount,
     poolVault1TokenAccount,
   };
