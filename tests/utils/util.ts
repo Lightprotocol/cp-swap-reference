@@ -75,13 +75,6 @@ export async function createTokenMintAndAssociatedTokenAccount(
     undefined,
     TOKEN_2022_PROGRAM_ID
   );
-  // let token1 = await createMintWithTransferFee(
-  //   connection,
-  //   payer,
-  //   mintAuthority,
-  //   Keypair.generate(),
-  //   transferFeeConfig
-  // );
 
   tokenArray.push({ address: token1, program: TOKEN_2022_PROGRAM_ID });
 

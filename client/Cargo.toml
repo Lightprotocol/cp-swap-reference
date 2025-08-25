@@ -10,7 +10,6 @@ test-sbf = ["raydium-cp-swap/test-sbf"]
 [dependencies]
 anchor-client = { version = "=0.31.1", features = ["async"] }
 anchor-lang = { version = "=0.31.1" }
-#anchor-spl = { version = "=0.31.1", features = ["idl-build"] }
 anchor-spl = { version = "=0.31.1", git = "https://github.com/lightprotocol/anchor", rev = "d8a2b3d9", features = ["memo", "metadata", "idl-build"] }
 
 raydium-cp-swap = { path = "../programs/cp-swap", features = [
