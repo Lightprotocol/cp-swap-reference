@@ -130,12 +130,6 @@ export async function createTokenMintAndAssociatedTokenAccount(
     { skipPreflight: true },
     token0Program
   );
-
-  // console.log(
-  //   "ownerToken0Account key: ",
-  //   ownerToken0Account.address.toString()
-  // );
-
   const ownerToken1Account = await getOrCreateAssociatedTokenAccount(
     connection,
     payer,
