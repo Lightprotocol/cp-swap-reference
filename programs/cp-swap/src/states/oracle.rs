@@ -130,7 +130,9 @@ impl ObservationState {
             self.observation_index = next_observation_index;
 
             // The account was written to, so we must update CompressionInfo.
-            self.compression_info_mut().set_last_written_slot().unwrap();
+            self.compression_info_mut()
+                .bump_last_written_slot()
+                .unwrap();
         }
     }
 }

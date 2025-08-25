@@ -178,13 +178,13 @@ pub fn swap_base_output(
         ctx.accounts.input_token_account.to_account_info(),
         ctx.accounts.input_vault.to_account_info(),
         ctx.accounts.input_token_mint.to_account_info(),
-        input_transfer_amount,
+        ctx.accounts.input_token_program.to_account_info(),
         ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
         compressed_token_0_pool_bump,
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.input_token_program.to_account_info(),
+        input_transfer_amount,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -193,12 +193,12 @@ pub fn swap_base_output(
         ctx.accounts.output_vault.to_account_info(),
         ctx.accounts.output_token_account.to_account_info(),
         ctx.accounts.output_token_mint.to_account_info(),
+        ctx.accounts.output_token_program.to_account_info(),
         ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
         compressed_token_1_pool_bump,
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.output_token_program.to_account_info(),
         output_transfer_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
@@ -212,7 +212,7 @@ pub fn swap_base_output(
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().set_last_written_slot()?;
+    pool_state.compression_info_mut().bump_last_written_slot()?;
 
     Ok(())
 }

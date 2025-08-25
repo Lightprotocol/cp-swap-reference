@@ -186,6 +186,11 @@ pub async fn initialize_pool_instr(
             creator_lp_token_bump,
         };
 
+    let (compressed_token_0_pool_pda, token_0_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&token_0_mint);
+    let (compressed_token_1_pool_pda, token_1_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&token_1_mint);
+
     let mut instructions = program
         .request()
         .accounts(raydium_cp_accounts::Initialize {
@@ -215,6 +220,8 @@ pub async fn initialize_pool_instr(
             lp_mint_signer,
             compressed_token_program_cpi_authority: compressed_token::cpi_authority(),
             compressed_token_program: compressed_token::id(),
+            compressed_token_0_pool_pda,
+            compressed_token_1_pool_pda,
         })
         .accounts(system_accounts)
         .args(raydium_cp_instructions::Initialize {
@@ -269,6 +276,11 @@ pub fn deposit_instr(
         &program.id(),
     );
 
+    let (compressed_token_0_pool_pda, token_0_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&token_0_mint);
+    let (compressed_token_1_pool_pda, token_1_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&token_1_mint);
+
     let instructions = program
         .request()
         .accounts(raydium_cp_accounts::Deposit {
@@ -286,6 +298,9 @@ pub fn deposit_instr(
             vault_1_mint: token_1_mint,
             lp_vault,
             compressed_token_program: compressed_token::id(),
+            compressed_token_program_cpi_authority: compressed_token::cpi_authority(),
+            compressed_token_0_pool_pda,
+            compressed_token_1_pool_pda,
         })
         .args(raydium_cp_instructions::Deposit {
             lp_token_amount,
@@ -326,6 +341,10 @@ pub fn withdraw_instr(
         ],
         &program.id(),
     );
+    let (compressed_token_0_pool_pda, token_0_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&token_0_mint);
+    let (compressed_token_1_pool_pda, token_1_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&token_1_mint);
 
     let instructions = program
         .request()
@@ -345,6 +364,9 @@ pub fn withdraw_instr(
             lp_vault,
             compressed_token_program: compressed_token::id(),
             memo_program: spl_memo::id(),
+            compressed_token_program_cpi_authority: compressed_token::cpi_authority(),
+            compressed_token_0_pool_pda,
+            compressed_token_1_pool_pda,
         })
         .args(raydium_cp_instructions::Withdraw {
             lp_token_amount,
@@ -379,6 +401,11 @@ pub fn swap_base_input_instr(
 
     let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &program.id());
 
+    let (compressed_token_0_pool_pda, token_0_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&input_token_mint);
+    let (compressed_token_1_pool_pda, token_1_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&output_token_mint);
+
     let instructions = program
         .request()
         .accounts(raydium_cp_accounts::Swap {
@@ -395,6 +422,10 @@ pub fn swap_base_input_instr(
             input_token_mint,
             output_token_mint,
             observation_state: observation_account,
+            compressed_token_program_cpi_authority: compressed_token::cpi_authority(),
+            compressed_token_program: compressed_token::id(),
+            compressed_token_0_pool_pda,
+            compressed_token_1_pool_pda,
         })
         .args(raydium_cp_instructions::SwapBaseInput {
             amount_in,
@@ -428,6 +459,11 @@ pub fn swap_base_output_instr(
 
     let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &program.id());
 
+    let (compressed_token_0_pool_pda, token_0_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&input_token_mint);
+    let (compressed_token_1_pool_pda, token_1_pool_pda_bump) =
+        compressed_token::get_token_pool_address_and_bump(&output_token_mint);
+
     let instructions = program
         .request()
         .accounts(raydium_cp_accounts::Swap {
@@ -444,6 +480,10 @@ pub fn swap_base_output_instr(
             input_token_mint,
             output_token_mint,
             observation_state: observation_account,
+            compressed_token_program_cpi_authority: compressed_token::cpi_authority(),
+            compressed_token_program: compressed_token::id(),
+            compressed_token_0_pool_pda,
+            compressed_token_1_pool_pda,
         })
         .args(raydium_cp_instructions::SwapBaseOutput {
             max_amount_in,

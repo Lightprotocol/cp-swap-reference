@@ -29,25 +29,26 @@ pub fn transfer_from_user_to_pool_vault<'a, 'b>(
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
     mint: AccountInfo<'a>,
+    spl_token_program: AccountInfo<'a>,
+    compressed_token_pool_pda: AccountInfo<'a>,
+    compressed_token_pool_pda_bump: u8,
+    compressed_token_program_authority: AccountInfo<'a>,
     amount: u64,
-    token_pool_pda: AccountInfo<'a>,
-    token_pool_pda_bump: u8,
-    token_program_authority: AccountInfo<'a>,
-    spl_program: AccountInfo<'a>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
     transfer_spl_to_ctoken(
+        authority.clone(),
+        authority,
         from,
         to_vault,
-        amount,
-        authority,
         mint,
-        token_pool_pda,
-        token_pool_pda_bump,
-        token_program_authority,
-        spl_program,
+        spl_token_program,
+        compressed_token_pool_pda,
+        compressed_token_pool_pda_bump,
+        compressed_token_program_authority,
+        amount,
     )?;
     Ok(())
 }
@@ -58,10 +59,10 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    token_pool_pda: AccountInfo<'a>,
-    token_pool_pda_bump: u8,
-    token_program_authority: AccountInfo<'a>,
-    spl_program: AccountInfo<'a>,
+    spl_token_program: AccountInfo<'a>,
+    compressed_token_pool_pda: AccountInfo<'a>,
+    compressed_token_pool_pda_bump: u8,
+    compressed_token_program_authority: AccountInfo<'a>,
     amount: u64,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
@@ -69,16 +70,16 @@ pub fn transfer_from_pool_vault_to_user<'a>(
         return Ok(());
     }
     transfer_ctoken_to_spl_signed(
+        payer,
+        authority,
         from_vault,
         to,
-        amount,
-        authority,
-        payer,
         mint,
-        token_pool_pda,
-        token_pool_pda_bump,
-        token_program_authority,
-        spl_program,
+        spl_token_program,
+        compressed_token_pool_pda,
+        compressed_token_pool_pda_bump,
+        compressed_token_program_authority,
+        amount,
         signer_seeds,
     )?;
     Ok(())

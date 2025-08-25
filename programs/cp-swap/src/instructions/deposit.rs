@@ -96,7 +96,11 @@ pub struct Deposit<'info> {
     pub compressed_token_program_cpi_authority: AccountInfo<'info>,
     /// CHECK: checked by protocol.
     pub compressed_token_program: AccountInfo<'info>,
+
     /// CHECK: checked by protocol.
+    ///
+    /// Every mint must be registered in the compression protocol via a
+    /// compression_token_pool_pda.
     #[account(mut)]
     pub compressed_token_0_pool_pda: AccountInfo<'info>,
     /// CHECK: checked by protocol.
@@ -151,18 +155,6 @@ pub fn deposit(
         )
     };
 
-    #[cfg(feature = "enable-log")]
-    msg!(
-        "results.token_0_amount;{}, results.token_1_amount:{},transfer_token_0_amount:{},transfer_token_0_fee:{},
-            transfer_token_1_amount:{},transfer_token_1_fee:{}",
-        results.token_0_amount,
-        results.token_1_amount,
-        transfer_token_0_amount,
-        transfer_token_0_fee,
-        transfer_token_1_amount,
-        transfer_token_1_fee
-    );
-
     emit!(LpChangeEvent {
         pool_id,
         lp_amount_before: pool_state.lp_supply,
@@ -186,49 +178,40 @@ pub fn deposit(
         ctx.accounts.compressed_token_program.key(),
     );
 
-    msg!(
-        "transfer_token_0_amount: {}",
-        transfer_token_0_amount.to_string()
-    );
-
     transfer_from_user_to_pool_vault(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.token_0_account.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.vault_0_mint.to_account_info(),
-        transfer_token_0_amount,
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         if ctx.accounts.vault_0_mint.to_account_info().owner == ctx.accounts.token_program.key {
             ctx.accounts.token_program.to_account_info()
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
+        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
+        compressed_token_0_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
+        transfer_token_0_amount,
     )?;
 
-    msg!(
-        "transfer_token_1_amount: {}",
-        transfer_token_1_amount.to_string()
-    );
     transfer_from_user_to_pool_vault(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.token_1_account.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.vault_1_mint.to_account_info(),
-        transfer_token_1_amount,
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         if ctx.accounts.vault_1_mint.to_account_info().owner == ctx.accounts.token_program.key {
             ctx.accounts.token_program.to_account_info()
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
+        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
+        compressed_token_1_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
+        transfer_token_1_amount,
     )?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
@@ -244,7 +227,7 @@ pub fn deposit(
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().set_last_written_slot()?;
+    pool_state.compression_info_mut().bump_last_written_slot()?;
 
     Ok(())
 }

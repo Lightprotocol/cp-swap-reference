@@ -192,11 +192,12 @@ pub struct Initialize<'info> {
 
 // This instruction:
 // 0. Runs checks and loads compression config.
-// 1. Creates token vault accounts for pool tokens.
-// 2. Initializes PoolState and ObservationState, and compresses them.
-// 3. Creates compressed token mint for LP tokens.
-// 4. Mints initial liquidity to user and vault.
-
+// 1. Creates token vault accounts for pool tokens as compressible.
+// 2. Creates user token accounts as compressible.
+// 3. Initializes PoolState and ObservationState as compressible.
+// 4. Creates compressed token mint for LP tokens.
+// 5. Distributes initial liquidity to user and vault.
+// 6. Compresses PoolState and ObservationState.
 pub fn initialize<'info>(
     ctx: Context<'_, '_, '_, 'info, Initialize<'info>>,
     init_amount_0: u64,
@@ -280,13 +281,13 @@ pub fn initialize<'info>(
         ctx.accounts.creator_token_0.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.token_0_mint.to_account_info(),
-        init_amount_0,
+        ctx.accounts.token_0_program.to_account_info(),
         ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
         compressed_token_0_pool_bump,
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.token_0_program.to_account_info(),
+        init_amount_0,
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -294,13 +295,13 @@ pub fn initialize<'info>(
         ctx.accounts.creator_token_1.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_mint.to_account_info(),
-        init_amount_1,
+        ctx.accounts.token_1_program.to_account_info(),
         ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
         compressed_token_1_pool_bump,
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
-        ctx.accounts.token_1_program.to_account_info(),
+        init_amount_1,
     )?;
 
     let token_0_vault =
@@ -449,26 +450,23 @@ pub fn initialize<'info>(
         pool_auth_bump,
     )?;
 
-    // ZK Compression Step 6: Clean up compressed onchain PDAs. Do this at the
-    // end of your instruction. Only PoolState and ObservationState are being
-    // compressed right away. LP token accounts are not compressed yet; they can
-    // be compressed after meeting their compression condition. pool_state and
-    // observation_state are compressed now to demonstrate dynamic
-    // de-compression flow in our test suite. You are flexible to choose whether
-    // to compress_at_init or only after they've become inactive. If you
-    // compress later, traders do not have to add a
-    // decompress_accounts_idempotent instructions for the first trade of a
-    // compressed market. Whereas compress_at_init immediately saves rent fees
-    // for the creator. Depending on your usage pattern, one might be more
-    // suitable than the other.
+    // ZK Compression Step 6: Clean up compressed onchain PDAs. Always do this
+    // at the end of your instruction. Only PoolState and ObservationState are
+    // being compressed right away. All other accounts only initialized as
+    // compressible - for async compression once they're inactive. PoolState and
+    // ObservationState are compressed atomically for demo purposes. You can
+    // choose whether to compress_at_init or only after they've become inactive.
+    // If you compress_at_init, you pay 0 upfront rent, but the first
+    // transaction to use the account must include a
+    // decompress_accounts_idempotent instruction in their transaction which
+    // fronts then rent. Only the first touch will actually decompress the
+    // account; swap n+1 will still succeed.
     pool_state.close(rent_recipient.clone())?;
     observation_state.close(rent_recipient.clone())?;
 
     Ok(())
 }
 
-// Tip: to reduce transaction size, you can derive each compressed_address
-// onchain instead of passing it as instruction data.
 #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct InitializeCompressionParams {
     // pool state

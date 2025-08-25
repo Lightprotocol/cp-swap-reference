@@ -76,8 +76,10 @@ pub struct CollectProtocolFee<'info> {
     /// CHECK: checked by protocol.
     pub compressed_token_program: AccountInfo<'info>,
     /// CHECK: checked by protocol.
+    #[account(mut)]
     pub compressed_token_0_pool_pda: AccountInfo<'info>,
     /// CHECK: checked by protocol.
+    #[account(mut)]
     pub compressed_token_1_pool_pda: AccountInfo<'info>,
 }
 
@@ -120,16 +122,16 @@ pub fn collect_protocol_fee(
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.recipient_token_0_account.to_account_info(),
         ctx.accounts.vault_0_mint.to_account_info(),
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         if ctx.accounts.vault_0_mint.to_account_info().owner == ctx.accounts.token_program.key {
             ctx.accounts.token_program.to_account_info()
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
+        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
+        compressed_token_0_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
         amount_0,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
@@ -140,16 +142,16 @@ pub fn collect_protocol_fee(
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.recipient_token_1_account.to_account_info(),
         ctx.accounts.vault_1_mint.to_account_info(),
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         if ctx.accounts.vault_1_mint.to_account_info().owner == ctx.accounts.token_program.key {
             ctx.accounts.token_program.to_account_info()
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
+        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
+        compressed_token_1_pool_bump,
+        ctx.accounts
+            .compressed_token_program_cpi_authority
+            .to_account_info(),
         amount_1,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
