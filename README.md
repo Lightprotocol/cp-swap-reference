@@ -1,6 +1,6 @@
 # raydium-cp-swap
 
-A constant product AMM program reference implementation based on Raydiun's CP AMM.
+An AMM reference implementation based on Raydium's CP AMM.
 
 We added:
 
