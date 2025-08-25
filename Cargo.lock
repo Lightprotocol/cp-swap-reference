@@ -15,21 +15,21 @@ dependencies = [
 [[package]]
 name = "account-compression"
 version = "2.0.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "aligned-sized",
  "anchor-lang",
  "bytemuck",
- "light-account-checks 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-account-checks",
  "light-batched-merkle-tree",
  "light-bounded-vec",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-concurrent-merkle-tree 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-compressed-account",
+ "light-concurrent-merkle-tree",
  "light-hash-set",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-indexed-merkle-tree 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-merkle-tree-metadata 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-hasher",
+ "light-indexed-merkle-tree",
+ "light-merkle-tree-metadata",
+ "light-zero-copy",
  "num-bigint 0.4.6",
  "solana-sdk",
  "solana-security-txt",
@@ -112,7 +112,7 @@ dependencies = [
 [[package]]
 name = "aligned-sized"
 version = "1.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -238,17 +238,17 @@ dependencies = [
 [[package]]
 name = "anchor-compressed-token"
 version = "2.0.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "account-compression",
  "anchor-lang",
  "anchor-spl 0.31.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-ctoken-types 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-compressed-account",
+ "light-ctoken-types",
+ "light-hasher",
  "light-heap",
  "light-system-program-anchor",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-zero-copy",
  "solana-sdk",
  "solana-security-txt",
  "spl-token",
@@ -1257,11 +1257,11 @@ dependencies = [
  "configparser",
  "futures",
  "hex",
- "light-client 0.13.1 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-client",
+ "light-compressed-account",
  "light-compressible-client",
  "light-program-test",
- "light-sdk 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-sdk",
  "light-token-client",
  "rand 0.9.2",
  "raydium-cp-swap",
@@ -2911,19 +2911,7 @@ dependencies = [
 [[package]]
 name = "light-account-checks"
 version = "0.3.0"
-dependencies = [
- "solana-account-info",
- "solana-msg",
- "solana-program-error",
- "solana-pubkey",
- "solana-sysvar",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-account-checks"
-version = "0.3.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "pinocchio",
  "solana-account-info",
@@ -2937,18 +2925,18 @@ dependencies = [
 [[package]]
 name = "light-batched-merkle-tree"
 version = "0.3.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "aligned-sized",
  "borsh 0.10.4",
- "light-account-checks 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-account-checks",
  "light-bloom-filter",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-macros 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-merkle-tree-metadata 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-compressed-account",
+ "light-hasher",
+ "light-macros",
+ "light-merkle-tree-metadata",
  "light-verifier",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-zero-copy",
  "solana-account-info",
  "solana-msg",
  "solana-program-error",
@@ -2961,7 +2949,7 @@ dependencies = [
 [[package]]
 name = "light-bloom-filter"
 version = "0.3.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "bitvec",
  "num-bigint 0.4.6",
@@ -2985,6 +2973,7 @@ dependencies = [
 [[package]]
 name = "light-client"
 version = "0.13.1"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "async-trait",
  "base64 0.13.1",
@@ -2992,62 +2981,16 @@ dependencies = [
  "bs58",
  "bytemuck",
  "lazy_static",
- "light-compressed-account 0.3.0",
- "light-concurrent-merkle-tree 2.1.0",
- "light-hasher 3.1.0",
- "light-indexed-merkle-tree 2.1.0",
- "light-merkle-tree-metadata 0.3.0",
- "light-prover-client 2.0.0",
- "light-sdk 0.13.0",
+ "light-compressed-account",
+ "light-concurrent-merkle-tree",
+ "light-hasher",
+ "light-indexed-merkle-tree",
+ "light-merkle-tree-metadata",
+ "light-prover-client",
+ "light-sdk",
  "num-bigint 0.4.6",
  "num-traits",
- "photon-api 0.51.0",
- "rand 0.8.5",
- "solana-account",
- "solana-account-decoder-client-types",
- "solana-address-lookup-table-interface",
- "solana-clock",
- "solana-commitment-config",
- "solana-compute-budget-interface",
- "solana-epoch-info",
- "solana-hash",
- "solana-instruction",
- "solana-keypair",
- "solana-message",
- "solana-program-error",
- "solana-pubkey",
- "solana-rpc-client",
- "solana-rpc-client-api",
- "solana-signature",
- "solana-transaction",
- "solana-transaction-error",
- "solana-transaction-status-client-types",
- "thiserror 2.0.12",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "light-client"
-version = "0.13.1"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
-dependencies = [
- "async-trait",
- "base64 0.13.1",
- "borsh 0.10.4",
- "bs58",
- "bytemuck",
- "lazy_static",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-concurrent-merkle-tree 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-indexed-merkle-tree 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-merkle-tree-metadata 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-prover-client 2.0.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "num-bigint 0.4.6",
- "num-traits",
- "photon-api 0.51.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "photon-api",
  "rand 0.8.5",
  "solana-account",
  "solana-account-decoder-client-types",
@@ -3077,30 +3020,14 @@ dependencies = [
 [[package]]
 name = "light-compressed-account"
 version = "0.3.0"
-dependencies = [
- "borsh 0.10.4",
- "bytemuck",
- "light-hasher 3.1.0",
- "light-macros 2.1.0",
- "light-zero-copy 0.2.0",
- "solana-msg",
- "solana-program-error",
- "solana-pubkey",
- "thiserror 2.0.12",
- "zerocopy",
-]
-
-[[package]]
-name = "light-compressed-account"
-version = "0.3.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "anchor-lang",
  "borsh 0.10.4",
  "bytemuck",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-macros 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-hasher",
+ "light-macros",
+ "light-zero-copy",
  "solana-msg",
  "solana-program-error",
  "solana-pubkey",
@@ -3111,23 +3038,23 @@ dependencies = [
 [[package]]
 name = "light-compressed-token"
 version = "2.0.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "account-compression",
  "anchor-compressed-token",
  "anchor-lang",
  "arrayvec",
  "borsh 0.10.4",
- "light-account-checks 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-ctoken-types 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-account-checks",
+ "light-compressed-account",
+ "light-ctoken-types",
+ "light-hasher",
  "light-heap",
- "light-sdk 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-sdk",
  "light-sdk-pinocchio",
- "light-sdk-types 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-sdk-types",
  "light-system-program-anchor",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-zero-copy",
  "pinocchio",
  "solana-pubkey",
  "solana-security-txt",
@@ -3141,40 +3068,17 @@ dependencies = [
 [[package]]
 name = "light-compressed-token-sdk"
 version = "0.1.0"
-dependencies = [
- "arrayvec",
- "borsh 0.10.4",
- "light-account-checks 0.3.0",
- "light-compressed-account 0.3.0",
- "light-compressed-token-types 0.1.0",
- "light-ctoken-types 0.1.0",
- "light-macros 2.1.0",
- "light-sdk 0.13.0",
- "solana-account-info",
- "solana-cpi",
- "solana-instruction",
- "solana-msg",
- "solana-program-error",
- "solana-pubkey",
- "spl-pod",
- "spl-token-2022 7.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-compressed-token-sdk"
-version = "0.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "anchor-lang",
  "arrayvec",
  "borsh 0.10.4",
- "light-account-checks 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-token-types 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-ctoken-types 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-macros 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-account-checks",
+ "light-compressed-account",
+ "light-compressed-token-types",
+ "light-ctoken-types",
+ "light-macros",
+ "light-sdk",
  "solana-account-info",
  "solana-cpi",
  "solana-instruction",
@@ -3189,27 +3093,14 @@ dependencies = [
 [[package]]
 name = "light-compressed-token-types"
 version = "0.1.0"
-dependencies = [
- "borsh 0.10.4",
- "light-account-checks 0.3.0",
- "light-compressed-account 0.3.0",
- "light-macros 2.1.0",
- "light-sdk-types 0.13.0",
- "solana-msg",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-compressed-token-types"
-version = "0.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "anchor-lang",
  "borsh 0.10.4",
- "light-account-checks 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-macros 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk-types 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-account-checks",
+ "light-compressed-account",
+ "light-macros",
+ "light-sdk-types",
  "solana-msg",
  "thiserror 2.0.12",
 ]
@@ -3217,12 +3108,12 @@ dependencies = [
 [[package]]
 name = "light-compressible-client"
 version = "0.13.1"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "anchor-lang",
  "borsh 0.10.4",
- "light-client 0.13.1 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-client",
+ "light-sdk",
  "solana-account",
  "solana-instruction",
  "solana-pubkey",
@@ -3232,23 +3123,11 @@ dependencies = [
 [[package]]
 name = "light-concurrent-merkle-tree"
 version = "2.1.0"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "borsh 0.10.4",
  "light-bounded-vec",
- "light-hasher 3.1.0",
- "memoffset",
- "solana-program-error",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-concurrent-merkle-tree"
-version = "2.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
-dependencies = [
- "borsh 0.10.4",
- "light-bounded-vec",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-hasher",
  "memoffset",
  "solana-program-error",
  "thiserror 2.0.12",
@@ -3257,34 +3136,15 @@ dependencies = [
 [[package]]
 name = "light-ctoken-types"
 version = "0.1.0"
-dependencies = [
- "arrayvec",
- "borsh 0.10.4",
- "light-compressed-account 0.3.0",
- "light-hasher 3.1.0",
- "light-macros 2.1.0",
- "light-zero-copy 0.2.0",
- "pinocchio",
- "solana-msg",
- "solana-pubkey",
- "spl-pod",
- "spl-token-2022 7.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "thiserror 2.0.12",
- "zerocopy",
-]
-
-[[package]]
-name = "light-ctoken-types"
-version = "0.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "anchor-lang",
  "arrayvec",
  "borsh 0.10.4",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-macros 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-compressed-account",
+ "light-hasher",
+ "light-macros",
+ "light-zero-copy",
  "pinocchio",
  "solana-msg",
  "solana-pubkey",
@@ -3297,9 +3157,9 @@ dependencies = [
 [[package]]
 name = "light-hash-set"
 version = "2.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-hasher",
  "num-bigint 0.4.6",
  "num-traits",
  "solana-program-error",
@@ -3309,25 +3169,7 @@ dependencies = [
 [[package]]
 name = "light-hasher"
 version = "3.1.0"
-dependencies = [
- "ark-bn254 0.5.0",
- "ark-ff 0.5.0",
- "arrayvec",
- "borsh 0.10.4",
- "light-poseidon 0.3.0",
- "num-bigint 0.4.6",
- "sha2 0.10.9",
- "sha3",
- "solana-nostd-keccak",
- "solana-program-error",
- "solana-pubkey",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-hasher"
-version = "3.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "ark-bn254 0.5.0",
  "ark-ff 0.5.0",
@@ -3346,7 +3188,7 @@ dependencies = [
 [[package]]
 name = "light-heap"
 version = "2.0.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "anchor-lang",
 ]
@@ -3354,19 +3196,9 @@ dependencies = [
 [[package]]
 name = "light-indexed-array"
 version = "0.1.0"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
- "light-hasher 3.1.0",
- "num-bigint 0.4.6",
- "num-traits",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-indexed-array"
-version = "0.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
-dependencies = [
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-hasher",
  "num-bigint 0.4.6",
  "num-traits",
  "thiserror 2.0.12",
@@ -3375,26 +3207,12 @@ dependencies = [
 [[package]]
 name = "light-indexed-merkle-tree"
 version = "2.1.0"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "light-bounded-vec",
- "light-concurrent-merkle-tree 2.1.0",
- "light-hasher 3.1.0",
- "light-merkle-tree-reference 2.0.0",
- "num-bigint 0.4.6",
- "num-traits",
- "solana-program-error",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-indexed-merkle-tree"
-version = "2.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
-dependencies = [
- "light-bounded-vec",
- "light-concurrent-merkle-tree 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-merkle-tree-reference 2.0.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-concurrent-merkle-tree",
+ "light-hasher",
+ "light-merkle-tree-reference",
  "num-bigint 0.4.6",
  "num-traits",
  "solana-program-error",
@@ -3404,17 +3222,7 @@ dependencies = [
 [[package]]
 name = "light-macros"
 version = "2.1.0"
-dependencies = [
- "bs58",
- "proc-macro2",
- "quote",
- "syn 2.0.104",
-]
-
-[[package]]
-name = "light-macros"
-version = "2.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "bs58",
  "proc-macro2",
@@ -3425,26 +3233,12 @@ dependencies = [
 [[package]]
 name = "light-merkle-tree-metadata"
 version = "0.3.0"
-dependencies = [
- "borsh 0.10.4",
- "bytemuck",
- "light-compressed-account 0.3.0",
- "solana-msg",
- "solana-program-error",
- "solana-sysvar",
- "thiserror 2.0.12",
- "zerocopy",
-]
-
-[[package]]
-name = "light-merkle-tree-metadata"
-version = "0.3.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "anchor-lang",
  "borsh 0.10.4",
  "bytemuck",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-compressed-account",
  "solana-msg",
  "solana-program-error",
  "solana-sysvar",
@@ -3455,21 +3249,10 @@ dependencies = [
 [[package]]
 name = "light-merkle-tree-reference"
 version = "2.0.0"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
- "light-hasher 3.1.0",
- "light-indexed-array 0.1.0",
- "num-bigint 0.4.6",
- "num-traits",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-merkle-tree-reference"
-version = "2.0.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
-dependencies = [
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-indexed-array 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-hasher",
+ "light-indexed-array",
  "num-bigint 0.4.6",
  "num-traits",
  "thiserror 2.0.12",
@@ -3502,7 +3285,7 @@ dependencies = [
 [[package]]
 name = "light-program-test"
 version = "0.13.2"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "account-compression",
  "anchor-lang",
@@ -3512,25 +3295,25 @@ dependencies = [
  "bytemuck",
  "chrono",
  "light-batched-merkle-tree",
- "light-client 0.13.1 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-client",
+ "light-compressed-account",
  "light-compressed-token",
  "light-compressible-client",
- "light-concurrent-merkle-tree 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-indexed-array 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-indexed-merkle-tree 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-merkle-tree-metadata 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-merkle-tree-reference 2.0.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-prover-client 2.0.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-concurrent-merkle-tree",
+ "light-hasher",
+ "light-indexed-array",
+ "light-indexed-merkle-tree",
+ "light-merkle-tree-metadata",
+ "light-merkle-tree-reference",
+ "light-prover-client",
  "light-registry",
- "light-sdk 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk-types 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-sdk",
+ "light-sdk-types",
  "litesvm",
  "log",
  "num-bigint 0.4.6",
  "num-traits",
- "photon-api 0.51.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "photon-api",
  "rand 0.8.5",
  "reqwest 0.12.22",
  "serde",
@@ -3552,35 +3335,14 @@ dependencies = [
 [[package]]
 name = "light-prover-client"
 version = "2.0.0"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "ark-bn254 0.5.0",
  "ark-serialize 0.5.0",
  "ark-std 0.5.0",
- "light-hasher 3.1.0",
- "light-indexed-array 0.1.0",
- "light-sparse-merkle-tree 0.1.0",
- "num-bigint 0.4.6",
- "num-traits",
- "reqwest 0.11.27",
- "serde",
- "serde_json",
- "solana-bn254",
- "thiserror 2.0.12",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "light-prover-client"
-version = "2.0.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
-dependencies = [
- "ark-bn254 0.5.0",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-indexed-array 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sparse-merkle-tree 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-hasher",
+ "light-indexed-array",
+ "light-sparse-merkle-tree",
  "num-bigint 0.4.6",
  "num-traits",
  "reqwest 0.11.27",
@@ -3595,13 +3357,13 @@ dependencies = [
 [[package]]
 name = "light-registry"
 version = "2.0.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "account-compression",
  "aligned-sized",
  "anchor-lang",
  "light-batched-merkle-tree",
- "light-merkle-tree-metadata 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-merkle-tree-metadata",
  "light-system-program-anchor",
  "solana-sdk",
  "solana-security-txt",
@@ -3610,48 +3372,19 @@ dependencies = [
 [[package]]
 name = "light-sdk"
 version = "0.13.0"
-dependencies = [
- "arrayvec",
- "bincode",
- "borsh 0.10.4",
- "light-account-checks 0.3.0",
- "light-compressed-account 0.3.0",
- "light-hasher 3.1.0",
- "light-macros 2.1.0",
- "light-sdk-macros 0.13.0",
- "light-sdk-types 0.13.0",
- "light-zero-copy 0.2.0",
- "num-bigint 0.4.6",
- "solana-account-info",
- "solana-clock",
- "solana-cpi",
- "solana-instruction",
- "solana-msg",
- "solana-program",
- "solana-program-error",
- "solana-pubkey",
- "solana-rent",
- "solana-system-interface",
- "solana-sysvar",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-sdk"
-version = "0.13.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "anchor-lang",
  "arrayvec",
  "bincode",
  "borsh 0.10.4",
- "light-account-checks 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-macros 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk-macros 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk-types 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-account-checks",
+ "light-compressed-account",
+ "light-hasher",
+ "light-macros",
+ "light-sdk-macros",
+ "light-sdk-types",
+ "light-zero-copy",
  "num-bigint 0.4.6",
  "solana-account-info",
  "solana-clock",
@@ -3670,23 +3403,10 @@ dependencies = [
 [[package]]
 name = "light-sdk-macros"
 version = "0.13.0"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "heck 0.4.1",
- "light-hasher 3.1.0",
- "light-poseidon 0.3.0",
- "proc-macro2",
- "quote",
- "solana-pubkey",
- "syn 2.0.104",
-]
-
-[[package]]
-name = "light-sdk-macros"
-version = "0.13.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
-dependencies = [
- "heck 0.4.1",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-hasher",
  "light-poseidon 0.3.0",
  "proc-macro2",
  "quote",
@@ -3697,16 +3417,16 @@ dependencies = [
 [[package]]
 name = "light-sdk-pinocchio"
 version = "0.13.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "borsh 0.10.4",
- "light-account-checks 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-macros 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk-macros 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk-types 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-account-checks",
+ "light-compressed-account",
+ "light-hasher",
+ "light-macros",
+ "light-sdk-macros",
+ "light-sdk-types",
+ "light-zero-copy",
  "pinocchio",
  "solana-pubkey",
  "thiserror 2.0.12",
@@ -3715,29 +3435,15 @@ dependencies = [
 [[package]]
 name = "light-sdk-types"
 version = "0.13.0"
-dependencies = [
- "borsh 0.10.4",
- "light-account-checks 0.3.0",
- "light-compressed-account 0.3.0",
- "light-hasher 3.1.0",
- "light-macros 2.1.0",
- "light-zero-copy 0.2.0",
- "solana-msg",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-sdk-types"
-version = "0.13.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "anchor-lang",
  "borsh 0.10.4",
- "light-account-checks 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-macros 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-account-checks",
+ "light-compressed-account",
+ "light-hasher",
+ "light-macros",
+ "light-zero-copy",
  "solana-msg",
  "thiserror 2.0.12",
 ]
@@ -3745,21 +3451,10 @@ dependencies = [
 [[package]]
 name = "light-sparse-merkle-tree"
 version = "0.1.0"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
- "light-hasher 3.1.0",
- "light-indexed-array 0.1.0",
- "num-bigint 0.4.6",
- "num-traits",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "light-sparse-merkle-tree"
-version = "0.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
-dependencies = [
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-indexed-array 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-hasher",
+ "light-indexed-array",
  "num-bigint 0.4.6",
  "num-traits",
  "thiserror 2.0.12",
@@ -3768,27 +3463,28 @@ dependencies = [
 [[package]]
 name = "light-system-program-anchor"
 version = "2.0.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "account-compression",
  "aligned-sized",
  "anchor-lang",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-zero-copy 0.2.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-compressed-account",
+ "light-zero-copy",
  "zerocopy",
 ]
 
 [[package]]
 name = "light-token-client"
 version = "0.1.0"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "borsh 0.10.4",
- "light-client 0.13.1",
- "light-compressed-account 0.3.0",
- "light-compressed-token-sdk 0.1.0",
- "light-compressed-token-types 0.1.0",
- "light-ctoken-types 0.1.0",
- "light-sdk 0.13.0",
+ "light-client",
+ "light-compressed-account",
+ "light-compressed-token-sdk",
+ "light-compressed-token-types",
+ "light-ctoken-types",
+ "light-sdk",
  "solana-instruction",
  "solana-keypair",
  "solana-msg",
@@ -3802,27 +3498,19 @@ dependencies = [
 [[package]]
 name = "light-verifier"
 version = "2.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "groth16-solana",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-compressed-account",
  "thiserror 2.0.12",
 ]
 
 [[package]]
 name = "light-zero-copy"
 version = "0.2.0"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
- "light-zero-copy-derive 0.1.0",
- "zerocopy",
-]
-
-[[package]]
-name = "light-zero-copy"
-version = "0.2.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
-dependencies = [
- "light-zero-copy-derive 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-zero-copy-derive",
  "solana-program-error",
  "zerocopy",
 ]
@@ -3830,17 +3518,7 @@ dependencies = [
 [[package]]
 name = "light-zero-copy-derive"
 version = "0.1.0"
-dependencies = [
- "lazy_static",
- "proc-macro2",
- "quote",
- "syn 2.0.104",
-]
-
-[[package]]
-name = "light-zero-copy-derive"
-version = "0.1.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "lazy_static",
  "proc-macro2",
@@ -4422,20 +4100,7 @@ dependencies = [
 [[package]]
 name = "photon-api"
 version = "0.51.0"
-dependencies = [
- "reqwest 0.12.22",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_with",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "photon-api"
-version = "0.51.0"
-source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2#276b94b95f3fddaaaedb0508efda492b9cfc4b94"
+source = "git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.3#196374d85dce47cdc00b3042f5eaa07014f1e306"
 dependencies = [
  "reqwest 0.12.22",
  "serde",
@@ -4857,17 +4522,17 @@ dependencies = [
  "anchor-spl 0.31.1 (git+https://github.com/lightprotocol/anchor?rev=d8a2b3d9)",
  "arrayref",
  "bytemuck",
- "light-client 0.13.1 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-account 0.3.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-compressed-token-sdk 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-client",
+ "light-compressed-account",
+ "light-compressed-token-sdk",
  "light-compressible-client",
- "light-ctoken-types 0.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-hasher 3.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-macros 2.1.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-ctoken-types",
+ "light-hasher",
+ "light-macros",
  "light-program-test",
- "light-sdk 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk-macros 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
- "light-sdk-types 0.13.0 (git+https://github.com/lightprotocol/light-protocol?tag=csdk-0.3.2)",
+ "light-sdk",
+ "light-sdk-macros",
+ "light-sdk-types",
  "proptest",
  "quickcheck",
  "rand 0.9.2",

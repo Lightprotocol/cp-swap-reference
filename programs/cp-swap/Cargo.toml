@@ -32,14 +32,14 @@ solana-security-txt = "1.1.1"
 bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["anchor", "anchor-discriminator-compat", "v2"] }
-light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["v2"] }
-light-hasher = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["solana"] }
-light-macros = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["solana"] }
-light-sdk-macros = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["anchor-discriminator-compat"] }
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["anchor"] }
-light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["anchor"] }
-light-ctoken-types = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["anchor"] }
+light-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor", "anchor-discriminator-compat", "v2"] }
+light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["v2"] }
+light-hasher = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["solana"] }
+light-macros = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["solana"] }
+light-sdk-macros = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor-discriminator-compat"] }
+light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
+light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
+light-ctoken-types = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
 
 
 [dev-dependencies]
@@ -47,9 +47,9 @@ quickcheck = "1.0.3"
 proptest = "1.0"
 rand = "0.9.0"
 
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["v2"] }
-light-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["v2"] }
-light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["anchor"] }
+light-program-test = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["v2"] }
+light-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["v2"] }
+light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
 
 
 [profile.release]

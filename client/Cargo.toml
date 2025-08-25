@@ -41,10 +41,11 @@ bytemuck = { version = "1.23.0", features = ["derive"] }
 tokio = { version = "1.0", features = ["full"] }
 futures = "0.3"
 
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["v2"] }
-light-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["v2"] }
-light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["anchor"] }
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["anchor", "anchor-discriminator-compat", "v2"] }
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.2", features = ["anchor"] }
-light-token-client = { path = "../../light-protocol/sdk-libs/token-client" }
+light-program-test = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["v2"] }
+light-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["v2"] }
+light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
+light-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor", "anchor-discriminator-compat", "v2"] }
+light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
+light-token-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3" }
+
 

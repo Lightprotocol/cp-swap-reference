@@ -13,7 +13,7 @@ use light_sdk::{
     compressible::CompressibleConfig,
     instruction::{PackedAccounts, SystemAccountMetaConfig},
 };
-use light_token_client::compressed_token::{self};
+use light_token_client::compressed_token::{self, derive_compressed_mint_address};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey, system_program, sysvar};
 use std::rc::Rc;
 
@@ -133,7 +133,7 @@ pub async fn initialize_pool_instr(
         &program.id().to_bytes(),
     );
     let lp_mint_compressed_address =
-        compressed_token::derive_compressed_mint_address(lp_mint_key, &address_tree_info);
+        derive_compressed_mint_address(lp_mint_key, &address_tree_info.tree);
 
     // Fetch validity proof for all new compressed addresses. Proves that the
     // accounts don't exist yet. Must match the ordering used by the program

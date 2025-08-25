@@ -5,11 +5,9 @@ use clap::Parser;
 use configparser::ini::Ini;
 use light_client::constants::LOOKUP_TABLE_ADDRESS;
 use light_client::rpc::{load_lookup_table, LightClient, LightClientConfig, Rpc};
-
 use light_compressible_client::account_fetcher::get_compressible_account;
 use light_token_client::actions::create_token_pool;
 use light_token_client::compressed_token;
-use light_token_client::instructions::create_token_pool;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -906,7 +904,7 @@ async fn main() -> Result<()> {
 
             let signature = send_txn(&rpc_client, &transaction, true)?;
 
-            /// create the compressed token pool pdas
+            // Each SPL mint has to be registered with the compression protocol via a compression token pool.
             create_token_pool(&mut light_client, &mint_keypair.pubkey(), false, &payer).await?;
 
             println!("Mint Address: {}", mint_keypair.pubkey().to_string());
