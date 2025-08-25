@@ -1,4 +1,4 @@
-import { Program, BN } from "@coral-xyz/anchor";
+import { Program, BN, IdlTypes } from "@coral-xyz/anchor";
 import { RaydiumCpSwap } from "../../target/types/raydium_cp_swap";
 import {
   Connection,
@@ -8,11 +8,13 @@ import {
   Signer,
   SystemProgram,
   SYSVAR_RENT_PUBKEY,
+  ComputeBudgetProgram,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddressSync,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
   accountExist,
@@ -23,14 +25,52 @@ import {
   getPoolLpMintAddress,
   getPoolVaultAddress,
   createTokenMintAndAssociatedTokenAccount,
-  getOrcleAccountAddress,
+  getOracleAccountAddress,
+  fetchCompressibleAccount,
+  POOL_SEED,
+  ORACLE_SEED,
+  getLpVaultAddress,
+  getPoolLpMintSignerAddress,
+  getPoolLpMintCompressedAddress,
 } from "./index";
+import {
+  createRpc,
+  bn,
+  sendAndConfirmTx,
+  featureFlags,
+  VERSION,
+  Rpc,
+  deriveAddressV2,
+  initializeCompressionConfig,
+  selectStateTreeInfo,
+  getDefaultAddressTreeInfo,
+  packTreeInfos,
+  deriveCompressionConfigAddress,
+  createPackedAccountsSmall,
+  buildAndSignTx,
+  PackedStateTreeInfo,
+  createPackedAccountsSmallWithCpiContext,
+} from "@lightprotocol/stateless.js";
 
-import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
+import {
+  CompressedTokenProgram,
+  createTokenPool,
+  getAssociatedCTokenAddressAndBump,
+} from "@lightprotocol/compressed-token";
+import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
+
+featureFlags.version = VERSION.V2;
+const COMPRESSION_DELAY = 100;
+const ADDRESS_SPACE = [
+  new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK"),
+];
+
+type CompressedAccountVariant =
+  IdlTypes<RaydiumCpSwap>["compressedAccountVariant"];
 
 export async function setupInitializeTest(
   program: Program<RaydiumCpSwap>,
-  connection: Connection,
+  connection: Rpc,
   owner: Signer,
   config: {
     config_index: number;
@@ -63,6 +103,19 @@ export async function setupInitializeTest(
     config.create_fee,
     confirmOptions
   );
+
+  const [address, _] = deriveCompressionConfigAddress(program.programId);
+  if (!(await accountExist(connection, address))) {
+    await initializeCompressionConfig(
+      connection,
+      owner,
+      program.programId,
+      program.provider.wallet.payer,
+      COMPRESSION_DELAY,
+      program.provider.wallet.payer.publicKey,
+      ADDRESS_SPACE
+    );
+  }
   return {
     configAddress,
     token0,
@@ -108,6 +161,22 @@ export async function setupDepositTest(
     config.create_fee,
     confirmOptions
   );
+
+  const [address, _] = deriveCompressionConfigAddress(program.programId);
+  if (!(await accountExist(connection, address))) {
+    // Extend connection with zkcompression endpoints
+    const rpc = createRpc();
+    const txId = await initializeCompressionConfig(
+      rpc,
+      owner,
+      program.programId,
+      program.provider.wallet.payer,
+      COMPRESSION_DELAY,
+      program.provider.wallet.payer.publicKey,
+      ADDRESS_SPACE
+    );
+    console.log("initializeCompressionConfig signature:", txId);
+  }
 
   while (1) {
     const [{ token0, token0Program }, { token1, token1Program }] =
@@ -180,6 +249,21 @@ export async function setupSwapTest(
     confirmOptions
   );
 
+  const [address, _] = deriveCompressionConfigAddress(program.programId);
+  if (!(await accountExist(connection, address))) {
+    // Extend connection with zkcompression endpoints
+    const rpc = createRpc();
+    await initializeCompressionConfig(
+      rpc,
+      owner,
+      program.programId,
+      program.provider.wallet.payer,
+      COMPRESSION_DELAY,
+      program.provider.wallet.payer.publicKey,
+      ADDRESS_SPACE
+    );
+  }
+
   const [{ token0, token0Program }, { token1, token1Program }] =
     await createTokenMintAndAssociatedTokenAccount(
       connection,
@@ -212,7 +296,11 @@ export async function setupSwapTest(
     new BN(100000000000),
     confirmOptions
   );
-  return { configAddress, poolAddress, poolState };
+  return {
+    configAddress: poolState.ammConfig,
+    poolAddress,
+    poolState,
+  };
 }
 
 export async function createAmmConfig(
@@ -249,8 +337,8 @@ export async function createAmmConfig(
     })
     .instruction();
 
-  const tx = await sendTransaction(connection, [ix], [owner], confirmOptions);
-  console.log("init amm config tx: ", tx);
+  await sendTransaction(connection, [ix], [owner], confirmOptions);
+
   return address;
 }
 
@@ -269,17 +357,37 @@ export async function initialize(
   },
   createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8")
 ) {
-  const [auth] = await getAuthAddress(program.programId);
+  // Extend connection with zkcompression endpoints
+  const rpc = createRpc();
+
+  const addressTreeInfo = getDefaultAddressTreeInfo();
+  const stateTreeInfo = selectStateTreeInfo(await rpc.getStateTreeInfos());
+
+  const [auth, authBump] = await getAuthAddress(program.programId);
+
   const [poolAddress] = await getPoolAddress(
     configAddress,
     token0,
     token1,
     program.programId
   );
-  const [lpMintAddress] = await getPoolLpMintAddress(
+
+  // 1. mintSigner
+  const [lpMintSignerAddress] = getPoolLpMintSignerAddress(
     poolAddress,
     program.programId
   );
+  // 2. lpMint
+  const [lpMintAddress, lpMintBump] = await getPoolLpMintAddress(
+    lpMintSignerAddress
+  );
+
+  // 3. cMint
+  const lpMintCompressedAddress = getPoolLpMintCompressedAddress(
+    lpMintSignerAddress,
+    addressTreeInfo
+  );
+
   const [vault0] = await getPoolVaultAddress(
     poolAddress,
     token0,
@@ -290,16 +398,8 @@ export async function initialize(
     token1,
     program.programId
   );
-  const [creatorLpTokenAddress] = await PublicKey.findProgramAddress(
-    [
-      creator.publicKey.toBuffer(),
-      TOKEN_PROGRAM_ID.toBuffer(),
-      lpMintAddress.toBuffer(),
-    ],
-    ASSOCIATED_PROGRAM_ID
-  );
 
-  const [observationAddress] = await getOrcleAccountAddress(
+  const [observationAddress] = await getOracleAccountAddress(
     poolAddress,
     program.programId
   );
@@ -316,9 +416,87 @@ export async function initialize(
     false,
     token1Program
   );
-  await program.methods
-    .initialize(initAmount.initAmount0, initAmount.initAmount1, new BN(0))
-    .accountsPartial({
+
+  // 1. Derive compressed addresses
+  const poolCompressedAddress = deriveAddressV2(
+    poolAddress.toBytes(),
+    addressTreeInfo.tree.toBytes(),
+    program.programId.toBytes()
+  );
+
+  const observationCompressedAddress = deriveAddressV2(
+    observationAddress.toBytes(),
+    addressTreeInfo.tree.toBytes(),
+    program.programId.toBytes()
+  );
+
+  // Get validity proof
+  // Must match the ordering used by the program when invoking the cpi.
+  const proofRpcResult = await rpc.getValidityProofV0(
+    [],
+    [
+      {
+        tree: addressTreeInfo.tree,
+        queue: addressTreeInfo.queue,
+        address: bn(poolCompressedAddress),
+      },
+      {
+        tree: addressTreeInfo.tree,
+        queue: addressTreeInfo.queue,
+        address: bn(observationCompressedAddress),
+      },
+      {
+        tree: addressTreeInfo.tree,
+        queue: addressTreeInfo.queue,
+        address: bn(lpMintCompressedAddress),
+      },
+    ]
+  );
+
+  // Set up compression-related accounts
+  const remainingAccounts = createPackedAccountsSmallWithCpiContext(
+    program.programId,
+    stateTreeInfo.cpiContext
+  );
+  // adds state tree and address tree
+  const outputStateTreeIndex = remainingAccounts.insertOrGet(
+    stateTreeInfo.queue
+  );
+  const packedTreeInfos = packTreeInfos(proofRpcResult, remainingAccounts);
+
+  const [creatorLpToken, creatorLpTokenBump] =
+    getAssociatedCTokenAddressAndBump(creator.publicKey, lpMintAddress);
+
+  // Create compression-related ix data
+  // 229 Bytes +1
+  const compressionParams = {
+    // poolstate
+    poolAddressTreeInfo: packedTreeInfos.addressTrees[0],
+    // observation
+    observationAddressTreeInfo: packedTreeInfos.addressTrees[1],
+    // mint
+    lpMintAddressTreeInfo: packedTreeInfos.addressTrees[2],
+    lpMintBump,
+    // shared
+    proof: { 0: proofRpcResult.compressedProof },
+    outputStateTreeIndex,
+    creatorLpTokenBump,
+  };
+  // Get compression config PDA
+  const [compressionConfig] = deriveCompressionConfigAddress(program.programId);
+
+  const packedAccountMetas = remainingAccounts.toAccountMetas();
+
+  const [lpVault] = await getLpVaultAddress(lpMintAddress, program.programId);
+
+  const initializeIx = await program.methods
+    .initialize(
+      initAmount.initAmount0,
+      initAmount.initAmount1,
+      new BN(0),
+      compressionParams
+    )
+    .accountsStrict({
       creator: creator.publicKey,
       ammConfig: configAddress,
       authority: auth,
@@ -328,7 +506,8 @@ export async function initialize(
       lpMint: lpMintAddress,
       creatorToken0,
       creatorToken1,
-      creatorLpToken: creatorLpTokenAddress,
+      creatorLpToken,
+      lpVault,
       token0Vault: vault0,
       token1Vault: vault1,
       createPoolFee,
@@ -336,12 +515,201 @@ export async function initialize(
       tokenProgram: TOKEN_PROGRAM_ID,
       token0Program: token0Program,
       token1Program: token1Program,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
       rent: SYSVAR_RENT_PUBKEY,
+      compressionConfig,
+      rentRecipient: creator.publicKey,
+      lpMintSigner: lpMintSignerAddress,
+      compressedTokenProgramCpiAuthority:
+        CompressedTokenProgram.deriveCpiAuthorityPda,
+      compressedTokenProgram: CompressedTokenProgram.programId,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token0),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token1),
     })
-    .rpc(confirmOptions);
-  const poolState = await program.account.poolState.fetch(poolAddress);
+    .remainingAccounts(packedAccountMetas.remainingAccounts)
+    .instruction();
+
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1_200_000,
+  });
+  const { blockhash } = await program.provider.connection.getLatestBlockhash();
+  const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
+    new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+  );
+
+  const tx = buildAndSignTx(
+    [computeBudgetIx, initializeIx],
+    creator,
+    blockhash,
+    [],
+    [lookupTableAccount]
+  );
+  const txId = await sendAndConfirmTx(rpc, tx, confirmOptions);
+  console.log("initialize signature:", txId);
+
+  const { account: poolState } = await fetchCompressibleAccount(
+    poolAddress,
+    addressTreeInfo,
+    program,
+    "poolState",
+    rpc
+  );
+
+  if (!poolState) {
+    throw new Error("Failed to fetch pool state");
+  }
+
   return { poolAddress, poolState };
+}
+
+export async function decompressIdempotent(
+  program: Program<RaydiumCpSwap>,
+  owner: Signer,
+  poolAddress: PublicKey,
+  poolBump: number,
+  observationAddress: PublicKey,
+  observationBump: number,
+  configAddress: PublicKey,
+  token0: PublicKey,
+  token1: PublicKey,
+  rpc: Rpc,
+  confirmOptions?: ConfirmOptions
+): Promise<string> {
+  const addressTreeInfo = getDefaultAddressTreeInfo();
+
+  // Fetch pool state
+  const { account: poolState, merkleContext: poolMerkleContext } =
+    await fetchCompressibleAccount(
+      poolAddress,
+      addressTreeInfo,
+      program,
+      "poolState",
+      rpc
+    );
+
+  // Fetch observation state
+  const { account: observationState, merkleContext: observationMerkleContext } =
+    await fetchCompressibleAccount(
+      observationAddress,
+      addressTreeInfo,
+      program,
+      "observationState",
+      rpc
+    );
+
+  if (!poolMerkleContext && !observationMerkleContext) return;
+
+  // Derive compressed addresses
+  const poolCompressedAddress = deriveAddressV2(
+    poolAddress.toBytes(),
+    addressTreeInfo.tree.toBytes(),
+    program.programId.toBytes()
+  );
+
+  const observationCompressedAddress = deriveAddressV2(
+    observationAddress.toBytes(),
+    addressTreeInfo.tree.toBytes(),
+    program.programId.toBytes()
+  );
+
+  const proof = await rpc.getValidityProofV0([
+    {
+      hash: poolMerkleContext.hash,
+      tree: poolMerkleContext.treeInfo.tree,
+      queue: poolMerkleContext.treeInfo.queue,
+    },
+    {
+      hash: observationMerkleContext.hash,
+      tree: observationMerkleContext.treeInfo.tree,
+      queue: observationMerkleContext.treeInfo.queue,
+    },
+  ]);
+
+  // Prepare remaining accounts
+  const remainingAccounts = createPackedAccountsSmall(program.programId);
+  remainingAccounts.addPreAccountsMeta({
+    isSigner: false,
+    isWritable: true,
+    pubkey: poolAddress,
+  });
+  remainingAccounts.addPreAccountsMeta({
+    isSigner: false,
+    isWritable: true,
+    pubkey: observationAddress,
+  });
+  const packedTreeInfos = packTreeInfos(proof, remainingAccounts);
+
+  // Prepare compressed accounts data
+  const compressedAccountsData: {
+    meta: {
+      treeInfo: PackedStateTreeInfo;
+      address: number[];
+      outputStateTreeIndex: number;
+    };
+    data: CompressedAccountVariant;
+    seeds: Buffer[];
+  }[] = [
+    {
+      meta: {
+        treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[0],
+        address: Array.from(poolCompressedAddress),
+        outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
+      },
+      data: { poolState: [poolState] },
+      seeds: [
+        POOL_SEED,
+        configAddress.toBuffer(),
+        token0.toBuffer(),
+        token1.toBuffer(),
+      ],
+    },
+    {
+      meta: {
+        treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[1],
+        address: Array.from(observationCompressedAddress),
+        outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
+      },
+      data: { observationState: [observationState] },
+      seeds: [ORACLE_SEED, poolAddress.toBuffer()],
+    },
+  ];
+
+  const decompressIx = await program.methods
+    .decompressAccountsIdempotent(
+      { 0: proof.compressedProof },
+      compressedAccountsData,
+      Buffer.from([poolBump, observationBump]),
+      compressedAccountsData.length
+    )
+    .accountsStrict({
+      feePayer: owner.publicKey,
+      rentPayer: owner.publicKey,
+      config: deriveCompressionConfigAddress(program.programId)[0],
+    })
+    .remainingAccounts(remainingAccounts.toAccountMetas().remainingAccounts)
+    .instruction();
+
+  // Build and send transaction
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1_200_000,
+  });
+  const { blockhash } = await program.provider.connection.getLatestBlockhash();
+  const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
+    new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+  );
+  const tx = buildAndSignTx(
+    [computeBudgetIx, decompressIx],
+    owner,
+    blockhash,
+    [],
+    [lookupTableAccount]
+  );
+  const decompressTxId = await sendAndConfirmTx(rpc, tx, confirmOptions);
+
+  return decompressTxId;
 }
 
 export async function deposit(
@@ -357,18 +725,26 @@ export async function deposit(
   maximum_token_1_amount: BN,
   confirmOptions?: ConfirmOptions
 ) {
+  // Extend connection with zkcompression endpoints
+  const rpc = createRpc();
   const [auth] = await getAuthAddress(program.programId);
-  const [poolAddress] = await getPoolAddress(
+  const [poolAddress, poolBump] = await getPoolAddress(
     configAddress,
     token0,
     token1,
     program.programId
   );
 
-  const [lpMintAddress] = await getPoolLpMintAddress(
+  const [mintSigner] = getPoolLpMintSignerAddress(
     poolAddress,
     program.programId
   );
+  const [lpMintAddress] = await getPoolLpMintAddress(mintSigner);
+  const [lpVaultAddress] = await getLpVaultAddress(
+    lpMintAddress,
+    program.programId
+  );
+
   const [vault0] = await getPoolVaultAddress(
     poolAddress,
     token0,
@@ -379,47 +755,91 @@ export async function deposit(
     token1,
     program.programId
   );
-  const [ownerLpToken] = await PublicKey.findProgramAddress(
-    [
-      owner.publicKey.toBuffer(),
-      TOKEN_PROGRAM_ID.toBuffer(),
-      lpMintAddress.toBuffer(),
-    ],
-    ASSOCIATED_PROGRAM_ID
+  const ownerLpToken = getAssociatedTokenAddressSync(
+    lpMintAddress,
+    owner.publicKey,
+    false,
+    CompressedTokenProgram.programId,
+    CompressedTokenProgram.programId
   );
 
-  const onwerToken0 = getAssociatedTokenAddressSync(
+  const ownerToken0 = getAssociatedTokenAddressSync(
     token0,
     owner.publicKey,
     false,
     token0Program
   );
-  const onwerToken1 = getAssociatedTokenAddressSync(
+  const ownerToken1 = getAssociatedTokenAddressSync(
     token1,
     owner.publicKey,
     false,
     token1Program
   );
 
-  const tx = await program.methods
+  // Fetch observation address
+  const [observationAddress, observationBump] = await getOracleAccountAddress(
+    poolAddress,
+    program.programId
+  );
+
+  // Decompress accounts
+  await decompressIdempotent(
+    program,
+    owner,
+    poolAddress,
+    poolBump,
+    observationAddress,
+    observationBump,
+    configAddress,
+    token0,
+    token1,
+    rpc,
+    confirmOptions
+  );
+
+  const depositIx = await program.methods
     .deposit(lp_token_amount, maximum_token_0_amount, maximum_token_1_amount)
-    .accounts({
+    .accountsStrict({
       owner: owner.publicKey,
       authority: auth,
       poolState: poolAddress,
       ownerLpToken,
-      token0Account: onwerToken0,
-      token1Account: onwerToken1,
+      token0Account: ownerToken0,
+      token1Account: ownerToken1,
       token0Vault: vault0,
       token1Vault: vault1,
       tokenProgram: TOKEN_PROGRAM_ID,
       tokenProgram2022: TOKEN_2022_PROGRAM_ID,
       vault0Mint: token0,
       vault1Mint: token1,
-      lpMint: lpMintAddress,
+      lpVault: lpVaultAddress,
+      compressedTokenProgram: CompressedTokenProgram.programId,
+      compressedTokenProgramCpiAuthority:
+        CompressedTokenProgram.deriveCpiAuthorityPda,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token0),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token1),
     })
-    .rpc(confirmOptions);
-  return tx;
+    .instruction();
+
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1_200_000,
+  });
+  const { blockhash } = await program.provider.connection.getLatestBlockhash();
+  const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
+    new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+  );
+  const depositTx = buildAndSignTx(
+    [computeBudgetIx, depositIx],
+    owner,
+    blockhash,
+    [],
+    [lookupTableAccount]
+  );
+  const depositTxId = await sendAndConfirmTx(rpc, depositTx, confirmOptions);
+  console.log("deposit signature:", depositTxId);
+  return depositTxId;
 }
 
 export async function withdraw(
@@ -443,8 +863,14 @@ export async function withdraw(
     program.programId
   );
 
-  const [lpMintAddress] = await getPoolLpMintAddress(
+  const [lpMintSignerAddress] = getPoolLpMintSignerAddress(
     poolAddress,
+    program.programId
+  );
+  const [lpMintAddress] = await getPoolLpMintAddress(lpMintSignerAddress);
+
+  const [lpVaultAddress] = await getLpVaultAddress(
+    lpMintAddress,
     program.programId
   );
   const [vault0] = await getPoolVaultAddress(
@@ -457,50 +883,72 @@ export async function withdraw(
     token1,
     program.programId
   );
-  const [ownerLpToken] = await PublicKey.findProgramAddress(
-    [
-      owner.publicKey.toBuffer(),
-      TOKEN_PROGRAM_ID.toBuffer(),
-      lpMintAddress.toBuffer(),
-    ],
-    ASSOCIATED_PROGRAM_ID
+  const ownerLpToken = getAssociatedTokenAddressSync(
+    lpMintAddress,
+    owner.publicKey,
+    false,
+    CompressedTokenProgram.programId,
+    CompressedTokenProgram.programId
   );
 
-  const onwerToken0 = getAssociatedTokenAddressSync(
+  const ownerToken0 = getAssociatedTokenAddressSync(
     token0,
     owner.publicKey,
     false,
     token0Program
   );
-  const onwerToken1 = getAssociatedTokenAddressSync(
+  const ownerToken1 = getAssociatedTokenAddressSync(
     token1,
     owner.publicKey,
     false,
     token1Program
   );
 
-  const tx = await program.methods
+  const withdrawIx = await program.methods
     .withdraw(lp_token_amount, minimum_token_0_amount, minimum_token_1_amount)
-    .accounts({
+    .accountsStrict({
       owner: owner.publicKey,
       authority: auth,
       poolState: poolAddress,
       ownerLpToken,
-      token0Account: onwerToken0,
-      token1Account: onwerToken1,
+      token0Account: ownerToken0,
+      token1Account: ownerToken1,
       token0Vault: vault0,
       token1Vault: vault1,
       tokenProgram: TOKEN_PROGRAM_ID,
       tokenProgram2022: TOKEN_2022_PROGRAM_ID,
       vault0Mint: token0,
       vault1Mint: token1,
-      lpMint: lpMintAddress,
+      lpVault: lpVaultAddress,
+      compressedTokenProgram: CompressedTokenProgram.programId,
+      compressedTokenProgramCpiAuthority:
+        CompressedTokenProgram.deriveCpiAuthorityPda,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token0),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(token1),
       memoProgram: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
     })
-    .rpc(confirmOptions)
-    .catch();
+    .instruction();
 
-  return tx;
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1_200_000,
+  });
+  const rpc = createRpc();
+  const { blockhash } = await program.provider.connection.getLatestBlockhash();
+  const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
+    new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+  );
+  const withdrawTx = buildAndSignTx(
+    [computeBudgetIx, withdrawIx],
+    owner,
+    blockhash,
+    [],
+    [lookupTableAccount]
+  );
+  const withdrawTxId = await sendAndConfirmTx(rpc, withdrawTx, confirmOptions);
+  console.log("withdraw signature:", withdrawTxId);
+  return withdrawTxId;
 }
 
 export async function swap_base_input(
@@ -546,14 +994,17 @@ export async function swap_base_input(
     false,
     outputTokenProgram
   );
-  const [observationAddress] = await getOrcleAccountAddress(
+  const [observationAddress] = await getOracleAccountAddress(
     poolAddress,
     program.programId
   );
+  const observationState = await program.account.observationState.fetch(
+    observationAddress
+  );
 
-  const tx = await program.methods
+  const ix = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
-    .accounts({
+    .accountsStrict({
       payer: owner.publicKey,
       authority: auth,
       ammConfig: configAddress,
@@ -567,9 +1018,22 @@ export async function swap_base_input(
       inputTokenMint: inputToken,
       outputTokenMint: outputToken,
       observationState: observationAddress,
+      compressedTokenProgram: CompressedTokenProgram.programId,
+      compressedTokenProgramCpiAuthority:
+        CompressedTokenProgram.deriveCpiAuthorityPda,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(inputToken),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
-    .rpc(confirmOptions);
-
+    .instruction();
+  const tx = await sendTransaction(
+    program.provider.connection,
+    [ix],
+    [owner],
+    confirmOptions
+  );
+  console.log("swap signature:", tx);
   return tx;
 }
 
@@ -616,14 +1080,14 @@ export async function swap_base_output(
     false,
     outputTokenProgram
   );
-  const [observationAddress] = await getOrcleAccountAddress(
+  const [observationAddress] = await getOracleAccountAddress(
     poolAddress,
     program.programId
   );
 
   const tx = await program.methods
     .swapBaseOutput(max_amount_in, amount_out_less_fee)
-    .accounts({
+    .accountsStrict({
       payer: owner.publicKey,
       authority: auth,
       ammConfig: configAddress,
@@ -637,8 +1101,17 @@ export async function swap_base_output(
       inputTokenMint: inputToken,
       outputTokenMint: outputToken,
       observationState: observationAddress,
+      compressedTokenProgram: CompressedTokenProgram.programId,
+      compressedTokenProgramCpiAuthority:
+        CompressedTokenProgram.deriveCpiAuthorityPda,
+      compressedToken0PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(inputToken),
+      compressedToken1PoolPda:
+        CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
     .rpc(confirmOptions);
+
+  console.log("swap signature:", tx);
 
   return tx;
 }

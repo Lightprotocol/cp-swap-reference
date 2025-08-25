@@ -27,6 +27,7 @@ pub fn unpack_mint(token_data: &[u8]) -> Result<PodStateWithExtensions<PodMint>>
     Ok(mint)
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct TransferFeeInfo {
     pub mint: Pubkey,

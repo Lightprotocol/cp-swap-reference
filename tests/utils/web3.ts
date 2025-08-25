@@ -1,4 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
+import { Program, Idl, IdlAccounts } from "@coral-xyz/anchor";
 import {
   Connection,
   Signer,
@@ -6,7 +7,9 @@ import {
   TransactionInstruction,
   TransactionSignature,
   ConfirmOptions,
+  PublicKey,
 } from "@solana/web3.js";
+import { Rpc, TreeInfo, MerkleContext } from "@lightprotocol/stateless.js";
 
 export async function accountExist(
   connection: anchor.web3.Connection,
@@ -62,4 +65,38 @@ export async function getBlockTimestamp(
 ): Promise<number> {
   let slot = await connection.getSlot();
   return await connection.getBlockTime(slot);
+}
+
+// Anchor-only
+export async function fetchCompressibleAccount<
+  TIdl extends Idl,
+  TAccountName extends keyof IdlAccounts<TIdl>
+>(
+  address: PublicKey,
+  addressTreeInfo: TreeInfo,
+  anchorProgram: Program<TIdl>,
+  accountName: TAccountName,
+  rpc: Rpc
+): Promise<{
+  account: IdlAccounts<TIdl>[TAccountName];
+  merkleContext?: MerkleContext;
+} | null> {
+  // Fetches account info irrespective of whether it's currently compressed or
+  // decompressed.
+  const info = await rpc.getCompressibleAccountInfo(
+    address,
+    anchorProgram.programId,
+    addressTreeInfo,
+    rpc
+  );
+
+  if (info) {
+    const account = anchorProgram.coder.accounts.decode(
+      accountName as string,
+      info.accountInfo.data
+    ) as IdlAccounts<TIdl>[TAccountName];
+    return { account, merkleContext: info.merkleContext };
+  }
+
+  return null;
 }

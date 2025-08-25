@@ -10,7 +10,7 @@ use anchor_spl::{
     },
 };
 use anyhow::Result;
-use solana_client::rpc_client::RpcClient;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     account::WritableAccount,
     instruction::Instruction,
@@ -19,56 +19,66 @@ use solana_sdk::{
     signature::{Keypair, Signer},
     system_instruction,
 };
-// use spl_token_client::token::ExtensionInitializationParams;
 use std::{rc::Rc, str::FromStr};
 
-// pub fn create_and_init_mint_instr(
-//     config: &ClientConfig,
-//     token_program: Pubkey,
-//     mint_key: &Pubkey,
-//     mint_authority: &Pubkey,
-//     freeze_authority: Option<&Pubkey>,
-//     extension_init_params: Vec<ExtensionInitializationParams>,
-//     decimals: u8,
-// ) -> Result<Vec<Instruction>> {
-//     let payer = read_keypair_file(&config.payer_path)?;
-//     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
-//     // Client.
-//     let client = Client::new(url, Rc::new(payer));
-//     let program = if token_program == spl_token::id() {
-//         client.program(spl_token::id())?
-//     } else {
-//         client.program(spl_token_2022::id())?
-//     };
-//     let extension_types = extension_init_params
-//         .iter()
-//         .map(|e| e.extension())
-//         .collect::<Vec<_>>();
-//     let space = ExtensionType::try_calculate_account_len::<Mint>(&extension_types)?;
+pub async fn create_and_init_mint_instr(
+    config: &ClientConfig,
+    token_program: Pubkey,
+    mint_key: &Pubkey,
+    mint_authority: &Pubkey,
+    freeze_authority: Option<&Pubkey>,
+    decimals: u8,
+) -> Result<Vec<Instruction>> {
+    let payer = read_keypair_file(&config.payer_path)?;
+    let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
 
-//     let mut instructions = vec![system_instruction::create_account(
-//         &program.payer(),
-//         mint_key,
-//         program
-//             .rpc()
-//             .get_minimum_balance_for_rent_exemption(space)?,
-//         space as u64,
-//         &program.id(),
-//     )];
-//     for params in extension_init_params {
-//         instructions.push(params.instruction(&token_program, &mint_key)?);
-//     }
-//     instructions.push(spl_token_2022::instruction::initialize_mint(
-//         &program.id(),
-//         mint_key,
-//         mint_authority,
-//         freeze_authority,
-//         decimals,
-//     )?);
-//     Ok(instructions)
-// }
+    let client = Client::new(url, Rc::new(payer));
+    let program = if token_program == spl_token::id() {
+        client.program(spl_token::id())?
+    } else {
+        client.program(spl_token_2022::id())?
+    };
 
-pub fn create_account_rent_exmpt_instr(
+    let space = if token_program == spl_token::id() {
+        spl_token::state::Mint::LEN
+    } else {
+        spl_token_2022::extension::ExtensionType::try_calculate_account_len::<
+            spl_token_2022::state::Mint,
+        >(&[])?
+    };
+
+    let mut instructions = vec![system_instruction::create_account(
+        &program.payer(),
+        mint_key,
+        program
+            .rpc()
+            .get_minimum_balance_for_rent_exemption(space)
+            .await?,
+        space as u64,
+        &program.id(),
+    )];
+
+    if token_program == spl_token::id() {
+        instructions.push(spl_token::instruction::initialize_mint(
+            &program.id(),
+            mint_key,
+            mint_authority,
+            freeze_authority,
+            decimals,
+        )?);
+    } else {
+        instructions.push(spl_token_2022::instruction::initialize_mint(
+            &program.id(),
+            mint_key,
+            mint_authority,
+            freeze_authority,
+            decimals,
+        )?);
+    }
+    Ok(instructions)
+}
+
+pub async fn create_account_rent_exmpt_instr(
     config: &ClientConfig,
     new_account_key: &Pubkey,
     owner: Pubkey,
@@ -76,7 +86,7 @@ pub fn create_account_rent_exmpt_instr(
 ) -> Result<Vec<Instruction>> {
     let payer = read_keypair_file(&config.payer_path)?;
     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
-    // Client.
+
     let client = Client::new(url, Rc::new(payer));
     let program = client.program(owner)?;
     let instructions = program
@@ -86,7 +96,8 @@ pub fn create_account_rent_exmpt_instr(
             &new_account_key,
             program
                 .rpc()
-                .get_minimum_balance_for_rent_exemption(data_size)?,
+                .get_minimum_balance_for_rent_exemption(data_size)
+                .await?,
             data_size as u64,
             &program.id(),
         ))
@@ -102,7 +113,7 @@ pub fn create_ata_token_account_instr(
 ) -> Result<Vec<Instruction>> {
     let payer = read_keypair_file(&config.payer_path)?;
     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
-    // Client.
+
     let client = Client::new(url, Rc::new(payer));
     let program = client.program(token_program)?;
     let instructions = program
@@ -119,7 +130,7 @@ pub fn create_ata_token_account_instr(
     Ok(instructions)
 }
 
-pub fn create_and_init_auxiliary_token(
+pub async fn create_and_init_auxiliary_token(
     config: &ClientConfig,
     new_account_key: &Pubkey,
     mint: &Pubkey,
@@ -127,8 +138,10 @@ pub fn create_and_init_auxiliary_token(
 ) -> Result<Vec<Instruction>> {
     let payer = read_keypair_file(&config.payer_path)?;
     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
-    let mint_account = &mut RpcClient::new(config.http_url.to_string()).get_account(&mint)?;
-    // Client.
+    let mint_account = &mut RpcClient::new(config.http_url.to_string())
+        .get_account(&mint)
+        .await?;
+
     let client = Client::new(url, Rc::new(payer));
     let (program, space) = if mint_account.owner == spl_token::id() {
         (
@@ -159,7 +172,8 @@ pub fn create_and_init_auxiliary_token(
             &mint,
             program
                 .rpc()
-                .get_minimum_balance_for_rent_exemption(space)?,
+                .get_minimum_balance_for_rent_exemption(space)
+                .await?,
             space as u64,
             &program.id(),
         ))
@@ -177,7 +191,7 @@ pub fn create_and_init_auxiliary_token(
     Ok(instructions)
 }
 
-pub fn close_token_account(
+pub async fn close_token_account(
     config: &ClientConfig,
     close_account: &Pubkey,
     destination: &Pubkey,
@@ -185,7 +199,7 @@ pub fn close_token_account(
 ) -> Result<Vec<Instruction>> {
     let payer = read_keypair_file(&config.payer_path)?;
     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
-    // Client.
+
     let client = Client::new(url, Rc::new(payer));
     let program = client.program(spl_token::id())?;
     let instructions = program
@@ -197,7 +211,7 @@ pub fn close_token_account(
             &owner.pubkey(),
             &[],
         )?)
-        .signer(owner)
+        .signer(owner.insecure_clone())
         .instructions()?;
     Ok(instructions)
 }
@@ -211,7 +225,7 @@ pub fn spl_token_transfer_instr(
 ) -> Result<Vec<Instruction>> {
     let payer = read_keypair_file(&config.payer_path)?;
     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
-    // Client.
+
     let client = Client::new(url, Rc::new(payer));
     let program = client.program(spl_token::id())?;
     let instructions = program
@@ -224,7 +238,7 @@ pub fn spl_token_transfer_instr(
             &[],
             amount,
         )?)
-        .signer(from_authority)
+        .signer(from_authority.insecure_clone())
         .instructions()?;
     Ok(instructions)
 }
@@ -239,7 +253,7 @@ pub fn spl_token_mint_to_instr(
 ) -> Result<Vec<Instruction>> {
     let payer = read_keypair_file(&config.payer_path)?;
     let url = Cluster::Custom(config.http_url.clone(), config.ws_url.clone());
-    // Client.
+
     let client = Client::new(url, Rc::new(payer));
     let program = if token_program == spl_token::id() {
         client.program(spl_token::id())?
@@ -256,7 +270,7 @@ pub fn spl_token_mint_to_instr(
             &[],
             amount,
         )?)
-        .signer(mint_authority)
+        .signer(mint_authority.insecure_clone())
         .instructions()?;
     Ok(instructions)
 }
@@ -268,7 +282,7 @@ pub fn wrap_sol_instr(config: &ClientConfig, amount: u64) -> Result<Vec<Instruct
     let wsol_mint = Pubkey::from_str("So11111111111111111111111111111111111111112")?;
     let wsol_ata_account =
         spl_associated_token_account::get_associated_token_address(&wallet_key, &wsol_mint);
-    // Client.
+
     let client = Client::new(url, Rc::new(payer));
     let program = client.program(spl_token::id())?;
 
