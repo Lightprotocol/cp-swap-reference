@@ -52,7 +52,7 @@ cargo install --git https://github.com/lightprotocol/photon.git --rev 6ba6813 --
 
 ```shell
 
-git clone https://github.com/raydium-io/raydium-cp-swap
+git clone https://github.com/Lightprotocol/cp-swap-reference
 
 cd raydium-cp-swap && yarn
 ```
