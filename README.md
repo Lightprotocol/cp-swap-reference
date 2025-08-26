@@ -35,7 +35,7 @@ Original readme:
    # Installing using Anchor version manager (avm)
    cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
    # Install anchor
-   avm install 0.31.0
+   avm install 0.31.1
    ```
 
 ## Quickstart
