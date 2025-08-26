@@ -1,5 +1,11 @@
 import * as anchor from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { TreeInfo } from "@lightprotocol/stateless.js";
+import {
+  deriveCompressedMintAddress,
+  findMintAddress,
+} from "@lightprotocol/compressed-token";
+
 export const AMM_CONFIG_SEED = Buffer.from(
   anchor.utils.bytes.utf8.encode("amm_config")
 );
@@ -89,7 +95,24 @@ export async function getPoolAddress(
     ],
     programId
   );
+
   return [address, bump];
+}
+
+export function getPoolSignerSeeds(
+  ammConfig: PublicKey,
+  tokenMint0: PublicKey,
+  tokenMint1: PublicKey,
+  programId: PublicKey
+): Buffer[] {
+  const seeds = [
+    POOL_SEED,
+    ammConfig.toBuffer(),
+    tokenMint0.toBuffer(),
+    tokenMint1.toBuffer(),
+  ];
+  const [_, bump] = PublicKey.findProgramAddressSync(seeds, programId);
+  return Array.from(seeds).concat([Buffer.from([bump])]);
 }
 
 export async function getPoolVaultAddress(
@@ -103,19 +126,36 @@ export async function getPoolVaultAddress(
   );
   return [address, bump];
 }
-
-export async function getPoolLpMintAddress(
-  pool: PublicKey,
+export async function getLpVaultAddress(
+  lpMint: PublicKey,
   programId: PublicKey
 ): Promise<[PublicKey, number]> {
   const [address, bump] = await PublicKey.findProgramAddress(
+    [POOL_VAULT_SEED, lpMint.toBuffer()],
+    programId
+  );
+  return [address, bump];
+}
+
+// pda used to derive lp_mint and its compressed address.
+export function getPoolLpMintSignerAddress(
+  pool: PublicKey,
+  programId: PublicKey
+): [PublicKey, number] {
+  const [address, bump] = PublicKey.findProgramAddressSync(
     [POOL_LPMINT_SEED, pool.toBuffer()],
     programId
   );
   return [address, bump];
 }
 
-export async function getOrcleAccountAddress(
+export async function getPoolLpMintAddress(
+  mintSignerAddress: PublicKey
+): Promise<[PublicKey, number]> {
+  return findMintAddress(mintSignerAddress);
+}
+
+export async function getOracleAccountAddress(
   pool: PublicKey,
   programId: PublicKey
 ): Promise<[PublicKey, number]> {
@@ -123,5 +163,20 @@ export async function getOrcleAccountAddress(
     [ORACLE_SEED, pool.toBuffer()],
     programId
   );
+
   return [address, bump];
+}
+
+/**
+ * Derives the compressed mint address from the mint seed and address tree.
+ * @param mintSeed The mint seed public key.
+ * @param addressTreePubkey The address tree public key.
+ * @returns Buffer (32 bytes) compressed mint address.
+ */
+
+export function getPoolLpMintCompressedAddress(
+  mintSigner: PublicKey,
+  addressTreeInfo: TreeInfo
+): number[] {
+  return deriveCompressedMintAddress(mintSigner, addressTreeInfo);
 }

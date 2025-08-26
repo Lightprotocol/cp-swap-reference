@@ -7,15 +7,23 @@ import {
   deposit,
   getUserAndPoolVaultAmount,
   setupDepositTest,
+  fetchCompressibleAccount,
 } from "./utils";
 import { assert } from "chai";
 import { MAX_FEE_BASIS_POINTS, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import {
+  createRpc,
+  getDefaultAddressTreeInfo,
+} from "@lightprotocol/stateless.js";
 
 describe("deposit test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 
   const program = anchor.workspace.RaydiumCpSwap as Program<RaydiumCpSwap>;
+
+  // Extend connection with zkcompression endpoints
+  const connection = createRpc();
 
   const confirmOptions = {
     skipPreflight: true,
@@ -25,7 +33,7 @@ describe("deposit test", () => {
     /// deposit without fee
     const { poolAddress, poolState } = await setupDepositTest(
       program,
-      anchor.getProvider().connection,
+      connection,
       owner,
       {
         config_index: 0,
@@ -38,8 +46,8 @@ describe("deposit test", () => {
     );
 
     const {
-      onwerToken0Account: ownerToken0AccountBefore,
-      onwerToken1Account: ownerToken1AccountBefore,
+      ownerToken0Account: ownerToken0AccountBefore,
+      ownerToken1Account: ownerToken1AccountBefore,
       poolVault0TokenAccount: poolVault0TokenAccountBefore,
       poolVault1TokenAccount: poolVault1TokenAccountBefore,
     } = await getUserAndPoolVaultAmount(
@@ -66,12 +74,19 @@ describe("deposit test", () => {
       new BN(20000000000),
       confirmOptions
     );
-    const newPoolState = await program.account.poolState.fetch(poolAddress);
+
+    const { account: newPoolState } = await fetchCompressibleAccount(
+      poolAddress,
+      getDefaultAddressTreeInfo(),
+      program,
+      "poolState",
+      connection
+    );
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {
-      onwerToken0Account: ownerToken0AccountAfter,
-      onwerToken1Account: ownerToken1AccountAfter,
+      ownerToken0Account: ownerToken0AccountAfter,
+      ownerToken1Account: ownerToken1AccountAfter,
       poolVault0TokenAccount: poolVault0TokenAccountAfter,
       poolVault1TokenAccount: poolVault1TokenAccountAfter,
     } = await getUserAndPoolVaultAmount(
@@ -96,17 +111,17 @@ describe("deposit test", () => {
       input_token1_amount
     );
 
-    /// deposit with fee
+    // TransferFeeConfig extension is not supported.
     const transferFeeConfig = {
-      transferFeeBasisPoints: 100,
-      MaxFee: 50000000000,
-    }; // %10
+      transferFeeBasisPoints: 0,
+      MaxFee: 0,
+    }; // %0
 
     // Ensure that the initialization state is the same with depsoit without fee
     const { poolAddress: poolAddress2, poolState: poolState2 } =
       await setupDepositTest(
         program,
-        anchor.getProvider().connection,
+        connection,
         owner,
         {
           config_index: 0,
@@ -139,8 +154,8 @@ describe("deposit test", () => {
         }
       );
     const {
-      onwerToken0Account: onwerToken0AccountBefore2,
-      onwerToken1Account: onwerToken1AccountBefore2,
+      ownerToken0Account: ownerToken0AccountBefore2,
+      ownerToken1Account: ownerToken1AccountBefore2,
       poolVault0TokenAccount: poolVault0TokenAccountBefore2,
       poolVault1TokenAccount: poolVault1TokenAccountBefore2,
     } = await getUserAndPoolVaultAmount(
@@ -152,6 +167,7 @@ describe("deposit test", () => {
       poolState2.token0Vault,
       poolState2.token1Vault
     );
+
     // check vault init state
     assert.equal(
       poolVault0TokenAccountBefore2.amount,
@@ -175,12 +191,20 @@ describe("deposit test", () => {
       new BN(200000000000),
       confirmOptions
     );
-    const newPoolState2 = await program.account.poolState.fetch(poolAddress2);
+
+    const { account: newPoolState2 } = await fetchCompressibleAccount(
+      poolAddress2,
+      getDefaultAddressTreeInfo(),
+      program,
+      "poolState",
+      connection
+    );
+
     assert(newPoolState2.lpSupply.eq(liquidity.add(poolState2.lpSupply)));
 
     const {
-      onwerToken0Account: onwerToken0AccountAfter2,
-      onwerToken1Account: onwerToken1AccountAfter2,
+      ownerToken0Account: ownerToken0AccountAfter2,
+      ownerToken1Account: ownerToken1AccountAfter2,
       poolVault0TokenAccount: poolVault0TokenAccountAfter2,
       poolVault1TokenAccount: poolVault1TokenAccountAfter2,
     } = await getUserAndPoolVaultAmount(
@@ -194,9 +218,9 @@ describe("deposit test", () => {
     );
 
     const input_token0_amount_with_fee =
-      onwerToken0AccountBefore2.amount - onwerToken0AccountAfter2.amount;
+      ownerToken0AccountBefore2.amount - ownerToken0AccountAfter2.amount;
     const input_token1_amount_with_fee =
-      onwerToken1AccountBefore2.amount - onwerToken1AccountAfter2.amount;
+      ownerToken1AccountBefore2.amount - ownerToken1AccountAfter2.amount;
     assert(input_token0_amount_with_fee >= input_token0_amount);
     assert(input_token1_amount_with_fee >= input_token1_amount);
 
@@ -239,7 +263,8 @@ describe("deposit test", () => {
     );
   });
 
-  it("deposit test with 100% transferFeeConfig, reache maximum fee limit", async () => {
+  // t22 transferFeeConfig is not supported.
+  it.skip("deposit test with 100% transferFeeConfig, reache maximum fee limit", async () => {
     const transferFeeConfig = {
       transferFeeBasisPoints: MAX_FEE_BASIS_POINTS,
       MaxFee: 5000000000,
@@ -247,7 +272,7 @@ describe("deposit test", () => {
 
     const { poolAddress, poolState } = await setupDepositTest(
       program,
-      anchor.getProvider().connection,
+      connection,
       owner,
       {
         config_index: 0,
@@ -260,8 +285,8 @@ describe("deposit test", () => {
     );
 
     const {
-      onwerToken0Account: ownerToken0AccountBefore,
-      onwerToken1Account: ownerToken1AccountBefore,
+      ownerToken0Account: ownerToken0AccountBefore,
+      ownerToken1Account: ownerToken1AccountBefore,
       poolVault0TokenAccount: poolVault0TokenAccountBefore,
       poolVault1TokenAccount: poolVault1TokenAccountBefore,
     } = await getUserAndPoolVaultAmount(
@@ -292,8 +317,8 @@ describe("deposit test", () => {
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {
-      onwerToken0Account: ownerToken0AccountAfter,
-      onwerToken1Account: ownerToken1AccountAfter,
+      ownerToken0Account: ownerToken0AccountAfter,
+      ownerToken1Account: ownerToken1AccountAfter,
       poolVault0TokenAccount: poolVault0TokenAccountAfter,
       poolVault1TokenAccount: poolVault1TokenAccountAfter,
     } = await getUserAndPoolVaultAmount(

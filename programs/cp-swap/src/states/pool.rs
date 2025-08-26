@@ -1,5 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
+use light_sdk::{compressible::CompressionInfo, sha::LightHasher, LightDiscriminator};
+
+use light_sdk_macros::Compressible;
 use std::ops::{BitAnd, BitOr, BitXor};
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "pool";
@@ -20,9 +23,15 @@ pub enum PoolStatusBitFlag {
     Disable,
 }
 
-#[account(zero_copy(unsafe))]
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+/// Tip: The 'Compressible' macro derives compress/decompress methods for the
+/// account. CompressionInfo tracks the last_written_slot. Whenever a
+/// compressible account is written to, last_written_slot must be updated. If
+/// last_written_slot >= threshold (compression_delay), the account becomes
+/// eligible for compression. Eligible accounts can be compressed
+/// asynchronously.
+#[account]
+#[repr(C)]
+#[derive(Default, Debug, LightHasher, LightDiscriminator, Compressible, InitSpace)]
 pub struct PoolState {
     /// Which config the pool belongs
     pub amm_config: Pubkey,
@@ -36,6 +45,8 @@ pub struct PoolState {
     /// Pool tokens are issued when A or B tokens are deposited.
     /// Pool tokens can be withdrawn back to the original A or B token.
     pub lp_mint: Pubkey,
+    /// Holds all LP tokens. Compressible.
+    pub lp_vault: Pubkey,
     /// Mint information for token A
     pub token_0_mint: Pubkey,
     /// Mint information for token B
@@ -74,13 +85,15 @@ pub struct PoolState {
     pub open_time: u64,
     /// recent epoch
     pub recent_epoch: u64,
+    /// #[skip] is required. When the account is compressed, compression_info is
+    /// None. and (Some) when decompressed.
+    #[skip]
+    pub compression_info: Option<CompressionInfo>,
     /// padding for future updates
-    pub padding: [u64; 31],
+    pub padding: [u64; 1],
 }
 
 impl PoolState {
-    pub const LEN: usize = 8 + 10 * 32 + 1 * 5 + 8 * 7 + 8 * 31;
-
     pub fn initialize(
         &mut self,
         auth_bump: u8,
@@ -92,7 +105,8 @@ impl PoolState {
         token_1_vault: Pubkey,
         token_0_mint: &InterfaceAccount<Mint>,
         token_1_mint: &InterfaceAccount<Mint>,
-        lp_mint: &InterfaceAccount<Mint>,
+        lp_vault: &AccountInfo,
+        lp_mint: &AccountInfo,
         observation_key: Pubkey,
     ) {
         self.amm_config = amm_config.key();
@@ -100,13 +114,14 @@ impl PoolState {
         self.token_0_vault = token_0_vault;
         self.token_1_vault = token_1_vault;
         self.lp_mint = lp_mint.key();
+        self.lp_vault = lp_vault.key();
         self.token_0_mint = token_0_mint.key();
         self.token_1_mint = token_1_mint.key();
         self.token_0_program = *token_0_mint.to_account_info().owner;
         self.token_1_program = *token_1_mint.to_account_info().owner;
         self.observation_key = observation_key;
         self.auth_bump = auth_bump;
-        self.lp_mint_decimals = lp_mint.decimals;
+        self.lp_mint_decimals = 9; // LP mint decimals are fixed at 9
         self.mint_0_decimals = token_0_mint.decimals;
         self.mint_1_decimals = token_1_mint.decimals;
         self.lp_supply = lp_supply;
@@ -116,11 +131,11 @@ impl PoolState {
         self.fund_fees_token_1 = 0;
         self.open_time = open_time;
         self.recent_epoch = Clock::get().unwrap().epoch;
-        self.padding = [0u64; 31];
+        self.padding = [0u64; 1];
     }
 
     pub fn set_status(&mut self, status: u8) {
-        self.status = status
+        self.status = status;
     }
 
     pub fn set_status_by_bit(&mut self, bit: PoolStatusBitIndex, flag: PoolStatusBitFlag) {
@@ -162,11 +177,6 @@ impl PoolState {
 #[cfg(test)]
 pub mod pool_test {
     use super::*;
-
-    #[test]
-    fn pool_state_size_test() {
-        assert_eq!(std::mem::size_of::<PoolState>(), PoolState::LEN - 8)
-    }
 
     mod pool_status_test {
         use super::*;

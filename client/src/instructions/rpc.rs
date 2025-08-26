@@ -1,13 +1,18 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use solana_client::{
     rpc_client::RpcClient,
     rpc_config::RpcSendTransactionConfig,
     rpc_request::RpcRequest,
     rpc_response::{RpcResult, RpcSimulateTransactionResult},
 };
+use solana_message::AddressLookupTableAccount;
 use solana_sdk::{
-    account::Account, commitment_config::CommitmentConfig, program_pack::Pack as TokenPack,
-    pubkey::Pubkey, signature::Signature, transaction::Transaction,
+    commitment_config::CommitmentConfig,
+    instruction::Instruction,
+    message::{v0, VersionedMessage},
+    pubkey::Pubkey,
+    signature::{Signature, Signer},
+    transaction::{Transaction, VersionedTransaction},
 };
 use std::convert::Into;
 
@@ -25,6 +30,44 @@ pub fn simulate_transaction(
         }]),
     )
 }
+pub fn send_versioned_txn<T: Signer>(
+    client: &RpcClient,
+    instructions: &[Instruction],
+    signers: &[&T],
+    payer: &Pubkey,
+    lookup_tables: &[AddressLookupTableAccount],
+    wait_confirm: bool,
+) -> Result<Signature> {
+    let mut instructions_with_cu = vec![
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(1_000_000),
+    ];
+    instructions_with_cu.extend_from_slice(instructions);
+    let instructions = &instructions_with_cu;
+    let blockhash = client.get_latest_blockhash()?;
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::V0(v0::Message::try_compile(
+            payer,
+            instructions,
+            lookup_tables,
+            blockhash,
+        )?),
+        signers,
+    )?;
+
+    client.send_and_confirm_transaction_with_spinner_and_config(
+        &tx,
+        if wait_confirm {
+            CommitmentConfig::confirmed()
+        } else {
+            CommitmentConfig::processed()
+        },
+        RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        },
+    )?;
+    Ok(tx.signatures[0])
+}
 
 pub fn send_txn(client: &RpcClient, txn: &Transaction, wait_confirm: bool) -> Result<Signature> {
     Ok(client.send_and_confirm_transaction_with_spinner_and_config(
@@ -39,19 +82,4 @@ pub fn send_txn(client: &RpcClient, txn: &Transaction, wait_confirm: bool) -> Re
             ..RpcSendTransactionConfig::default()
         },
     )?)
-}
-
-pub fn get_token_account<T: TokenPack>(client: &RpcClient, addr: &Pubkey) -> Result<T> {
-    let account = client
-        .get_account_with_commitment(addr, CommitmentConfig::processed())?
-        .value
-        .map_or(Err(anyhow!("Account not found")), Ok)?;
-    T::unpack_from_slice(&account.data).map_err(Into::into)
-}
-
-pub fn get_multiple_accounts(
-    client: &RpcClient,
-    pubkeys: &[Pubkey],
-) -> Result<Vec<Option<Account>>> {
-    Ok(client.get_multiple_accounts(pubkeys)?)
 }

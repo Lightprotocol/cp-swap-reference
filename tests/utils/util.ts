@@ -24,6 +24,14 @@ import {
   getAccount,
 } from "@solana/spl-token";
 import { sendTransaction } from "./index";
+import {
+  COMPRESSED_TOKEN_PROGRAM_ID,
+  createRpc,
+} from "@lightprotocol/stateless.js";
+import {
+  CompressedTokenProgram,
+  createTokenPool,
+} from "@lightprotocol/compressed-token";
 
 // create a token mint and a token2022 mint with transferFeeConfig
 export async function createTokenMintAndAssociatedTokenAccount(
@@ -57,12 +65,15 @@ export async function createTokenMintAndAssociatedTokenAccount(
   );
   tokenArray.push({ address: token0, program: TOKEN_PROGRAM_ID });
 
-  let token1 = await createMintWithTransferFee(
+  let token1 = await createMint(
     connection,
-    payer,
     mintAuthority,
-    Keypair.generate(),
-    transferFeeConfig
+    mintAuthority.publicKey,
+    null,
+    9,
+    undefined,
+    undefined,
+    TOKEN_2022_PROGRAM_ID
   );
 
   tokenArray.push({ address: token1, program: TOKEN_2022_PROGRAM_ID });
@@ -119,12 +130,6 @@ export async function createTokenMintAndAssociatedTokenAccount(
     { skipPreflight: true },
     token0Program
   );
-
-  // console.log(
-  //   "ownerToken0Account key: ",
-  //   ownerToken0Account.address.toString()
-  // );
-
   const ownerToken1Account = await getOrCreateAssociatedTokenAccount(
     connection,
     payer,
@@ -135,10 +140,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
     { skipPreflight: true },
     token1Program
   );
-  // console.log(
-  //   "ownerToken1Account key: ",
-  //   ownerToken1Account.address.toString()
-  // );
+
   await mintTo(
     connection,
     payer,
@@ -147,6 +149,24 @@ export async function createTokenMintAndAssociatedTokenAccount(
     mintAuthority,
     100_000_000_000_000,
     [],
+    { skipPreflight: true },
+    token1Program
+  );
+
+  // SPL mints have to be registered in the compression protocol.
+  const rpc = createRpc();
+  await createTokenPool(
+    rpc,
+    payer,
+    token0,
+    { skipPreflight: true },
+    token0Program
+  );
+
+  await createTokenPool(
+    rpc,
+    payer,
+    token1,
     { skipPreflight: true },
     token1Program
   );
@@ -218,30 +238,30 @@ export async function getUserAndPoolVaultAmount(
   poolToken0Vault: PublicKey,
   poolToken1Vault: PublicKey
 ) {
-  const onwerToken0AccountAddr = getAssociatedTokenAddressSync(
+  const ownerToken0AccountAddr = getAssociatedTokenAddressSync(
     token0Mint,
     owner,
     false,
     token0Program
   );
 
-  const onwerToken1AccountAddr = getAssociatedTokenAddressSync(
+  const ownerToken1AccountAddr = getAssociatedTokenAddressSync(
     token1Mint,
     owner,
     false,
     token1Program
   );
 
-  const onwerToken0Account = await getAccount(
+  const ownerToken0Account = await getAccount(
     anchor.getProvider().connection,
-    onwerToken0AccountAddr,
+    ownerToken0AccountAddr,
     "processed",
     token0Program
   );
 
-  const onwerToken1Account = await getAccount(
+  const ownerToken1Account = await getAccount(
     anchor.getProvider().connection,
-    onwerToken1AccountAddr,
+    ownerToken1AccountAddr,
     "processed",
     token1Program
   );
@@ -250,20 +270,54 @@ export async function getUserAndPoolVaultAmount(
     anchor.getProvider().connection,
     poolToken0Vault,
     "processed",
-    token0Program
+    CompressedTokenProgram.programId
   );
 
   const poolVault1TokenAccount = await getAccount(
     anchor.getProvider().connection,
     poolToken1Vault,
     "processed",
-    token1Program
+    CompressedTokenProgram.programId
   );
+
   return {
-    onwerToken0Account,
-    onwerToken1Account,
+    ownerToken0Account,
+    ownerToken1Account,
     poolVault0TokenAccount,
     poolVault1TokenAccount,
+  };
+}
+
+export async function getUserAndPoolLpAmount(
+  owner: PublicKey,
+  lpMint: PublicKey,
+  lpVault: PublicKey
+) {
+  const userLpTokenAddr = getAssociatedTokenAddressSync(
+    lpMint,
+    owner,
+    undefined,
+    COMPRESSED_TOKEN_PROGRAM_ID,
+    COMPRESSED_TOKEN_PROGRAM_ID
+  );
+
+  const userLpAccount = await getAccount(
+    anchor.getProvider().connection,
+    userLpTokenAddr,
+    "processed",
+    COMPRESSED_TOKEN_PROGRAM_ID
+  );
+
+  const poolLpVaultAccount = await getAccount(
+    anchor.getProvider().connection,
+    lpVault,
+    "processed",
+    COMPRESSED_TOKEN_PROGRAM_ID
+  );
+
+  return {
+    userLpAccount,
+    poolLpVaultAccount,
   };
 }
 

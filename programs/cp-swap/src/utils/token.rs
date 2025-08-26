@@ -5,6 +5,9 @@ use anchor_spl::{
     token_2022,
     token_interface::{initialize_account3, InitializeAccount3, Mint},
 };
+use light_compressed_token_sdk::instructions::transfer2::{
+    transfer_ctoken_to_spl_signed, transfer_spl_to_ctoken,
+};
 use spl_token_2022::{
     self,
     extension::{
@@ -21,105 +24,65 @@ const MINT_WHITELIST: [&'static str; 4] = [
     "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
 ];
 
-pub fn transfer_from_user_to_pool_vault<'a>(
+pub fn transfer_from_user_to_pool_vault<'a, 'b>(
     authority: AccountInfo<'a>,
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
+    spl_token_program: AccountInfo<'a>,
+    compressed_token_pool_pda: AccountInfo<'a>,
+    compressed_token_pool_pda_bump: u8,
+    compressed_token_program_authority: AccountInfo<'a>,
     amount: u64,
-    mint_decimals: u8,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    token_2022::transfer_checked(
-        CpiContext::new(
-            token_program.to_account_info(),
-            token_2022::TransferChecked {
-                from,
-                to: to_vault,
-                authority,
-                mint,
-            },
-        ),
+    transfer_spl_to_ctoken(
+        authority.clone(),
+        authority,
+        from,
+        to_vault,
+        mint,
+        spl_token_program,
+        compressed_token_pool_pda,
+        compressed_token_pool_pda_bump,
+        compressed_token_program_authority,
         amount,
-        mint_decimals,
-    )
+    )?;
+    Ok(())
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
+    payer: AccountInfo<'a>,
     authority: AccountInfo<'a>,
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
+    spl_token_program: AccountInfo<'a>,
+    compressed_token_pool_pda: AccountInfo<'a>,
+    compressed_token_pool_pda_bump: u8,
+    compressed_token_program_authority: AccountInfo<'a>,
     amount: u64,
-    mint_decimals: u8,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    token_2022::transfer_checked(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            token_2022::TransferChecked {
-                from: from_vault,
-                to,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
+    transfer_ctoken_to_spl_signed(
+        payer,
+        authority,
+        from_vault,
+        to,
+        mint,
+        spl_token_program,
+        compressed_token_pool_pda,
+        compressed_token_pool_pda_bump,
+        compressed_token_program_authority,
         amount,
-        mint_decimals,
-    )
-}
-
-/// Issue a spl_token `MintTo` instruction.
-pub fn token_mint_to<'a>(
-    authority: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
-    mint: AccountInfo<'a>,
-    destination: AccountInfo<'a>,
-    amount: u64,
-    signer_seeds: &[&[&[u8]]],
-) -> Result<()> {
-    token_2022::mint_to(
-        CpiContext::new_with_signer(
-            token_program,
-            token_2022::MintTo {
-                to: destination,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
-        amount,
-    )
-}
-
-pub fn token_burn<'a>(
-    authority: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
-    mint: AccountInfo<'a>,
-    from: AccountInfo<'a>,
-    amount: u64,
-    signer_seeds: &[&[&[u8]]],
-) -> Result<()> {
-    token_2022::burn(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            token_2022::Burn {
-                from,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
-        amount,
-    )
+        signer_seeds,
+    )?;
+    Ok(())
 }
 
 /// Calculate the fee for output amount
@@ -188,12 +151,7 @@ pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> 
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
     let extensions = mint.get_extension_types()?;
     for e in extensions {
-        if e != ExtensionType::TransferFeeConfig
-            && e != ExtensionType::MetadataPointer
-            && e != ExtensionType::TokenMetadata
-            && e != ExtensionType::InterestBearingConfig
-            && e != ExtensionType::ScaledUiAmount
-        {
+        if e != ExtensionType::TokenMetadata {
             return Ok(false);
         }
     }
@@ -248,7 +206,7 @@ pub fn create_or_allocate_account<'a>(
     payer: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
     target_account: AccountInfo<'a>,
-    siger_seed: &[&[u8]],
+    signer_seed: &[&[u8]],
     space: usize,
 ) -> Result<()> {
     let rent = Rent::get()?;
@@ -262,7 +220,7 @@ pub fn create_or_allocate_account<'a>(
         };
         let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
         system_program::create_account(
-            cpi_context.with_signer(&[siger_seed]),
+            cpi_context.with_signer(&[signer_seed]),
             lamports,
             u64::try_from(space).unwrap(),
             program_id,
@@ -285,7 +243,7 @@ pub fn create_or_allocate_account<'a>(
         };
         let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
         system_program::allocate(
-            cpi_context.with_signer(&[siger_seed]),
+            cpi_context.with_signer(&[signer_seed]),
             u64::try_from(space).unwrap(),
         )?;
 
@@ -293,7 +251,7 @@ pub fn create_or_allocate_account<'a>(
             account_to_assign: target_account.clone(),
         };
         let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
-        system_program::assign(cpi_context.with_signer(&[siger_seed]), program_id)?;
+        system_program::assign(cpi_context.with_signer(&[signer_seed]), program_id)?;
     }
     Ok(())
 }
