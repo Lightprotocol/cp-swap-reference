@@ -28,7 +28,7 @@ pub struct Deposit<'info> {
     pub pool_state: Account<'info, PoolState>,
 
     /// Owner lp token account
-    #[account(mut, token::authority = owner)]
+    #[account(mut,  token::authority = owner)]
     pub owner_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The payer's token account for token_0
@@ -223,7 +223,6 @@ pub fn deposit(
         lp_token_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
-
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.

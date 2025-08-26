@@ -66,6 +66,7 @@ pub struct CollectFundFee<'info> {
 
     /// The SPL program to perform token transfers
     pub token_program: Program<'info, Token>,
+
     /// The SPL program 2022 to perform token transfers
     pub token_program_2022: Program<'info, Token2022>,
 

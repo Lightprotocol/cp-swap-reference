@@ -251,7 +251,6 @@ pub fn withdraw(
         token_1_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
-
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.
