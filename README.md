@@ -48,13 +48,19 @@ npm i -g @lightprotocol/zk-compression-cli@alpha --force
 cargo install --git https://github.com/lightprotocol/photon.git --rev 6ba6813 --locked --force
 ```
 
-2. Clone the repository and test the program.
+2. Clone the repository and install node dependencies
 
 ```shell
 
 git clone https://github.com/raydium-io/raydium-cp-swap
 
-cd raydium-cp-swap && yarn && yarn test
+cd raydium-cp-swap && yarn
+```
+
+3. Run the tests
+
+```shell
+yarn test
 ```
 
 ## License
