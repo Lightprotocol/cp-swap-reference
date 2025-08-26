@@ -40,12 +40,21 @@ Original readme:
 
 ## Quickstart
 
-Clone the repository and test the program.
+1. install the latest compression dependencies
+
+```shell
+npm i -g @lightprotocol/zk-compression-cli@alpha --force
+
+cargo install --git https://github.com/lightprotocol/photon.git --rev 6ba6813 --locked --force
+```
+
+2. Clone the repository and test the program.
 
 ```shell
 
 git clone https://github.com/raydium-io/raydium-cp-swap
-cd raydium-cp-swap && yarn && anchor test
+
+cd raydium-cp-swap && yarn && yarn test
 ```
 
 ## License
