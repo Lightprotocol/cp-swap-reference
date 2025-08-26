@@ -85,8 +85,8 @@ pub struct PoolState {
     pub open_time: u64,
     /// recent epoch
     pub recent_epoch: u64,
-    /// #[skip] is required. When the account is compressed, compression_info is
-    /// None. and (Some) when decompressed.
+    /// #[skip] is required. Is Some when the account is decompressed and None
+    /// when compressed.
     #[skip]
     pub compression_info: Option<CompressionInfo>,
     /// padding for future updates

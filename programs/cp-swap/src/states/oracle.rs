@@ -44,8 +44,8 @@ pub struct ObservationState {
     pub pool_id: Pubkey,
     /// observation array
     pub observations: Option<[Observation; OBSERVATION_NUM]>,
-    /// #[skip] is required. When the account is compressed, compression_info is
-    /// None. and (Some) when decompressed.
+    /// #[skip] is required. Is Some when the account is decompressed and None
+    /// when compressed.
     #[skip]
     pub compression_info: Option<CompressionInfo>,
     /// padding for feature update

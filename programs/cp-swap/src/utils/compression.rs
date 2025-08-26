@@ -37,7 +37,7 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
             true,
             Some(OBSERVATION_STATE_CREATION_INDEX),
         );
-    // To save CU in exchange for ix data, you canpass the addresses via client.
+    // To save CU in exchange for ix data, you can also pass the addresses via client.
     let pool_compressed_address = derive_address(
         &pool_state.key().to_bytes(),
         &cpi_accounts
@@ -47,7 +47,6 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
             .to_bytes(),
         &crate::ID.to_bytes(),
     );
-
     let observation_compressed_address = derive_address(
         &observation_state.key().to_bytes(),
         &cpi_accounts
@@ -58,13 +57,7 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
         &crate::ID.to_bytes(),
     );
 
-    // 2. Prepare accounts for compression
-    // prepare_accounts_for_compression_on_init is for direct compression. To
-    // write to the accounts, as user then has to add a
-    // decompress_accounts_idempotent instruction to the first transaction. Many
-    // users can try to decompress the account concurrently. If you instead want
-    // to start in a "decompressed" state, and only compress later, use
-    // 'compress_empty_account_on_init'.
+    // 2. Prepare the PDA accounts for direct compression_on_init.
     let mut all_compressed_infos = Vec::with_capacity(2);
 
     let pool_state_compressed_info = prepare_accounts_for_compression_on_init::<PoolState>(
@@ -90,7 +83,7 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
     all_compressed_infos.extend(observation_compressed_infos);
 
     // 3. Compress. We invoke the cpi_context here to save CU, because we still
-    // create a cmint later in the instruction. Only then will the state
+    // create a cMint later in the instruction. Only then will the state
     // transition be fully settled. Notice we're using 'new_first_cpi' here
     // instead of 'CompressedCpiContext::last_cpi_create_mint'.
     let cpi_inputs = CpiInputs::new_first_cpi(
