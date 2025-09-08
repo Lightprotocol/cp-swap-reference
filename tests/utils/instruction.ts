@@ -1,4 +1,4 @@
-import { Program, BN, IdlTypes } from "@coral-xyz/anchor";
+import { Program, BN, IdlTypes, Idl } from "@coral-xyz/anchor";
 import { RaydiumCpSwap } from "../../target/types/raydium_cp_swap";
 import {
   Connection,
@@ -9,6 +9,7 @@ import {
   SystemProgram,
   SYSVAR_RENT_PUBKEY,
   ComputeBudgetProgram,
+  AccountMeta,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -52,6 +53,13 @@ import {
   createPackedAccountsSmallWithCpiContext,
   getIndexOrAdd,
   SystemAccountMetaConfig,
+  CompressedAccount,
+  TreeInfo,
+  ValidityProofWithContextV2,
+  ValidityProofWithContext,
+  MerkleContext,
+  CompressedProof,
+  ValidityProof,
 } from "@lightprotocol/stateless.js";
 
 import {
@@ -607,13 +615,94 @@ function packWithAccounts<TInput, TOutput = PackedType<TInput>>(
   return obj as unknown as TOutput;
 }
 
+const DECOMPRESS_ACCOUNTS_IDEMPOTENT_DISCRIMINATOR = Buffer.from([
+  114, 67, 61, 123, 234, 31, 1, 112,
+]);
+
+interface HasDecompressAccountsIdempotent {
+  decompressAccountsIdempotent: any;
+}
+
+async function packRemainingAccounts(
+  programId: PublicKey,
+  validityProofWithContext: ValidityProofWithContext,
+  compressedAccounts: { key: string; treeInfo: TreeInfo; data: any }[],
+  decompressedAccountAddresses: PublicKey[]
+): Promise<{
+  compressedAccounts: {
+    meta: {
+      treeInfo: PackedStateTreeInfo;
+      outputStateTreeIndex: number;
+    };
+    data: any;
+  }[];
+  systemAccountsOffset: number;
+  proofOption: { 0: CompressedProof } | { 0: ValidityProof };
+  remainingAccounts: AccountMeta[];
+}> {
+  const remainingAccounts = createPackedAccountsSmall(programId);
+
+  console.log("compressedAccounts", compressedAccounts);
+  const outputQueue = compressedAccounts[0].treeInfo.nextTreeInfo
+    ? compressedAccounts[0].treeInfo.nextTreeInfo.queue
+    : compressedAccounts[0].treeInfo.queue;
+  // const outputQueue = validityProofWithContext.accounts[0].treeInfo.nextTreeInfo
+  //   ? validityProofWithContext.accounts[0].treeInfo.nextTreeInfo.queue
+  //   : validityProofWithContext.accounts[0].treeInfo.queue;
+
+  const _ = remainingAccounts.insertOrGet(outputQueue);
+  const packedTreeInfos = packTreeInfos(
+    validityProofWithContext,
+    remainingAccounts
+  );
+  const compressedAccountData: {
+    meta: {
+      treeInfo: PackedStateTreeInfo;
+      outputStateTreeIndex: number;
+    };
+    data: any;
+  }[] = compressedAccounts.map(({ data }, index) => {
+    const packedData = packWithAccounts(data, remainingAccounts);
+    return {
+      meta: {
+        treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[index],
+        outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
+      },
+      data: {
+        // [compressedAccounts[index].key]: [packedData],
+        ["packed" +
+        compressedAccounts[index].key[0].toUpperCase() +
+        compressedAccounts[index].key.slice(1)]: [packedData],
+      },
+    };
+  });
+  const remainingAccountMetas =
+    remainingAccounts.toAccountMetas().remainingAccounts;
+  if (compressedAccounts.length !== decompressedAccountAddresses.length) {
+    throw new Error(
+      "Compressed accounts and decompressed account addresses must have the same length"
+    );
+  }
+  for (const account of decompressedAccountAddresses) {
+    remainingAccountMetas.push({
+      pubkey: account,
+      isSigner: false,
+      isWritable: true,
+    });
+  }
+  return {
+    compressedAccounts: compressedAccountData,
+    systemAccountsOffset: 0,
+    remainingAccounts: remainingAccountMetas,
+    proofOption: { 0: validityProofWithContext.compressedProof },
+  };
+}
+
 export async function decompressIdempotent(
   program: Program<RaydiumCpSwap>,
   owner: Signer,
   poolAddress: PublicKey,
-  poolBump: number,
   observationAddress: PublicKey,
-  observationBump: number,
   configAddress: PublicKey,
   token0: PublicKey,
   token1: PublicKey,
@@ -655,58 +744,34 @@ export async function decompressIdempotent(
     },
   ]);
 
-  const remainingAccounts = createPackedAccountsSmall(program.programId);
-  const _ = remainingAccounts.insertOrGet(
-    (await rpc.getStateTreeInfos())[0].queue
-  );
-  const packedTreeInfos = packTreeInfos(proof, remainingAccounts);
-
-  // const refProgramAccountsMetas = [poolAddress, token1, configAddress, token0];
-  // refProgramAccountsMetas.map((key) => remainingAccounts.insertOrGet(key));
-
-  let packedPoolState = packWithAccounts(poolState, remainingAccounts);
-  console.log("packedPoolState", packedPoolState);
-  console.log("poolState", poolState);
-  // console.log("remainingAccounts", remainingAccounts.map(a=> a));
-  let packedObservationState = packWithAccounts(
-    observationState,
-    remainingAccounts
-  );
-
-  const compressedAccountsData: {
-    meta: {
-      treeInfo: PackedStateTreeInfo;
-      outputStateTreeIndex: number;
-    };
-    data: CompressedAccountVariant;
-  }[] = [
-    {
-      meta: {
-        treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[0],
-        outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
+  const {
+    compressedAccounts,
+    systemAccountsOffset,
+    remainingAccounts,
+    proofOption,
+  } = await packRemainingAccounts(
+    program.programId,
+    proof,
+    [
+      {
+        key: "poolState",
+        data: poolState,
+        treeInfo: poolMerkleContext.treeInfo,
       },
-      data: { packedPoolState: [packedPoolState] },
-    },
-    {
-      meta: {
-        treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[1],
-        outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
+      {
+        key: "observationState",
+        data: observationState,
+        treeInfo: observationMerkleContext.treeInfo,
       },
-      data: { packedObservationState: [packedObservationState] },
-    },
-  ];
+    ],
+    [poolAddress, observationAddress]
+  );
 
-  const rem = remainingAccounts.toAccountMetas().remainingAccounts;
-  rem.push({ pubkey: poolAddress, isSigner: false, isWritable: true });
-  rem.push({ pubkey: observationAddress, isSigner: false, isWritable: true });
-
-  console.log("compressedAccountData", compressedAccountsData.length);
-  console.log("compressedAccountData", proof.compressedProof);
   const decompressIx = await program.methods
     .decompressAccountsIdempotent(
-      { 0: proof.compressedProof },
-      compressedAccountsData,
-      0
+      proofOption,
+      compressedAccounts,
+      systemAccountsOffset
     )
     .accountsStrict({
       feePayer: owner.publicKey,
@@ -720,11 +785,8 @@ export async function decompressIdempotent(
       token1Mint: token1,
       poolState: poolAddress,
     })
-    .remainingAccounts(rem)
+    .remainingAccounts(remainingAccounts)
     .instruction();
-
-  console.log("decompressIx", decompressIx.data.length);
-  console.log("decompressIx", Array.from(decompressIx.data));
 
   // Build and send transaction
   // const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
@@ -822,9 +884,7 @@ export async function deposit(
     program,
     owner,
     poolAddress,
-    poolBump,
     observationAddress,
-    observationBump,
     configAddress,
     token0,
     token1,
@@ -1062,14 +1122,31 @@ export async function swap_base_input(
         CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
     .instruction();
-  const tx = await sendTransaction(
-    program.provider.connection,
-    [ix],
-    [owner],
-    confirmOptions
+  // const tx = await sendTransaction(
+  //   program.provider.connection,
+  //   [ix],
+  //   [owner],
+  //   confirmOptions
+  // );
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1_200_000,
+  });
+  const rpc = createRpc();
+  const { blockhash } = await program.provider.connection.getLatestBlockhash();
+  const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
+    new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
   );
-  console.log("swap signature:", tx);
-  return tx;
+
+  const tx = buildAndSignTx(
+    [computeBudgetIx, ix],
+    owner,
+    blockhash,
+    [],
+    [lookupTableAccount]
+  );
+  const txId = await sendAndConfirmTx(rpc, tx, confirmOptions);
+  console.log("swap signature:", txId);
+  return txId;
 }
 
 export async function swap_base_output(
