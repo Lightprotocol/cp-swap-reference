@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
-use light_sdk::{compressible::CompressionInfo, sha::LightHasher, LightDiscriminator};
+use light_sdk::{
+    compressible::CompressionInfo, sha::LightHasher, CompressiblePack, LightDiscriminator,
+};
 
 use light_sdk_macros::Compressible;
 use std::ops::{BitAnd, BitOr, BitXor};
@@ -31,7 +33,9 @@ pub enum PoolStatusBitFlag {
 /// asynchronously.
 #[account]
 #[repr(C)]
-#[derive(Default, Debug, LightHasher, LightDiscriminator, Compressible, InitSpace)]
+#[derive(
+    Debug, LightHasher, LightDiscriminator, Default, InitSpace, Compressible, CompressiblePack,
+)]
 pub struct PoolState {
     /// Which config the pool belongs
     pub amm_config: Pubkey,

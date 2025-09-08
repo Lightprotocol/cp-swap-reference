@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 use light_sdk::{
     compressible::{CompressionInfo, HasCompressionInfo},
     sha::LightHasher,
-    LightDiscriminator,
+    CompressiblePack, LightDiscriminator,
 };
 use light_sdk_macros::Compressible;
 
@@ -13,6 +13,7 @@ use light_sdk_macros::Compressible;
 use std::time::{SystemTime, UNIX_EPOCH};
 /// Seed to derive account address and signature
 pub const OBSERVATION_SEED: &str = "observation";
+
 // Number of ObservationState element
 pub const OBSERVATION_NUM: usize = 20;
 pub const OBSERVATION_UPDATE_DURATION_DEFAULT: u64 = 15;
@@ -34,7 +35,7 @@ pub struct Observation {
 /// eligible for compression. Eligible accounts can be compressed
 /// asynchronously.
 #[account]
-#[derive(LightHasher, LightDiscriminator, Compressible, InitSpace, Debug)]
+#[derive(LightHasher, LightDiscriminator, Compressible, InitSpace, Debug, CompressiblePack)]
 #[compress_as(observations = None)]
 pub struct ObservationState {
     /// Whether the ObservationState is initialized

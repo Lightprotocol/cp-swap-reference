@@ -276,9 +276,9 @@ pub fn deposit_instr(
         &program.id(),
     );
 
-    let (compressed_token_0_pool_pda, token_0_pool_pda_bump) =
+    let (compressed_token_0_pool_pda, _token_0_pool_pda_bump) =
         compressed_token::get_token_pool_address_and_bump(&token_0_mint);
-    let (compressed_token_1_pool_pda, token_1_pool_pda_bump) =
+    let (compressed_token_1_pool_pda, _token_1_pool_pda_bump) =
         compressed_token::get_token_pool_address_and_bump(&token_1_mint);
 
     let instructions = program
@@ -341,9 +341,9 @@ pub fn withdraw_instr(
         ],
         &program.id(),
     );
-    let (compressed_token_0_pool_pda, token_0_pool_pda_bump) =
+    let (compressed_token_0_pool_pda, _token_0_pool_pda_bump) =
         compressed_token::get_token_pool_address_and_bump(&token_0_mint);
-    let (compressed_token_1_pool_pda, token_1_pool_pda_bump) =
+    let (compressed_token_1_pool_pda, _token_1_pool_pda_bump) =
         compressed_token::get_token_pool_address_and_bump(&token_1_mint);
 
     let instructions = program
@@ -401,9 +401,9 @@ pub fn swap_base_input_instr(
 
     let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &program.id());
 
-    let (compressed_token_0_pool_pda, token_0_pool_pda_bump) =
+    let (compressed_token_0_pool_pda, _token_0_pool_pda_bump) =
         compressed_token::get_token_pool_address_and_bump(&input_token_mint);
-    let (compressed_token_1_pool_pda, token_1_pool_pda_bump) =
+    let (compressed_token_1_pool_pda, _token_1_pool_pda_bump) =
         compressed_token::get_token_pool_address_and_bump(&output_token_mint);
 
     let instructions = program
@@ -459,9 +459,9 @@ pub fn swap_base_output_instr(
 
     let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &program.id());
 
-    let (compressed_token_0_pool_pda, token_0_pool_pda_bump) =
+    let (compressed_token_0_pool_pda, _token_0_pool_pda_bump) =
         compressed_token::get_token_pool_address_and_bump(&input_token_mint);
-    let (compressed_token_1_pool_pda, token_1_pool_pda_bump) =
+    let (compressed_token_1_pool_pda, _token_1_pool_pda_bump) =
         compressed_token::get_token_pool_address_and_bump(&output_token_mint);
 
     let instructions = program

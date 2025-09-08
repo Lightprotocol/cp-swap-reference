@@ -6,6 +6,8 @@ use light_client::{
 };
 use light_compressible_client::CompressibleInstruction;
 use light_sdk::compressible::CompressibleConfig;
+use light_token_client::compressed_token;
+use raydium_cp_swap::CompressedAccountVariant;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     pubkey::Pubkey,
@@ -178,40 +180,36 @@ pub async fn decompress_pool_and_observation_idempotent(
     let observation_state =
         raydium_cp_swap::states::ObservationState::deserialize(&mut &observation_data.data[..])?;
 
+    use anchor_lang::ToAccountMetas;
+    let program_account_metas = &raydium_cp_swap::accounts::DecompressAccountsIdempotent {
+        fee_payer: payer.pubkey(),
+        config: CompressibleConfig::derive_default_pda(&program_id).0,
+        rent_payer: payer.pubkey(),
+        compressed_token_rent_payer: payer.pubkey(),
+        compressed_token_program: compressed_token::id(),
+        compressed_token_cpi_authority: compressed_token::cpi_authority(),
+        amm_config,
+        token_0_mint,
+        token_1_mint,
+        pool_state: pool_address,
+    }
+    .to_account_metas(None);
     let decompress_instr =
         light_compressible_client::CompressibleInstruction::decompress_accounts_idempotent(
             &program_id,
             &CompressibleInstruction::DECOMPRESS_ACCOUNTS_IDEMPOTENT_DISCRIMINATOR,
-            &payer.pubkey(),
-            &payer.pubkey(),
             &[pool_address, observation_address],
             &[
                 (
                     pool_compressed.clone(),
-                    raydium_cp_swap::raydium_cp_swap::CompressedAccountVariant::PoolState(
-                        pool_state,
-                    ),
-                    vec![
-                        raydium_cp_swap::states::POOL_SEED.as_bytes().to_vec(),
-                        amm_config.to_bytes().to_vec(),
-                        token_0_mint.to_bytes().to_vec(),
-                        token_1_mint.to_bytes().to_vec(),
-                    ],
+                    CompressedAccountVariant::PoolState(pool_state),
                 ),
                 (
                     observation_compressed.clone(),
-                    raydium_cp_swap::raydium_cp_swap::CompressedAccountVariant::ObservationState(
-                        observation_state,
-                    ),
-                    vec![
-                        raydium_cp_swap::states::OBSERVATION_SEED
-                            .as_bytes()
-                            .to_vec(),
-                        pool_address.to_bytes().to_vec(),
-                    ],
+                    CompressedAccountVariant::ObservationState(observation_state),
                 ),
             ],
-            &[pool_bump, observation_bump],
+            program_account_metas,
             validity_proof_result,
             state_tree_info,
         )

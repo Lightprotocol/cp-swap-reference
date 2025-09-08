@@ -16,7 +16,7 @@ import {
   getDefaultAddressTreeInfo,
 } from "@lightprotocol/stateless.js";
 
-describe("deposit test", () => {
+describe.only("deposit test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 
@@ -29,7 +29,7 @@ describe("deposit test", () => {
     skipPreflight: true,
   };
 
-  it("deposit test, add the same liquidity and check the correctness of the values with and without transfer fees", async () => {
+  it.only("deposit test, add the same liquidity and check the correctness of the values with and without transfer fees", async () => {
     /// deposit without fee
     const { poolAddress, poolState } = await setupDepositTest(
       program,

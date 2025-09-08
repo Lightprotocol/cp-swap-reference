@@ -32,14 +32,14 @@ solana-security-txt = "1.1.1"
 bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor", "anchor-discriminator-compat", "v2"] }
-light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["v2"] }
-light-hasher = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["solana"] }
-light-macros = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["solana"] }
-light-sdk-macros = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor-discriminator-compat"] }
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
-light-compressed-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
-light-ctoken-types = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
+light-sdk = { path = "./../../../light-protocol/sdk-libs/sdk", features = ["anchor", "anchor-discriminator-compat", "v2"] }
+light-sdk-types = { path = "./../../../light-protocol/sdk-libs/sdk-types", features = ["v2"] }
+light-hasher = { path = "./../../../light-protocol/program-libs/hasher", features = ["solana"] }
+light-macros = { path = "./../../../light-protocol/program-libs/macros", features = ["solana"] }
+light-sdk-macros = { path = "./../../../light-protocol/sdk-libs/macros", features = ["anchor-discriminator-compat"] }
+light-compressed-account = { path = "./../../../light-protocol/program-libs/compressed-account", features = ["anchor"] }
+light-compressed-token-sdk = { path = "./../../../light-protocol/sdk-libs/compressed-token-sdk", features = ["anchor"] }
+light-ctoken-types = { path = "./../../../light-protocol/program-libs/ctoken-types", features = ["anchor"] }
 
 
 [dev-dependencies]
@@ -47,9 +47,9 @@ quickcheck = "1.0.3"
 proptest = "1.0"
 rand = "0.9.0"
 
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["v2"] }
-light-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["v2"] }
-light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
+light-program-test = { path = "./../../../light-protocol/sdk-libs/program-test", features = ["v2"] }
+light-client = { path = "./../../../light-protocol/sdk-libs/client", features = ["v2"] }
+light-compressible-client = { path = "./../../../light-protocol/sdk-libs/compressible-client", features = ["anchor"] }
 
 
 [profile.release]

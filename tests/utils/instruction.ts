@@ -50,6 +50,8 @@ import {
   buildAndSignTx,
   PackedStateTreeInfo,
   createPackedAccountsSmallWithCpiContext,
+  getIndexOrAdd,
+  SystemAccountMetaConfig,
 } from "@lightprotocol/stateless.js";
 
 import {
@@ -564,6 +566,46 @@ export async function initialize(
 
   return { poolAddress, poolState };
 }
+// Type to transform PublicKey fields to numbers recursively
+type PackedType<T> = T extends PublicKey
+  ? number
+  : T extends BN
+  ? BN
+  : T extends (infer U)[]
+  ? PackedType<U>[]
+  : T extends object
+  ? { [K in keyof T]: PackedType<T[K]> }
+  : T;
+
+/**
+ * Recursively replaces all PublicKey instances with their packed index.
+ * Leaves all other values untouched.
+ */
+function packWithAccounts<TInput, TOutput = PackedType<TInput>>(
+  obj: TInput,
+  packedAccounts: ReturnType<typeof createPackedAccountsSmall>
+): TOutput {
+  if (obj instanceof PublicKey) {
+    return packedAccounts.insertOrGet(obj) as TOutput;
+  }
+  if (obj instanceof BN || obj instanceof BigInt) {
+    return obj as unknown as TOutput;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => packWithAccounts(item, packedAccounts)) as TOutput;
+  }
+  if (obj !== null && typeof obj === "object") {
+    const result: any = Array.isArray(obj) ? [] : {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const value = (obj as any)[key];
+        result[key] = packWithAccounts(value, packedAccounts);
+      }
+    }
+    return result as TOutput;
+  }
+  return obj as unknown as TOutput;
+}
 
 export async function decompressIdempotent(
   program: Program<RaydiumCpSwap>,
@@ -577,10 +619,9 @@ export async function decompressIdempotent(
   token1: PublicKey,
   rpc: Rpc,
   confirmOptions?: ConfirmOptions
-): Promise<string> {
+) {
   const addressTreeInfo = getDefaultAddressTreeInfo();
 
-  // Fetch pool state
   const { account: poolState, merkleContext: poolMerkleContext } =
     await fetchCompressibleAccount(
       poolAddress,
@@ -590,7 +631,6 @@ export async function decompressIdempotent(
       rpc
     );
 
-  // Fetch observation state
   const { account: observationState, merkleContext: observationMerkleContext } =
     await fetchCompressibleAccount(
       observationAddress,
@@ -601,19 +641,6 @@ export async function decompressIdempotent(
     );
 
   if (!poolMerkleContext && !observationMerkleContext) return;
-
-  // Derive compressed addresses
-  const poolCompressedAddress = deriveAddressV2(
-    poolAddress.toBytes(),
-    addressTreeInfo.tree.toBytes(),
-    program.programId.toBytes()
-  );
-
-  const observationCompressedAddress = deriveAddressV2(
-    observationAddress.toBytes(),
-    addressTreeInfo.tree.toBytes(),
-    program.programId.toBytes()
-  );
 
   const proof = await rpc.getValidityProofV0([
     {
@@ -628,88 +655,96 @@ export async function decompressIdempotent(
     },
   ]);
 
-  // Prepare remaining accounts
   const remainingAccounts = createPackedAccountsSmall(program.programId);
-  remainingAccounts.addPreAccountsMeta({
-    isSigner: false,
-    isWritable: true,
-    pubkey: poolAddress,
-  });
-  remainingAccounts.addPreAccountsMeta({
-    isSigner: false,
-    isWritable: true,
-    pubkey: observationAddress,
-  });
+  const _ = remainingAccounts.insertOrGet(
+    (await rpc.getStateTreeInfos())[0].queue
+  );
   const packedTreeInfos = packTreeInfos(proof, remainingAccounts);
 
-  // Prepare compressed accounts data
+  // const refProgramAccountsMetas = [poolAddress, token1, configAddress, token0];
+  // refProgramAccountsMetas.map((key) => remainingAccounts.insertOrGet(key));
+
+  let packedPoolState = packWithAccounts(poolState, remainingAccounts);
+  console.log("packedPoolState", packedPoolState);
+  console.log("poolState", poolState);
+  // console.log("remainingAccounts", remainingAccounts.map(a=> a));
+  let packedObservationState = packWithAccounts(
+    observationState,
+    remainingAccounts
+  );
+
   const compressedAccountsData: {
     meta: {
       treeInfo: PackedStateTreeInfo;
-      address: number[];
       outputStateTreeIndex: number;
     };
     data: CompressedAccountVariant;
-    seeds: Buffer[];
   }[] = [
     {
       meta: {
         treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[0],
-        address: Array.from(poolCompressedAddress),
         outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
       },
-      data: { poolState: [poolState] },
-      seeds: [
-        POOL_SEED,
-        configAddress.toBuffer(),
-        token0.toBuffer(),
-        token1.toBuffer(),
-      ],
+      data: { packedPoolState: [packedPoolState] },
     },
     {
       meta: {
         treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[1],
-        address: Array.from(observationCompressedAddress),
         outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
       },
-      data: { observationState: [observationState] },
-      seeds: [ORACLE_SEED, poolAddress.toBuffer()],
+      data: { packedObservationState: [packedObservationState] },
     },
   ];
 
+  const rem = remainingAccounts.toAccountMetas().remainingAccounts;
+  rem.push({ pubkey: poolAddress, isSigner: false, isWritable: true });
+  rem.push({ pubkey: observationAddress, isSigner: false, isWritable: true });
+
+  console.log("compressedAccountData", compressedAccountsData.length);
+  console.log("compressedAccountData", proof.compressedProof);
   const decompressIx = await program.methods
     .decompressAccountsIdempotent(
       { 0: proof.compressedProof },
       compressedAccountsData,
-      Buffer.from([poolBump, observationBump]),
-      compressedAccountsData.length
+      0
     )
     .accountsStrict({
       feePayer: owner.publicKey,
-      rentPayer: owner.publicKey,
       config: deriveCompressionConfigAddress(program.programId)[0],
+      rentPayer: owner.publicKey,
+      compressedTokenRentPayer: owner.publicKey,
+      compressedTokenProgram: CompressedTokenProgram.programId,
+      compressedTokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
+      ammConfig: configAddress,
+      token0Mint: token0,
+      token1Mint: token1,
+      poolState: poolAddress,
     })
-    .remainingAccounts(remainingAccounts.toAccountMetas().remainingAccounts)
+    .remainingAccounts(rem)
     .instruction();
 
-  // Build and send transaction
-  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
-    units: 1_200_000,
-  });
-  const { blockhash } = await program.provider.connection.getLatestBlockhash();
-  const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
-    new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
-  );
-  const tx = buildAndSignTx(
-    [computeBudgetIx, decompressIx],
-    owner,
-    blockhash,
-    [],
-    [lookupTableAccount]
-  );
-  const decompressTxId = await sendAndConfirmTx(rpc, tx, confirmOptions);
+  console.log("decompressIx", decompressIx.data.length);
+  console.log("decompressIx", Array.from(decompressIx.data));
 
-  return decompressTxId;
+  // Build and send transaction
+  // const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
+  //   units: 1_200_000,
+  // });
+  // const { blockhash } = await program.provider.connection.getLatestBlockhash();
+  // const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
+  //   new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+  // );
+  // const tx = buildAndSignTx(
+  //   [computeBudgetIx, decompressIx],
+  //   owner,
+  //   blockhash,
+  //   [],
+  //   [lookupTableAccount]
+  // );
+  // const decompressTxId = await sendAndConfirmTx(rpc, tx, confirmOptions);
+  // console.log("decompressTxId", decompressTxId);
+  // return decompressTxId;
+  return decompressIx;
 }
 
 export async function deposit(
@@ -783,7 +818,7 @@ export async function deposit(
   );
 
   // Decompress accounts
-  await decompressIdempotent(
+  const decompressIx = await decompressIdempotent(
     program,
     owner,
     poolAddress,
@@ -831,7 +866,7 @@ export async function deposit(
     new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
   );
   const depositTx = buildAndSignTx(
-    [computeBudgetIx, depositIx],
+    [computeBudgetIx, decompressIx, depositIx],
     owner,
     blockhash,
     [],

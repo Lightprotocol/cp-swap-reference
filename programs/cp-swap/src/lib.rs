@@ -5,8 +5,9 @@ pub mod states;
 pub mod utils;
 
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
+pub use crate::error::ErrorCode;
 pub use crate::instructions::initialize::Initialize;
-pub use crate::states::{ObservationState, PoolState};
+pub use crate::states::*;
 use anchor_lang::prelude::*;
 use instructions::*;
 use light_sdk::derive_light_cpi_signer;
@@ -48,14 +49,20 @@ pub mod create_pool_fee_receiver {
     pub const ID: Pubkey = pubkey!("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8");
 }
 
+use light_sdk::compressible::Unpack;
+use light_sdk::LightDiscriminator;
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
 /// ZK Compression: Auto-generates compress/decompress instructions for the
-/// specified accounts. Derives compress_pool_state, compress_observation_state,
-/// decompress_accounts_idempotent, initialize_compression_config, and
+/// specified accounts. Derives decompress_accounts_idempotent,
+/// compress_accounts_idempotent, initialize_compression_config, and
 /// update_compression_config, as well as all relevant structs. Everything is
 /// auto-added to the program IDL for consumption by clients.
-#[add_compressible_instructions(PoolState, ObservationState)]
+#[add_compressible_instructions(
+    PoolState = (POOL_SEED, ctx.accounts.amm_config, ctx.accounts.token_0_mint, ctx.accounts.token_1_mint),
+    ObservationState = (OBSERVATION_SEED, ctx.accounts.pool_state),
+    Token1Vault = (is_token, POOL_VAULT_SEED, ctx.accounts.pool_state, ctx.accounts.token_1_mint),
+)]
 #[program]
 pub mod raydium_cp_swap {
 

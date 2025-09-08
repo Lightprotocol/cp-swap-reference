@@ -8,12 +8,11 @@ use anchor_lang::{
     solana_program::program::{invoke, invoke_signed},
 };
 use light_compressed_token_sdk::{
+    compressible::{initialize_compressible_token_account, InitializeCompressibleTokenAccount},
     instructions::{
         create_compressible_associated_token_account_with_bump as initialize_compressible_associated_token_account_with_bump,
-        create_compressible_token_account as initialize_compressible_token_account,
         create_mint_action_cpi, derive_compressed_mint_from_spl_mint, transfer, transfer_signed,
-        CreateCompressibleAssociatedTokenAccountInputs, CreateCompressibleTokenAccount,
-        MintActionInputs, MintActionType,
+        CreateCompressibleAssociatedTokenAccountInputs, MintActionInputs, MintActionType,
     },
     CompressedProof,
 };
@@ -74,7 +73,7 @@ pub fn create_compressible_token_account<'a>(
         space,
     )?;
 
-    let init_ix = initialize_compressible_token_account(CreateCompressibleTokenAccount {
+    let init_ix = initialize_compressible_token_account(InitializeCompressibleTokenAccount {
         account_pubkey: *token_account.key,
         mint_pubkey: *mint_account.key,
         owner_pubkey: *authority.key,
