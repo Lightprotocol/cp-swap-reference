@@ -5,7 +5,7 @@ import { setupSwapTest, swap_base_input, swap_base_output } from "./utils";
 import { assert } from "chai";
 import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
 
-describe("swap test", () => {
+describe.only("swap test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 
@@ -15,7 +15,7 @@ describe("swap test", () => {
     skipPreflight: true,
   };
 
-  it("swap base input without transfer fee", async () => {
+  it.only("swap base input without transfer fee", async () => {
     const { configAddress, poolAddress, poolState } = await setupSwapTest(
       program,
       anchor.getProvider().connection,

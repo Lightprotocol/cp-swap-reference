@@ -79,23 +79,25 @@ export async function fetchCompressibleAccount<
   rpc: Rpc
 ): Promise<{
   account: IdlAccounts<TIdl>[TAccountName];
+  isCompressed: boolean;
   merkleContext?: MerkleContext;
 } | null> {
   // Fetches account info irrespective of whether it's currently compressed or
   // decompressed.
-  const info = await rpc.getCompressibleAccountInfo(
-    address,
-    anchorProgram.programId,
-    addressTreeInfo,
-    rpc
-  );
+  const { accountInfo, merkleContext, isCompressed } =
+    await rpc.getCompressibleAccountInfo(
+      address,
+      anchorProgram.programId,
+      addressTreeInfo,
+      rpc
+    );
 
-  if (info) {
+  if (accountInfo) {
     const account = anchorProgram.coder.accounts.decode(
       accountName as string,
-      info.accountInfo.data
+      accountInfo.data
     ) as IdlAccounts<TIdl>[TAccountName];
-    return { account, merkleContext: info.merkleContext };
+    return { account, merkleContext, isCompressed };
   }
 
   return null;

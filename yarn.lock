@@ -47,19 +47,15 @@
     bn.js "^5.1.2"
     buffer-layout "^1.2.0"
 
-"@lightprotocol/compressed-token@0.22.1-alpha.0":
-  version "0.22.1-alpha.0"
-  resolved "https://registry.yarnpkg.com/@lightprotocol/compressed-token/-/compressed-token-0.22.1-alpha.0.tgz#3ce080bf07f916bbee05644a9e380374a564fc81"
-  integrity sha512-MNJ4hcWelFqtKiqyUbSdod3qE/TDyiWqCp3vgkTxK65t4HQOmdMmKmB97DXN4vWKdA3N045SIt1WtYIoZWMbnQ==
+"@lightprotocol/compressed-token@../light-protocol/js/compressed-token":
+  version "0.22.0"
   dependencies:
     "@coral-xyz/borsh" "^0.29.0"
     bn.js "^5.2.1"
     buffer "6.0.3"
 
-"@lightprotocol/stateless.js@0.22.1-alpha.0":
-  version "0.22.1-alpha.0"
-  resolved "https://registry.yarnpkg.com/@lightprotocol/stateless.js/-/stateless.js-0.22.1-alpha.0.tgz#a603723e0bdd0ee3189e084a0ca9cc220b1245d6"
-  integrity sha512-w8Jy+wv2T8vdkvjwFT7bObsHiNOsOeCxR9fGYNBBSojp1jBQPOWG9no7/Kdhf24TV61tLhFXWuFKG0ipxpevag==
+"@lightprotocol/stateless.js@../light-protocol/js/stateless.js":
+  version "0.22.0"
   dependencies:
     "@coral-xyz/borsh" "^0.29.0"
     "@noble/hashes" "1.5.0"

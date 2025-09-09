@@ -10,6 +10,8 @@ import {
   SYSVAR_RENT_PUBKEY,
   ComputeBudgetProgram,
   AccountMeta,
+  AccountInfo,
+  KeyedAccountInfo,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -58,6 +60,8 @@ import {
   ValidityProofWithContextV2,
   ValidityProofWithContext,
   MerkleContext,
+  packCompressAccountsIdempotent,
+  packDecompressAccountsIdempotent,
   CompressedProof,
   ValidityProof,
 } from "@lightprotocol/stateless.js";
@@ -574,130 +578,112 @@ export async function initialize(
 
   return { poolAddress, poolState };
 }
-// Type to transform PublicKey fields to numbers recursively
-type PackedType<T> = T extends PublicKey
-  ? number
-  : T extends BN
-  ? BN
-  : T extends (infer U)[]
-  ? PackedType<U>[]
-  : T extends object
-  ? { [K in keyof T]: PackedType<T[K]> }
-  : T;
 
-/**
- * Recursively replaces all PublicKey instances with their packed index.
- * Leaves all other values untouched.
- */
-function packWithAccounts<TInput, TOutput = PackedType<TInput>>(
-  obj: TInput,
-  packedAccounts: ReturnType<typeof createPackedAccountsSmall>
-): TOutput {
-  if (obj instanceof PublicKey) {
-    return packedAccounts.insertOrGet(obj) as TOutput;
-  }
-  if (obj instanceof BN || obj instanceof BigInt) {
-    return obj as unknown as TOutput;
-  }
-  if (Array.isArray(obj)) {
-    return obj.map((item) => packWithAccounts(item, packedAccounts)) as TOutput;
-  }
-  if (obj !== null && typeof obj === "object") {
-    const result: any = Array.isArray(obj) ? [] : {};
-    for (const key in obj) {
-      if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        const value = (obj as any)[key];
-        result[key] = packWithAccounts(value, packedAccounts);
-      }
-    }
-    return result as TOutput;
-  }
-  return obj as unknown as TOutput;
-}
+// Compressed all program accounts idempotently.
+export async function compressIdempotent(
+  program: Program<RaydiumCpSwap>,
+  feePayer: Signer,
+  poolAddress: PublicKey,
+  observationAddress: PublicKey,
+  signerSeeds: Buffer<ArrayBufferLike>[][],
+  rpc: Rpc,
+  confirmOptions?: ConfirmOptions,
+  compressionAuthority?: PublicKey,
+  tokenCompressionAuthority?: PublicKey,
+  rentRecipient?: PublicKey,
+  tokenRentRecipient?: PublicKey
+) {
+  rentRecipient = compressionAuthority ?? feePayer.publicKey;
+  tokenRentRecipient = tokenCompressionAuthority ?? feePayer.publicKey;
+  rentRecipient = rentRecipient ?? compressionAuthority ?? feePayer.publicKey;
+  tokenRentRecipient =
+    tokenRentRecipient ?? tokenCompressionAuthority ?? feePayer.publicKey;
 
-const DECOMPRESS_ACCOUNTS_IDEMPOTENT_DISCRIMINATOR = Buffer.from([
-  114, 67, 61, 123, 234, 31, 1, 112,
-]);
+  const addressTreeInfo = getDefaultAddressTreeInfo();
+  const stateTreeInfo = selectStateTreeInfo(await rpc.getStateTreeInfos());
 
-interface HasDecompressAccountsIdempotent {
-  decompressAccountsIdempotent: any;
-}
-
-async function packRemainingAccounts(
-  programId: PublicKey,
-  validityProofWithContext: ValidityProofWithContext,
-  compressedAccounts: { key: string; treeInfo: TreeInfo; data: any }[],
-  decompressedAccountAddresses: PublicKey[]
-): Promise<{
-  compressedAccounts: {
-    meta: {
-      treeInfo: PackedStateTreeInfo;
-      outputStateTreeIndex: number;
-    };
-    data: any;
-  }[];
-  systemAccountsOffset: number;
-  proofOption: { 0: CompressedProof } | { 0: ValidityProof };
-  remainingAccounts: AccountMeta[];
-}> {
-  const remainingAccounts = createPackedAccountsSmall(programId);
-
-  console.log("compressedAccounts", compressedAccounts);
-  const outputQueue = compressedAccounts[0].treeInfo.nextTreeInfo
-    ? compressedAccounts[0].treeInfo.nextTreeInfo.queue
-    : compressedAccounts[0].treeInfo.queue;
-  // const outputQueue = validityProofWithContext.accounts[0].treeInfo.nextTreeInfo
-  //   ? validityProofWithContext.accounts[0].treeInfo.nextTreeInfo.queue
-  //   : validityProofWithContext.accounts[0].treeInfo.queue;
-
-  const _ = remainingAccounts.insertOrGet(outputQueue);
-  const packedTreeInfos = packTreeInfos(
-    validityProofWithContext,
-    remainingAccounts
-  );
-  const compressedAccountData: {
-    meta: {
-      treeInfo: PackedStateTreeInfo;
-      outputStateTreeIndex: number;
-    };
-    data: any;
-  }[] = compressedAccounts.map(({ data }, index) => {
-    const packedData = packWithAccounts(data, remainingAccounts);
-    return {
-      meta: {
-        treeInfo: packedTreeInfos.stateTrees.packedTreeInfos[index],
-        outputStateTreeIndex: packedTreeInfos.stateTrees.outputTreeIndex,
-      },
-      data: {
-        // [compressedAccounts[index].key]: [packedData],
-        ["packed" +
-        compressedAccounts[index].key[0].toUpperCase() +
-        compressedAccounts[index].key.slice(1)]: [packedData],
-      },
-    };
-  });
-  const remainingAccountMetas =
-    remainingAccounts.toAccountMetas().remainingAccounts;
-  if (compressedAccounts.length !== decompressedAccountAddresses.length) {
-    throw new Error(
-      "Compressed accounts and decompressed account addresses must have the same length"
+  const { account: poolState, merkleContext: poolMerkleContext } =
+    await fetchCompressibleAccount(
+      poolAddress,
+      addressTreeInfo,
+      program,
+      "poolState",
+      rpc
     );
-  }
-  for (const account of decompressedAccountAddresses) {
-    remainingAccountMetas.push({
-      pubkey: account,
-      isSigner: false,
-      isWritable: true,
-    });
-  }
-  return {
-    compressedAccounts: compressedAccountData,
-    systemAccountsOffset: 0,
-    remainingAccounts: remainingAccountMetas,
-    proofOption: { 0: validityProofWithContext.compressedProof },
-  };
+
+  const { account: observationState, merkleContext: observationMerkleContext } =
+    await fetchCompressibleAccount(
+      observationAddress,
+      addressTreeInfo,
+      program,
+      "observationState",
+      rpc
+    );
+
+  if (!poolMerkleContext && !observationMerkleContext) return;
+
+  const proof = await rpc.getValidityProofV0([
+    {
+      hash: poolMerkleContext.hash,
+      tree: poolMerkleContext.treeInfo.tree,
+      queue: poolMerkleContext.treeInfo.queue,
+    },
+    {
+      hash: observationMerkleContext.hash,
+      tree: observationMerkleContext.treeInfo.tree,
+      queue: observationMerkleContext.treeInfo.queue,
+    },
+  ]);
+
+  const {
+    compressedAccountMetas,
+    systemAccountsOffset,
+    remainingAccounts,
+    proofOption,
+  } = await packCompressAccountsIdempotent(
+    program.programId,
+    proof,
+    [
+      {
+        accountId: poolAddress,
+        accountInfo: poolState as any,
+      },
+      {
+        accountId: observationAddress,
+        accountInfo: observationState,
+      },
+    ],
+    stateTreeInfo
+  );
+
+  const config = deriveCompressionConfigAddress(program.programId)[0];
+
+  const compressIx = await program.methods
+    .compressAccountsIdempotent(
+      proofOption,
+      compressedAccountMetas,
+      signerSeeds,
+      systemAccountsOffset
+    )
+    .accountsStrict({
+      feePayer: feePayer.publicKey,
+      config,
+      rentRecipient,
+      compressionAuthority,
+      tokenCompressionAuthority,
+      tokenRentRecipient,
+      compressedTokenProgram: CompressedTokenProgram.programId,
+      compressedTokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
+    })
+    .remainingAccounts(remainingAccounts)
+    .instruction();
+
+  return compressIx;
 }
 
+// Decompress all program accounts idempotently. Clients should prepend this
+// instruction to their txns if any of the CompressibleAccountInfos return
+// isCompressed=true.
 export async function decompressIdempotent(
   program: Program<RaydiumCpSwap>,
   owner: Signer,
@@ -749,7 +735,7 @@ export async function decompressIdempotent(
     systemAccountsOffset,
     remainingAccounts,
     proofOption,
-  } = await packRemainingAccounts(
+  } = await packDecompressAccountsIdempotent(
     program.programId,
     proof,
     [
@@ -1122,12 +1108,6 @@ export async function swap_base_input(
         CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
     .instruction();
-  // const tx = await sendTransaction(
-  //   program.provider.connection,
-  //   [ix],
-  //   [owner],
-  //   confirmOptions
-  // );
   const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_200_000,
   });
