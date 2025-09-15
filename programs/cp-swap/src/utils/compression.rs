@@ -101,3 +101,16 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pubkey_from_byte_array() {
+        let bytes = [93,116,162,215,36,226,217,56,215,240,198,198,253,195,107,230,122,63,116,163,105,167,18,188,161,63,146,7,238,3,12,228];
+        let pubkey = Pubkey::new_from_array(bytes);
+        println!("Pubkey: {}", pubkey);
+        assert_eq!(pubkey.to_bytes(), bytes);
+    }
+}

@@ -53,3 +53,4 @@ light-compressible-client = { path = "./../../light-protocol/sdk-libs/compressib
 light-sdk = { path = "./../../light-protocol/sdk-libs/sdk", features = ["anchor", "anchor-discriminator-compat", "v2"] }
 light-compressed-account = { path = "./../../light-protocol/program-libs/compressed-account", features = ["anchor"] }
 light-token-client = { path = "./../../light-protocol/sdk-libs/token-client" }
+

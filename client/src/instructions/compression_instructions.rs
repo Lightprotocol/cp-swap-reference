@@ -19,7 +19,7 @@ use super::super::{read_keypair_file, ClientConfig};
 use super::rpc::send_versioned_txn;
 use light_client::rpc::load_lookup_table;
 
-pub const COMPRESSION_DELAY: u32 = 100;
+pub const COMPRESSION_DELAY: u32 = 0;
 pub const ADDRESS_SPACE: [Pubkey; 1] = [solana_sdk::pubkey!(
     "EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK"
 )];

@@ -48,18 +48,17 @@
     buffer-layout "^1.2.0"
 
 "@lightprotocol/compressed-token@../light-protocol/js/compressed-token":
-  version "0.22.0"
+  version "0.22.1-alpha.0"
   dependencies:
     "@coral-xyz/borsh" "^0.29.0"
     bn.js "^5.2.1"
     buffer "6.0.3"
 
 "@lightprotocol/stateless.js@../light-protocol/js/stateless.js":
-  version "0.22.0"
+  version "0.22.1-alpha.0"
   dependencies:
     "@coral-xyz/borsh" "^0.29.0"
     "@noble/hashes" "1.5.0"
-    bn.js "^5.2.1"
     bs58 "^6.0.0"
     buffer "6.0.3"
     buffer-layout "^1.2.2"

@@ -61,6 +61,7 @@ pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 #[add_compressible_instructions(
     PoolState = (POOL_SEED, ctx.accounts.amm_config, ctx.accounts.token_0_mint, ctx.accounts.token_1_mint),
     ObservationState = (OBSERVATION_SEED, ctx.accounts.pool_state),
+    Token0Vault = (is_token, POOL_VAULT_SEED, ctx.accounts.pool_state, ctx.accounts.token_0_mint),
     Token1Vault = (is_token, POOL_VAULT_SEED, ctx.accounts.pool_state, ctx.accounts.token_1_mint),
 )]
 #[program]

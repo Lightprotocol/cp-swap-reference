@@ -8,6 +8,7 @@ import {
   TransactionSignature,
   ConfirmOptions,
   PublicKey,
+  AccountInfo,
 } from "@solana/web3.js";
 import { Rpc, TreeInfo, MerkleContext } from "@lightprotocol/stateless.js";
 
@@ -78,26 +79,26 @@ export async function fetchCompressibleAccount<
   accountName: TAccountName,
   rpc: Rpc
 ): Promise<{
-  account: IdlAccounts<TIdl>[TAccountName];
+  accountInfo: AccountInfo<Buffer>;
+  parsed: IdlAccounts<TIdl>[TAccountName];
   isCompressed: boolean;
   merkleContext?: MerkleContext;
 } | null> {
   // Fetches account info irrespective of whether it's currently compressed or
   // decompressed.
-  const { accountInfo, merkleContext, isCompressed } =
-    await rpc.getCompressibleAccountInfo(
-      address,
-      anchorProgram.programId,
-      addressTreeInfo,
-      rpc
-    );
+  const info = await rpc.getCompressibleAccountInfo(
+    address,
+    anchorProgram.programId,
+    addressTreeInfo
+  );
 
-  if (accountInfo) {
+  if (info) {
+    const { accountInfo, merkleContext, isCompressed } = info;
     const account = anchorProgram.coder.accounts.decode(
       accountName as string,
       accountInfo.data
     ) as IdlAccounts<TIdl>[TAccountName];
-    return { account, merkleContext, isCompressed };
+    return { accountInfo, parsed: account, merkleContext, isCompressed };
   }
 
   return null;

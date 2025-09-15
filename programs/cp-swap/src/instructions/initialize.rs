@@ -13,6 +13,8 @@ use anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
+use light_compressed_token_sdk::instructions::create_associated_ctoken_account;
+use light_compressed_token_sdk::instructions::create_token_account::create_ctoken_account_signed;
 use light_sdk::cpi::CpiAccountsSmall;
 use light_sdk::{
     compressible::CompressibleConfig,
@@ -183,6 +185,10 @@ pub struct Initialize<'info> {
     /// CHECK: checked by protocol.
     pub compressed_token_program: AccountInfo<'info>,
     /// CHECK: checked by protocol.
+    pub ctoken_config_account: AccountInfo<'info>,
+    /// CHECK: checked by protocol.
+    pub ctoken_rent_recipient: AccountInfo<'info>,
+    /// CHECK: checked by protocol.
     #[account(mut)]
     pub compressed_token_0_pool_pda: AccountInfo<'info>,
     /// CHECK: checked by protocol.
@@ -228,40 +234,40 @@ pub fn initialize<'info>(
         open_time = block_timestamp + 1;
     }
 
-    create_compressible_token_account(
-        &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.token_0_vault.to_account_info(),
-        &ctx.accounts.token_0_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.compressed_token_program.to_account_info(),
+    create_ctoken_account_signed(
+        crate::ID,
+        ctx.accounts.creator.to_account_info(),
+        ctx.accounts.token_0_vault.to_account_info(),
+        ctx.accounts.token_0_mint.to_account_info(),
+        ctx.accounts.authority.to_account_info(),
         &[
             POOL_VAULT_SEED.as_bytes(),
             ctx.accounts.pool_state.key().as_ref(),
             ctx.accounts.token_0_mint.key().as_ref(),
             &[ctx.bumps.token_0_vault][..],
         ],
-        &ctx.accounts.rent.to_account_info(),
-        &ctx.accounts.rent_recipient.to_account_info(),
-        compression_config.compression_delay as u64,
+        ctx.accounts.ctoken_rent_recipient.to_account_info(),
+        ctx.accounts.ctoken_config_account.to_account_info(),
+        Some(1),
+        None,
     )?;
 
-    create_compressible_token_account(
-        &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.token_1_vault.to_account_info(),
-        &ctx.accounts.token_1_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.compressed_token_program.to_account_info(),
+    create_ctoken_account_signed(
+        crate::ID,
+        ctx.accounts.creator.to_account_info(),
+        ctx.accounts.token_1_vault.to_account_info(),
+        ctx.accounts.token_1_mint.to_account_info(),
+        ctx.accounts.authority.to_account_info(),
         &[
             POOL_VAULT_SEED.as_bytes(),
             ctx.accounts.pool_state.key().as_ref(),
             ctx.accounts.token_1_mint.key().as_ref(),
             &[ctx.bumps.token_1_vault][..],
         ],
-        &ctx.accounts.rent_recipient.to_account_info(),
-        &ctx.accounts.rent_recipient.to_account_info(),
-        compression_config.compression_delay as u64,
+        ctx.accounts.ctoken_rent_recipient.to_account_info(),
+        ctx.accounts.ctoken_config_account.to_account_info(),
+        Some(1),
+        None,
     )?;
 
     let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
@@ -400,32 +406,33 @@ pub fn initialize<'info>(
 
     // ZK Compression Step 4: Create ctoken accounts. These match regular
     // SPL token accounts but are compressible.
-    create_compressible_token_account(
-        &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.lp_vault.to_account_info(),
-        &ctx.accounts.lp_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.compressed_token_program.to_account_info(),
+    create_ctoken_account_signed(
+        crate::ID,
+        ctx.accounts.creator.to_account_info(),
+        ctx.accounts.lp_vault.to_account_info(),
+        ctx.accounts.lp_mint.to_account_info(),
+        ctx.accounts.authority.to_account_info(),
         &[
             POOL_VAULT_SEED.as_bytes(),
             ctx.accounts.lp_mint.key().as_ref(),
             &[ctx.bumps.lp_vault][..],
         ],
-        &ctx.accounts.rent.to_account_info(),
-        &ctx.accounts.rent_recipient.to_account_info(),
-        compression_config.compression_delay as u64,
+        ctx.accounts.ctoken_rent_recipient.to_account_info(),
+        ctx.accounts.ctoken_config_account.to_account_info(),
+        Some(1),
+        None,
     )?;
-    create_compressible_associated_token_account(
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.creator_lp_token.to_account_info(),
-        &ctx.accounts.lp_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.rent.to_account_info(),
-        &ctx.accounts.rent_recipient.to_account_info(),
-        compression_config.compression_delay as u64,
+    create_associated_ctoken_account(
+        ctx.accounts.creator.to_account_info(),
+        ctx.accounts.creator_lp_token.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.creator.to_account_info(),
+        ctx.accounts.rent_recipient.to_account_info(),
+        ctx.accounts.creator.to_account_info(),
+        *ctx.accounts.lp_mint.key,
         compression_params.creator_lp_token_bump,
+        Some(1),
+        None,
     )?;
 
     // ZK Compression Step 5: We create the lp cMint and distribute the lp tokens

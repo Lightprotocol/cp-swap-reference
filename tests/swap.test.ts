@@ -27,7 +27,8 @@ describe.only("swap test", () => {
         fundFeeRate: new BN(25000),
         create_fee: new BN(0),
       },
-      { transferFeeBasisPoints: 0, MaxFee: 0 }
+      { transferFeeBasisPoints: 0, MaxFee: 0 },
+      confirmOptions
     );
     const inputToken = poolState.token0Mint;
     const inputTokenProgram = poolState.token0Program;
@@ -54,7 +55,8 @@ describe.only("swap test", () => {
       poolState.token1Mint,
       poolState.token1Program,
       amount_in,
-      new BN(0)
+      new BN(0),
+      confirmOptions
     );
     const inputTokenAccountAfter = await getAccount(
       anchor.getProvider().connection,

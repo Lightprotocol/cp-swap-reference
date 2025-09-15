@@ -1,24 +1,18 @@
 use crate::{
-    instructions::InitializeCompressionParams,
-    states::POOL_LP_MINT_SEED,
-    utils::{create_or_allocate_account, LP_MINT_CREATION_INDEX},
+    instructions::InitializeCompressionParams, states::POOL_LP_MINT_SEED,
+    utils::LP_MINT_CREATION_INDEX,
 };
-use anchor_lang::{
-    prelude::*,
-    solana_program::program::{invoke, invoke_signed},
-};
+use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use light_compressed_token_sdk::{
-    compressible::{initialize_compressible_token_account, InitializeCompressibleTokenAccount},
     instructions::{
-        create_compressible_associated_token_account_with_bump as initialize_compressible_associated_token_account_with_bump,
         create_mint_action_cpi, derive_compressed_mint_from_spl_mint, transfer, transfer_signed,
-        CreateCompressibleAssociatedTokenAccountInputs, MintActionInputs, MintActionType,
+        CreateMintInputs, MintActionInputs, MintActionType,
     },
     CompressedProof,
 };
 use light_ctoken_types::{
     instructions::mint_action::CompressedMintWithContext,
-    instructions::mint_action::CpiContext as CompressedCpiContext, COMPRESSIBLE_TOKEN_ACCOUNT_SIZE,
+    instructions::mint_action::CpiContext as CompressedCpiContext,
 };
 use light_sdk::cpi::CpiAccountsSmall;
 
@@ -50,91 +44,44 @@ pub fn transfer_ctoken_from_pool_vault_to_user<'a>(
     Ok(())
 }
 
-pub fn create_compressible_token_account<'a>(
-    authority: &AccountInfo<'a>,
-    payer: &AccountInfo<'a>,
-    token_account: &AccountInfo<'a>,
-    mint_account: &AccountInfo<'a>,
-    system_program: &AccountInfo<'a>,
-    token_program: &AccountInfo<'a>,
-    signer_seeds: &[&[u8]],
-    rent_authority: &AccountInfo<'a>,
-    rent_recipient: &AccountInfo<'a>,
-    slots_until_compression: u64,
-) -> Result<()> {
-    let space = COMPRESSIBLE_TOKEN_ACCOUNT_SIZE as usize;
+// pub fn create_compressible_associated_token_account<'a>(
+//     owner: &AccountInfo<'a>,
+//     payer: &AccountInfo<'a>,
+//     associated_token_account: &AccountInfo<'a>,
+//     mint_account: &AccountInfo<'a>,
+//     system_program: &AccountInfo<'a>,
+//     rent_authority: &AccountInfo<'a>,
+//     rent_recipient: &AccountInfo<'a>,
+//     slots_until_compression: u64,
+//     bump: u8,
+// ) -> Result<()> {
+//     let init_ix = initialize_compressible_associated_token_account_with_bump(
+//         CreateCompressibleAssociatedTokenAccountInputs {
+//             payer: *payer.key,
+//             mint: *mint_account.key,
+//             owner: *owner.key,
+//             rent_authority: *rent_authority.key,
+//             rent_recipient: *rent_recipient.key,
+//             slots_until_compression,
+//         },
+//         *associated_token_account.key,
+//         bump,
+//     )
+//     .map_err(|e| ProgramError::from(e))?;
 
-    create_or_allocate_account(
-        token_program.key,
-        payer.to_account_info(),
-        system_program.to_account_info(),
-        token_account.to_account_info(),
-        signer_seeds,
-        space,
-    )?;
+//     invoke(
+//         &init_ix,
+//         &[
+//             payer.to_account_info(),
+//             associated_token_account.to_account_info(),
+//             mint_account.to_account_info(),
+//             owner.to_account_info(),
+//             system_program.to_account_info(),
+//         ],
+//     )?;
 
-    let init_ix = initialize_compressible_token_account(InitializeCompressibleTokenAccount {
-        account_pubkey: *token_account.key,
-        mint_pubkey: *mint_account.key,
-        owner_pubkey: *authority.key,
-        rent_authority: *rent_authority.key,
-        rent_recipient: *rent_recipient.key,
-        slots_until_compression,
-    })
-    .map_err(|e| ProgramError::from(e))?;
-
-    invoke(
-        &init_ix,
-        &[
-            token_account.to_account_info(),
-            mint_account.to_account_info(),
-            authority.to_account_info(),
-            rent_authority.to_account_info(),
-            rent_recipient.to_account_info(),
-        ],
-    )?;
-
-    Ok(())
-}
-
-pub fn create_compressible_associated_token_account<'a>(
-    owner: &AccountInfo<'a>,
-    payer: &AccountInfo<'a>,
-    associated_token_account: &AccountInfo<'a>,
-    mint_account: &AccountInfo<'a>,
-    system_program: &AccountInfo<'a>,
-    rent_authority: &AccountInfo<'a>,
-    rent_recipient: &AccountInfo<'a>,
-    slots_until_compression: u64,
-    bump: u8,
-) -> Result<()> {
-    let init_ix = initialize_compressible_associated_token_account_with_bump(
-        CreateCompressibleAssociatedTokenAccountInputs {
-            payer: *payer.key,
-            mint: *mint_account.key,
-            owner: *owner.key,
-            rent_authority: *rent_authority.key,
-            rent_recipient: *rent_recipient.key,
-            slots_until_compression,
-        },
-        *associated_token_account.key,
-        bump,
-    )
-    .map_err(|e| ProgramError::from(e))?;
-
-    invoke(
-        &init_ix,
-        &[
-            payer.to_account_info(),
-            associated_token_account.to_account_info(),
-            mint_account.to_account_info(),
-            owner.to_account_info(),
-            system_program.to_account_info(),
-        ],
-    )?;
-
-    Ok(())
-}
+//     Ok(())
+// }
 
 // To reduce CU usage, you can instead also pass the bumps as instruction data.
 pub fn get_bumps(
@@ -204,19 +151,19 @@ pub fn create_and_mint_lp<'a, 'b, 'info>(
         },
     ];
 
+    let inputs = CreateMintInputs {
+        compressed_mint_inputs: compressed_mint_with_context,
+        mint_seed: lp_mint_signer.key(),
+        mint_bump: compression_params.lp_mint_bump,
+        authority: authority.key().into(),
+        payer: creator.key(),
+        proof: compression_params.proof.0.map(|p| CompressedProof::from(p)),
+        address_tree: address_tree_pubkey,
+        output_queue: output_state_queue,
+    };
     let mint_action_instruction: anchor_lang::solana_program::instruction::Instruction =
         create_mint_action_cpi(
-            MintActionInputs::new_for_create_mint(
-                compressed_mint_with_context,
-                actions,
-                output_state_queue,
-                address_tree_pubkey,
-                lp_mint_signer.key(),
-                Some(compression_params.lp_mint_bump),
-                authority.key().into(),
-                creator.key(),
-                compression_params.proof.0.map(|p| CompressedProof::from(p)),
-            ),
+            MintActionInputs::new_create_mint(inputs),
             Some(CompressedCpiContext::last_cpi_create_mint(
                 address_tree_idx,
                 output_state_queue_idx,

@@ -126,6 +126,17 @@ export async function getPoolVaultAddress(
   );
   return [address, bump];
 }
+
+export async function getPoolVaultSignerSeeds(
+  pool: PublicKey,
+  vaultTokenMint: PublicKey,
+  programId: PublicKey
+): Promise<Buffer[]> {
+  const seeds = [POOL_VAULT_SEED, pool.toBuffer(), vaultTokenMint.toBuffer()];
+  const [_, bump] = PublicKey.findProgramAddressSync(seeds, programId);
+  return seeds.concat([Buffer.from([bump])]);
+}
+
 export async function getLpVaultAddress(
   lpMint: PublicKey,
   programId: PublicKey
@@ -165,6 +176,15 @@ export async function getOracleAccountAddress(
   );
 
   return [address, bump];
+}
+
+export function getOracleSignerSeeds(
+  pool: PublicKey,
+  programId: PublicKey
+): Buffer[] {
+  const seeds = [ORACLE_SEED, pool.toBuffer()];
+  const [_, bump] = PublicKey.findProgramAddressSync(seeds, programId);
+  return Array.from(seeds).concat([Buffer.from([bump])]);
 }
 
 /**

@@ -1,4 +1,4 @@
-import { Program, BN, IdlTypes, Idl } from "@coral-xyz/anchor";
+import { Program, IdlTypes, BN } from "@coral-xyz/anchor";
 import { RaydiumCpSwap } from "../../target/types/raydium_cp_swap";
 import {
   Connection,
@@ -9,9 +9,6 @@ import {
   SystemProgram,
   SYSVAR_RENT_PUBKEY,
   ComputeBudgetProgram,
-  AccountMeta,
-  AccountInfo,
-  KeyedAccountInfo,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -30,11 +27,12 @@ import {
   createTokenMintAndAssociatedTokenAccount,
   getOracleAccountAddress,
   fetchCompressibleAccount,
-  POOL_SEED,
-  ORACLE_SEED,
   getLpVaultAddress,
   getPoolLpMintSignerAddress,
   getPoolLpMintCompressedAddress,
+  getPoolSignerSeeds,
+  getOracleSignerSeeds,
+  getPoolVaultSignerSeeds,
 } from "./index";
 import {
   createRpc,
@@ -53,28 +51,19 @@ import {
   buildAndSignTx,
   PackedStateTreeInfo,
   createPackedAccountsSmallWithCpiContext,
-  getIndexOrAdd,
-  SystemAccountMetaConfig,
-  CompressedAccount,
-  TreeInfo,
-  ValidityProofWithContextV2,
-  ValidityProofWithContext,
-  MerkleContext,
   packCompressAccountsIdempotent,
   packDecompressAccountsIdempotent,
-  CompressedProof,
-  ValidityProof,
+  packWithAccounts,
 } from "@lightprotocol/stateless.js";
 
 import {
   CompressedTokenProgram,
-  createTokenPool,
   getAssociatedCTokenAddressAndBump,
 } from "@lightprotocol/compressed-token";
 import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 
 featureFlags.version = VERSION.V2;
-const COMPRESSION_DELAY = 100;
+const COMPRESSION_DELAY = 0;
 const ADDRESS_SPACE = [
   new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK"),
 ];
@@ -308,6 +297,15 @@ export async function setupSwapTest(
     new BN(10000000000),
     new BN(100000000000),
     new BN(100000000000),
+    confirmOptions
+  );
+
+  await compressHelper(
+    program,
+    owner,
+    poolState.ammConfig,
+    poolState.token0Mint,
+    poolState.token1Mint,
     confirmOptions
   );
   return {
@@ -564,7 +562,7 @@ export async function initialize(
   const txId = await sendAndConfirmTx(rpc, tx, confirmOptions);
   console.log("initialize signature:", txId);
 
-  const { account: poolState } = await fetchCompressibleAccount(
+  const { parsed: poolState } = await fetchCompressibleAccount(
     poolAddress,
     addressTreeInfo,
     program,
@@ -585,6 +583,9 @@ export async function compressIdempotent(
   feePayer: Signer,
   poolAddress: PublicKey,
   observationAddress: PublicKey,
+  token0Vault: PublicKey,
+  token1Vault: PublicKey,
+  // lpVault: PublicKey,
   signerSeeds: Buffer<ArrayBufferLike>[][],
   rpc: Rpc,
   confirmOptions?: ConfirmOptions,
@@ -593,34 +594,52 @@ export async function compressIdempotent(
   rentRecipient?: PublicKey,
   tokenRentRecipient?: PublicKey
 ) {
-  rentRecipient = compressionAuthority ?? feePayer.publicKey;
-  tokenRentRecipient = tokenCompressionAuthority ?? feePayer.publicKey;
-  rentRecipient = rentRecipient ?? compressionAuthority ?? feePayer.publicKey;
-  tokenRentRecipient =
-    tokenRentRecipient ?? tokenCompressionAuthority ?? feePayer.publicKey;
+  compressionAuthority = compressionAuthority ?? feePayer.publicKey;
+  tokenCompressionAuthority = tokenCompressionAuthority ?? feePayer.publicKey;
+  rentRecipient = rentRecipient ?? feePayer.publicKey;
+  tokenRentRecipient = tokenRentRecipient ?? feePayer.publicKey;
 
   const addressTreeInfo = getDefaultAddressTreeInfo();
   const stateTreeInfo = selectStateTreeInfo(await rpc.getStateTreeInfos());
 
-  const { account: poolState, merkleContext: poolMerkleContext } =
-    await fetchCompressibleAccount(
-      poolAddress,
-      addressTreeInfo,
-      program,
-      "poolState",
-      rpc
-    );
+  const {
+    accountInfo: poolAccountInfo,
+    parsed: poolState,
+    merkleContext: poolMerkleContext,
+  } = await fetchCompressibleAccount(
+    poolAddress,
+    addressTreeInfo,
+    program,
+    "poolState",
+    rpc
+  );
 
-  const { account: observationState, merkleContext: observationMerkleContext } =
-    await fetchCompressibleAccount(
-      observationAddress,
-      addressTreeInfo,
-      program,
-      "observationState",
-      rpc
-    );
+  const {
+    accountInfo: observationAccountInfo,
+    parsed: observationState,
+    merkleContext: observationMerkleContext,
+  } = await fetchCompressibleAccount(
+    observationAddress,
+    addressTreeInfo,
+    program,
+    "observationState",
+    rpc
+  );
+  // const { accountInfo: lpVaultAccountInfo, parsed: lpVaultState } =
+  //   await rpc.getCompressibleTokenAccount(lpVault);
 
-  if (!poolMerkleContext && !observationMerkleContext) return;
+  const { accountInfo: token0VaultAccountInfo, parsed: token0VaultState } =
+    await rpc.getCompressibleTokenAccount(token0Vault);
+  const { accountInfo: token1VaultAccountInfo, parsed: token1VaultState } =
+    await rpc.getCompressibleTokenAccount(token1Vault);
+
+  if (
+    !poolMerkleContext &&
+    !observationMerkleContext &&
+    !token0VaultState &&
+    !token1VaultState
+  )
+    return;
 
   const proof = await rpc.getValidityProofV0([
     {
@@ -646,21 +665,52 @@ export async function compressIdempotent(
     [
       {
         accountId: poolAddress,
-        accountInfo: poolState as any,
+        accountInfo: poolAccountInfo,
+        parsed: poolState,
       },
       {
         accountId: observationAddress,
-        accountInfo: observationState,
+        accountInfo: observationAccountInfo,
+        parsed: observationState,
       },
+      // {
+      //   accountId: lpVault,
+      //   accountInfo: lpVaultAccountInfo,
+      //   parsed: lpVaultState,
+      // },
+      {
+        accountId: token0Vault,
+        accountInfo: token0VaultAccountInfo,
+        parsed: token0VaultState,
+      },
+      // {
+      //   accountId: token1Vault,
+      //   accountInfo: token1VaultAccountInfo,
+      //   parsed: token1VaultState,
+      // },
     ],
     stateTreeInfo
   );
+  console.log(
+    "compressedAccountMetas:",
+    compressedAccountMetas.map((meta) => meta.treeInfo)
+  );
+  console.log("token0VaultState:", token0VaultState);
+  console.log("token1VaultState:", token1VaultState);
 
-  const config = deriveCompressionConfigAddress(program.programId)[0];
+  const [config] = deriveCompressionConfigAddress(program.programId);
+  console.log("proofOption:", proofOption);
+  console.log("proof:", { 0: proof.compressedProof });
 
+  console.log(
+    "all remaining accounts:",
+    remainingAccounts.map((account) => account.pubkey.toBase58())
+  );
+  // FIXME: proofOption is received onchain as some even if it is passed ass
+  // none.
   const compressIx = await program.methods
     .compressAccountsIdempotent(
-      proofOption,
+      { 0: proof.compressedProof },
       compressedAccountMetas,
       signerSeeds,
       systemAccountsOffset
@@ -692,12 +742,11 @@ export async function decompressIdempotent(
   configAddress: PublicKey,
   token0: PublicKey,
   token1: PublicKey,
-  rpc: Rpc,
-  confirmOptions?: ConfirmOptions
+  rpc: Rpc
 ) {
   const addressTreeInfo = getDefaultAddressTreeInfo();
 
-  const { account: poolState, merkleContext: poolMerkleContext } =
+  const { parsed: poolState, merkleContext: poolMerkleContext } =
     await fetchCompressibleAccount(
       poolAddress,
       addressTreeInfo,
@@ -706,7 +755,7 @@ export async function decompressIdempotent(
       rpc
     );
 
-  const { account: observationState, merkleContext: observationMerkleContext } =
+  const { parsed: observationState, merkleContext: observationMerkleContext } =
     await fetchCompressibleAccount(
       observationAddress,
       addressTreeInfo,
@@ -755,7 +804,7 @@ export async function decompressIdempotent(
 
   const decompressIx = await program.methods
     .decompressAccountsIdempotent(
-      proofOption,
+      { 0: proof.compressedProof },
       compressedAccounts,
       systemAccountsOffset
     )
@@ -774,25 +823,133 @@ export async function decompressIdempotent(
     .remainingAccounts(remainingAccounts)
     .instruction();
 
-  // Build and send transaction
-  // const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
-  //   units: 1_200_000,
-  // });
-  // const { blockhash } = await program.provider.connection.getLatestBlockhash();
-  // const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
-  //   new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
-  // );
-  // const tx = buildAndSignTx(
-  //   [computeBudgetIx, decompressIx],
-  //   owner,
-  //   blockhash,
-  //   [],
-  //   [lookupTableAccount]
-  // );
-  // const decompressTxId = await sendAndConfirmTx(rpc, tx, confirmOptions);
-  // console.log("decompressTxId", decompressTxId);
-  // return decompressTxId;
   return decompressIx;
+}
+
+export async function compressHelper(
+  program: Program<RaydiumCpSwap>,
+  owner: Signer,
+  configAddress: PublicKey,
+  token0: PublicKey,
+  token1: PublicKey,
+  confirmOptions?: ConfirmOptions
+) {
+  const rpc = createRpc();
+  const [auth] = await getAuthAddress(program.programId);
+  const [poolAddress, poolBump] = await getPoolAddress(
+    configAddress,
+    token0,
+    token1,
+    program.programId
+  );
+  console.log("poolAddress:", poolAddress);
+  const [observationAddress, observationBump] = await getOracleAccountAddress(
+    poolAddress,
+    program.programId
+  );
+  console.log("observationAddress:", observationAddress);
+  const poolSignerSeeds = getPoolSignerSeeds(
+    configAddress,
+    token0,
+    token1,
+    program.programId
+  );
+  console.log(
+    "poolSignerSeeds:",
+    poolSignerSeeds.map((seed) => Array.from(seed))
+  );
+  const observationSignerSeeds = getOracleSignerSeeds(
+    poolAddress,
+    program.programId
+  );
+  console.log(
+    "observationSignerSeeds:",
+    observationSignerSeeds.map((seed) => Array.from(seed))
+  );
+
+  // const [lpVaultAddress] = await getLpVaultAddress(
+  // getPoolLpMintAddress(lpMintSignerAddress),
+  //   program.programId
+  // );
+  // const lpVaultSignerSeeds = getLpVaultSignerSeeds(
+  //   poolAddress,
+  //   token0,
+  //   program.programId
+  // );
+  const [token0VaultAddress] = await getPoolVaultAddress(
+    poolAddress,
+    token0,
+    program.programId
+  );
+  console.log("token0VaultAddress:", token0VaultAddress);
+  const token0VaultSignerSeeds = await getPoolVaultSignerSeeds(
+    poolAddress,
+    token0,
+    program.programId
+  );
+  console.log(
+    "token0VaultSignerSeeds:",
+    token0VaultSignerSeeds.map((seed) => Array.from(seed))
+  );
+
+  const [token1VaultAddress] = await getPoolVaultAddress(
+    poolAddress,
+    token1,
+    program.programId
+  );
+  console.log("token1VaultAddress:", token1VaultAddress);
+  const token1VaultSignerSeeds = await getPoolVaultSignerSeeds(
+    poolAddress,
+    token1,
+    program.programId
+  );
+  console.log(
+    "token1VaultSignerSeeds:",
+    token1VaultSignerSeeds.map((seed) => Array.from(seed))
+  );
+
+  console.log("pooladdress:", poolAddress.toBase58());
+  console.log("observationaddress:", observationAddress.toBase58());
+  console.log("token0:", token0.toBase58());
+  console.log("token1:", token1.toBase58());
+  const signerSeeds = [
+    poolSignerSeeds,
+    observationSignerSeeds,
+    // lpVaultSignerSeeds,
+    token0VaultSignerSeeds,
+    // token1VaultSignerSeeds,
+  ];
+
+  const compressIx = await compressIdempotent(
+    program,
+    owner,
+    poolAddress,
+    observationAddress,
+    token0VaultAddress,
+    token1VaultAddress,
+    // lpVault,
+    signerSeeds,
+    rpc,
+    confirmOptions
+  );
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1_200_000,
+  });
+  const { blockhash } = await program.provider.connection.getLatestBlockhash();
+  const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
+    new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+  );
+
+  const compressTx = buildAndSignTx(
+    [computeBudgetIx, compressIx],
+    owner,
+    blockhash,
+    [],
+    [lookupTableAccount]
+  );
+  const compressTxId = await sendAndConfirmTx(rpc, compressTx, confirmOptions);
+  console.log("compress helper signature:", compressTxId);
+  return compressTxId;
 }
 
 export async function deposit(
@@ -874,8 +1031,7 @@ export async function deposit(
     configAddress,
     token0,
     token1,
-    rpc,
-    confirmOptions
+    rpc
   );
 
   const depositIx = await program.methods
@@ -911,6 +1067,7 @@ export async function deposit(
   const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
     new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
   );
+
   const depositTx = buildAndSignTx(
     [computeBudgetIx, decompressIx, depositIx],
     owner,
@@ -919,7 +1076,7 @@ export async function deposit(
     [lookupTableAccount]
   );
   const depositTxId = await sendAndConfirmTx(rpc, depositTx, confirmOptions);
-  console.log("deposit signature:", depositTxId);
+  console.log("decompress + deposit signature:", depositTxId);
   return depositTxId;
 }
 
@@ -1079,8 +1236,16 @@ export async function swap_base_input(
     poolAddress,
     program.programId
   );
-  const observationState = await program.account.observationState.fetch(
-    observationAddress
+
+  const decompressIx = await decompressIdempotent(
+    program,
+    owner,
+    poolAddress,
+    observationAddress,
+    configAddress,
+    inputToken,
+    outputToken,
+    createRpc()
   );
 
   const ix = await program.methods
@@ -1118,14 +1283,14 @@ export async function swap_base_input(
   );
 
   const tx = buildAndSignTx(
-    [computeBudgetIx, ix],
+    [computeBudgetIx, decompressIx, ix],
     owner,
     blockhash,
     [],
     [lookupTableAccount]
   );
   const txId = await sendAndConfirmTx(rpc, tx, confirmOptions);
-  console.log("swap signature:", txId);
+  console.log("swap base_in signature:", txId);
   return txId;
 }
 
@@ -1203,7 +1368,7 @@ export async function swap_base_output(
     })
     .rpc(confirmOptions);
 
-  console.log("swap signature:", tx);
+  console.log("swap base_out signature:", tx);
 
   return tx;
 }
