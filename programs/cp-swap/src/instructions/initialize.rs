@@ -187,6 +187,7 @@ pub struct Initialize<'info> {
     /// CHECK: checked by protocol.
     pub ctoken_config_account: AccountInfo<'info>,
     /// CHECK: checked by protocol.
+    #[account(mut)]
     pub ctoken_rent_recipient: AccountInfo<'info>,
     /// CHECK: checked by protocol.
     #[account(mut)]
@@ -426,8 +427,8 @@ pub fn initialize<'info>(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.creator_lp_token.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.rent_recipient.to_account_info(),
+        ctx.accounts.ctoken_config_account.to_account_info(),
+        ctx.accounts.ctoken_rent_recipient.to_account_info(),
         ctx.accounts.creator.to_account_info(),
         *ctx.accounts.lp_mint.key,
         compression_params.creator_lp_token_bump,

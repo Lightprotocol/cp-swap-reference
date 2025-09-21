@@ -44,45 +44,6 @@ pub fn transfer_ctoken_from_pool_vault_to_user<'a>(
     Ok(())
 }
 
-// pub fn create_compressible_associated_token_account<'a>(
-//     owner: &AccountInfo<'a>,
-//     payer: &AccountInfo<'a>,
-//     associated_token_account: &AccountInfo<'a>,
-//     mint_account: &AccountInfo<'a>,
-//     system_program: &AccountInfo<'a>,
-//     rent_authority: &AccountInfo<'a>,
-//     rent_recipient: &AccountInfo<'a>,
-//     slots_until_compression: u64,
-//     bump: u8,
-// ) -> Result<()> {
-//     let init_ix = initialize_compressible_associated_token_account_with_bump(
-//         CreateCompressibleAssociatedTokenAccountInputs {
-//             payer: *payer.key,
-//             mint: *mint_account.key,
-//             owner: *owner.key,
-//             rent_authority: *rent_authority.key,
-//             rent_recipient: *rent_recipient.key,
-//             slots_until_compression,
-//         },
-//         *associated_token_account.key,
-//         bump,
-//     )
-//     .map_err(|e| ProgramError::from(e))?;
-
-//     invoke(
-//         &init_ix,
-//         &[
-//             payer.to_account_info(),
-//             associated_token_account.to_account_info(),
-//             mint_account.to_account_info(),
-//             owner.to_account_info(),
-//             system_program.to_account_info(),
-//         ],
-//     )?;
-
-//     Ok(())
-// }
-
 // To reduce CU usage, you can instead also pass the bumps as instruction data.
 pub fn get_bumps(
     token_0_mint: Pubkey,
@@ -141,11 +102,11 @@ pub fn create_and_mint_lp<'a, 'b, 'info>(
     // The cmint creation is implicit. Here we additionally
     // mint to the creator and the pool vault.
     let actions = vec![
-        MintActionType::MintToDecompressed {
+        MintActionType::MintToCToken {
             account: creator_lp_token.key(),
             amount: user_lp_amount,
         },
-        MintActionType::MintToDecompressed {
+        MintActionType::MintToCToken {
             account: lp_vault.key(),
             amount: vault_lp_amount,
         },
@@ -160,6 +121,7 @@ pub fn create_and_mint_lp<'a, 'b, 'info>(
         proof: compression_params.proof.0.map(|p| CompressedProof::from(p)),
         address_tree: address_tree_pubkey,
         output_queue: output_state_queue,
+        actions,
     };
     let mint_action_instruction: anchor_lang::solana_program::instruction::Instruction =
         create_mint_action_cpi(

@@ -33,6 +33,7 @@ import {
   getPoolSignerSeeds,
   getOracleSignerSeeds,
   getPoolVaultSignerSeeds,
+  deriveTokenProgramConfig,
 } from "./index";
 import {
   createRpc,
@@ -58,6 +59,7 @@ import {
 
 import {
   CompressedTokenProgram,
+  CTOKEN_RENT_RECIPIENT,
   getAssociatedCTokenAddressAndBump,
 } from "@lightprotocol/compressed-token";
 import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
@@ -384,11 +386,14 @@ export async function initialize(
     program.programId
   );
 
+  console.log("poolAddress:", poolAddress);
+  console.log("program.programId:", program.programId);
   // 1. mintSigner
   const [lpMintSignerAddress] = getPoolLpMintSignerAddress(
     poolAddress,
     program.programId
   );
+  console.log("lpMintSignerAddress:", lpMintSignerAddress);
   // 2. lpMint
   const [lpMintAddress, lpMintBump] = await getPoolLpMintAddress(
     lpMintSignerAddress
@@ -501,6 +506,12 @@ export async function initialize(
 
   const [lpVault] = await getLpVaultAddress(lpMintAddress, program.programId);
 
+  // Get ctoken config PDA
+  const [ctokenConfigAccount] = deriveTokenProgramConfig();
+  const ctokenRentRecipient: PublicKey = new PublicKey(
+    "14GGjbqyMp5KGYUCgaSyxGyJJTE9ob8dbALNp8bwZN5Y"
+  );
+
   const initializeIx = await program.methods
     .initialize(
       initAmount.initAmount0,
@@ -532,6 +543,8 @@ export async function initialize(
       rent: SYSVAR_RENT_PUBKEY,
       compressionConfig,
       rentRecipient: creator.publicKey,
+      ctokenConfigAccount,
+      ctokenRentRecipient,
       lpMintSigner: lpMintSignerAddress,
       compressedTokenProgramCpiAuthority:
         CompressedTokenProgram.deriveCpiAuthorityPda,
@@ -559,7 +572,7 @@ export async function initialize(
     [],
     [lookupTableAccount]
   );
-  const txId = await sendAndConfirmTx(rpc, tx, confirmOptions);
+  const txId = await sendAndConfirmTx(rpc, tx, { skipPreflight: true });
   console.log("initialize signature:", txId);
 
   const { parsed: poolState } = await fetchCompressibleAccount(
@@ -585,7 +598,7 @@ export async function compressIdempotent(
   observationAddress: PublicKey,
   token0Vault: PublicKey,
   token1Vault: PublicKey,
-  // lpVault: PublicKey,
+  lpVault: PublicKey,
   signerSeeds: Buffer<ArrayBufferLike>[][],
   rpc: Rpc,
   confirmOptions?: ConfirmOptions,
@@ -625,8 +638,8 @@ export async function compressIdempotent(
     "observationState",
     rpc
   );
-  // const { accountInfo: lpVaultAccountInfo, parsed: lpVaultState } =
-  //   await rpc.getCompressibleTokenAccount(lpVault);
+  const { accountInfo: lpVaultAccountInfo, parsed: lpVaultState } =
+    await rpc.getCompressibleTokenAccount(lpVault);
 
   const { accountInfo: token0VaultAccountInfo, parsed: token0VaultState } =
     await rpc.getCompressibleTokenAccount(token0Vault);
@@ -673,21 +686,21 @@ export async function compressIdempotent(
         accountInfo: observationAccountInfo,
         parsed: observationState,
       },
-      // {
-      //   accountId: lpVault,
-      //   accountInfo: lpVaultAccountInfo,
-      //   parsed: lpVaultState,
-      // },
+      {
+        accountId: lpVault,
+        accountInfo: lpVaultAccountInfo,
+        parsed: lpVaultState,
+      },
       {
         accountId: token0Vault,
         accountInfo: token0VaultAccountInfo,
         parsed: token0VaultState,
       },
-      // {
-      //   accountId: token1Vault,
-      //   accountInfo: token1VaultAccountInfo,
-      //   parsed: token1VaultState,
-      // },
+      {
+        accountId: token1Vault,
+        accountInfo: token1VaultAccountInfo,
+        parsed: token1VaultState,
+      },
     ],
     stateTreeInfo
   );
@@ -720,10 +733,10 @@ export async function compressIdempotent(
       config,
       rentRecipient,
       compressionAuthority,
-      tokenCompressionAuthority,
-      tokenRentRecipient,
-      compressedTokenProgram: CompressedTokenProgram.programId,
-      compressedTokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
+      ctokenCompressionAuthority: tokenCompressionAuthority,
+      ctokenRentRecipient: tokenRentRecipient,
+      ctokenProgram: CompressedTokenProgram.programId,
+      ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
     })
     .remainingAccounts(remainingAccounts)
     .instruction();
@@ -739,6 +752,9 @@ export async function decompressIdempotent(
   owner: Signer,
   poolAddress: PublicKey,
   observationAddress: PublicKey,
+  lpVault: PublicKey,
+  token0Vault: PublicKey,
+  token1Vault: PublicKey,
   configAddress: PublicKey,
   token0: PublicKey,
   token1: PublicKey,
@@ -764,7 +780,33 @@ export async function decompressIdempotent(
       rpc
     );
 
-  if (!poolMerkleContext && !observationMerkleContext) return;
+  console.log("lpVault:", lpVault.toBase58());
+  console.log("token0Vault:", token0Vault.toBase58());
+  console.log("token1Vault:", token1Vault.toBase58());
+  const {
+    accountInfo: lpVaultAccountInfo,
+    parsed: lpVaultState,
+    merkleContext: lpVaultMerkleContext,
+  } = await rpc.getCompressibleTokenAccount(lpVault);
+  const {
+    accountInfo: token0VaultAccountInfo,
+    parsed: token0VaultState,
+    merkleContext: token0VaultMerkleContext,
+  } = await rpc.getCompressibleTokenAccount(token0Vault);
+  const {
+    accountInfo: token1VaultAccountInfo,
+    parsed: token1VaultState,
+    merkleContext: token1VaultMerkleContext,
+  } = await rpc.getCompressibleTokenAccount(token1Vault);
+
+  if (
+    !poolMerkleContext &&
+    !observationMerkleContext &&
+    !lpVaultState &&
+    !token0VaultState &&
+    !token1VaultState
+  )
+    return;
 
   const proof = await rpc.getValidityProofV0([
     {
@@ -777,6 +819,29 @@ export async function decompressIdempotent(
       tree: observationMerkleContext.treeInfo.tree,
       queue: observationMerkleContext.treeInfo.queue,
     },
+    ...[
+      lpVaultMerkleContext
+        ? {
+            hash: lpVaultMerkleContext.hash,
+            tree: lpVaultMerkleContext.treeInfo.tree,
+            queue: lpVaultMerkleContext.treeInfo.queue,
+          }
+        : null,
+      token0VaultMerkleContext
+        ? {
+            hash: token0VaultMerkleContext.hash,
+            tree: token0VaultMerkleContext.treeInfo.tree,
+            queue: token0VaultMerkleContext.treeInfo.queue,
+          }
+        : null,
+      token1VaultMerkleContext
+        ? {
+            hash: token1VaultMerkleContext.hash,
+            tree: token1VaultMerkleContext.treeInfo.tree,
+            queue: token1VaultMerkleContext.treeInfo.queue,
+          }
+        : null,
+    ].filter(Boolean),
   ]);
 
   const {
@@ -798,9 +863,40 @@ export async function decompressIdempotent(
         data: observationState,
         treeInfo: observationMerkleContext.treeInfo,
       },
+      ...[
+        lpVaultMerkleContext
+          ? {
+              key: "lpVault",
+              data: lpVaultState,
+              treeInfo: lpVaultMerkleContext.treeInfo,
+            }
+          : null,
+        token0VaultMerkleContext
+          ? {
+              key: "token0Vault",
+              data: token0VaultState,
+              treeInfo: token0VaultMerkleContext.treeInfo,
+            }
+          : null,
+        token1VaultMerkleContext
+          ? {
+              key: "token1Vault",
+              data: token1VaultState,
+              treeInfo: token1VaultMerkleContext.treeInfo,
+            }
+          : null,
+      ].filter(Boolean),
     ],
-    [poolAddress, observationAddress]
+    [
+      poolAddress,
+      observationAddress,
+      ...(lpVaultMerkleContext ? [lpVault] : []),
+      ...(token0VaultMerkleContext ? [token0Vault] : []),
+      ...(token1VaultMerkleContext ? [token1Vault] : []),
+    ].filter(Boolean)
   );
+
+  const [ctokenConfig] = deriveTokenProgramConfig();
 
   const decompressIx = await program.methods
     .decompressAccountsIdempotent(
@@ -812,13 +908,14 @@ export async function decompressIdempotent(
       feePayer: owner.publicKey,
       config: deriveCompressionConfigAddress(program.programId)[0],
       rentPayer: owner.publicKey,
-      compressedTokenRentPayer: owner.publicKey,
-      compressedTokenProgram: CompressedTokenProgram.programId,
-      compressedTokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
-      ammConfig: configAddress,
+      ctokenRentPayer: owner.publicKey,
+      ctokenProgram: CompressedTokenProgram.programId,
+      ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
       token0Mint: token0,
       token1Mint: token1,
       poolState: poolAddress,
+      ammConfig: configAddress,
+      ctokenConfig,
     })
     .remainingAccounts(remainingAccounts)
     .instruction();
@@ -867,15 +964,18 @@ export async function compressHelper(
     observationSignerSeeds.map((seed) => Array.from(seed))
   );
 
-  // const [lpVaultAddress] = await getLpVaultAddress(
-  // getPoolLpMintAddress(lpMintSignerAddress),
-  //   program.programId
-  // );
-  // const lpVaultSignerSeeds = getLpVaultSignerSeeds(
-  //   poolAddress,
-  //   token0,
-  //   program.programId
-  // );
+  const [mintSigner] = getPoolLpMintSignerAddress(
+    poolAddress,
+    program.programId
+  );
+  const [lpMintAddress] = await getPoolLpMintAddress(mintSigner);
+  const [lpVault] = await getLpVaultAddress(lpMintAddress, program.programId);
+  const lpVaultSignerSeeds = await getPoolVaultSignerSeeds(
+    poolAddress,
+    token0,
+    program.programId
+  );
+
   const [token0VaultAddress] = await getPoolVaultAddress(
     poolAddress,
     token0,
@@ -915,9 +1015,9 @@ export async function compressHelper(
   const signerSeeds = [
     poolSignerSeeds,
     observationSignerSeeds,
-    // lpVaultSignerSeeds,
+    lpVaultSignerSeeds,
     token0VaultSignerSeeds,
-    // token1VaultSignerSeeds,
+    token1VaultSignerSeeds,
   ];
 
   const compressIx = await compressIdempotent(
@@ -927,10 +1027,14 @@ export async function compressHelper(
     observationAddress,
     token0VaultAddress,
     token1VaultAddress,
-    // lpVault,
+    lpVault,
     signerSeeds,
     rpc,
-    confirmOptions
+    confirmOptions,
+    undefined,
+    undefined,
+    undefined,
+    CTOKEN_RENT_RECIPIENT
   );
   const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_200_000,
@@ -949,6 +1053,14 @@ export async function compressHelper(
   );
   const compressTxId = await sendAndConfirmTx(rpc, compressTx, confirmOptions);
   console.log("compress helper signature:", compressTxId);
+
+  console.log("compressed accounts: ");
+  console.log("poolAddress:", poolAddress.toBase58());
+  console.log("observationAddress:", observationAddress.toBase58());
+  console.log("lpVault:", lpVault.toBase58());
+  console.log("token0VaultAddress:", token0VaultAddress.toBase58());
+  console.log("token1VaultAddress:", token1VaultAddress.toBase58());
+
   return compressTxId;
 }
 
@@ -1028,6 +1140,9 @@ export async function deposit(
     owner,
     poolAddress,
     observationAddress,
+    lpVaultAddress,
+    vault0,
+    vault1,
     configAddress,
     token0,
     token1,
@@ -1209,6 +1324,16 @@ export async function swap_base_input(
     program.programId
   );
 
+  const [lpMintSignerAddress] = getPoolLpMintSignerAddress(
+    poolAddress,
+    program.programId
+  );
+  const [lpMintAddress] = await getPoolLpMintAddress(lpMintSignerAddress);
+  const [lpVaultAddress] = await getLpVaultAddress(
+    lpMintAddress,
+    program.programId
+  );
+
   const [inputVault] = await getPoolVaultAddress(
     poolAddress,
     inputToken,
@@ -1242,6 +1367,9 @@ export async function swap_base_input(
     owner,
     poolAddress,
     observationAddress,
+    lpVaultAddress,
+    inputVault,
+    outputVault,
     configAddress,
     inputToken,
     outputToken,

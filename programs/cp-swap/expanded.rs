@@ -2493,6 +2493,8 @@ pub mod instructions {
             associated_token::AssociatedToken, token::spl_token, token::Token,
             token_interface::{Mint, TokenAccount, TokenInterface},
         };
+        use light_compressed_token_sdk::instructions::create_associated_ctoken_account;
+        use light_compressed_token_sdk::instructions::create_token_account::create_ctoken_account_signed;
         use light_sdk::cpi::CpiAccountsSmall;
         use light_sdk::{
             compressible::CompressibleConfig,
@@ -2615,6 +2617,11 @@ pub mod instructions {
             pub compressed_token_program_cpi_authority: AccountInfo<'info>,
             /// CHECK: checked by protocol.
             pub compressed_token_program: AccountInfo<'info>,
+            /// CHECK: checked by protocol.
+            pub ctoken_config_account: AccountInfo<'info>,
+            /// CHECK: checked by protocol.
+            #[account(mut)]
+            pub ctoken_rent_recipient: AccountInfo<'info>,
             /// CHECK: checked by protocol.
             #[account(mut)]
             pub compressed_token_0_pool_pda: AccountInfo<'info>,
@@ -2871,6 +2878,22 @@ pub mod instructions {
                         __reallocs,
                     )
                     .map_err(|e| e.with_account_name("compressed_token_program"))?;
+                let ctoken_config_account: AccountInfo = anchor_lang::Accounts::try_accounts(
+                        __program_id,
+                        __accounts,
+                        __ix_data,
+                        __bumps,
+                        __reallocs,
+                    )
+                    .map_err(|e| e.with_account_name("ctoken_config_account"))?;
+                let ctoken_rent_recipient: AccountInfo = anchor_lang::Accounts::try_accounts(
+                        __program_id,
+                        __accounts,
+                        __ix_data,
+                        __bumps,
+                        __reallocs,
+                    )
+                    .map_err(|e| e.with_account_name("ctoken_rent_recipient"))?;
                 let compressed_token_0_pool_pda: AccountInfo = anchor_lang::Accounts::try_accounts(
                         __program_id,
                         __accounts,
@@ -2963,7 +2986,7 @@ pub mod instructions {
                                                 error_origin: Some(
                                                     anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
                                                         filename: "programs/cp-swap/src/instructions/initialize.rs",
-                                                        line: 27u32,
+                                                        line: 29u32,
                                                     }),
                                                 ),
                                                 compared_values: None,
@@ -3177,7 +3200,7 @@ pub mod instructions {
                                                 error_origin: Some(
                                                     anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
                                                         filename: "programs/cp-swap/src/instructions/initialize.rs",
-                                                        line: 27u32,
+                                                        line: 29u32,
                                                     }),
                                                 ),
                                                 compared_values: None,
@@ -3538,6 +3561,14 @@ pub mod instructions {
                             .with_account_name("rent_recipient"),
                     );
                 }
+                if !&ctoken_rent_recipient.is_writable {
+                    return Err(
+                        anchor_lang::error::Error::from(
+                                anchor_lang::error::ErrorCode::ConstraintMut,
+                            )
+                            .with_account_name("ctoken_rent_recipient"),
+                    );
+                }
                 if !&compressed_token_0_pool_pda.is_writable {
                     return Err(
                         anchor_lang::error::Error::from(
@@ -3581,6 +3612,8 @@ pub mod instructions {
                     rent_recipient,
                     compressed_token_program_cpi_authority,
                     compressed_token_program,
+                    ctoken_config_account,
+                    ctoken_rent_recipient,
                     compressed_token_0_pool_pda,
                     compressed_token_1_pool_pda,
                 })
@@ -3624,6 +3657,8 @@ pub mod instructions {
                         self.compressed_token_program_cpi_authority.to_account_infos(),
                     );
                 account_infos.extend(self.compressed_token_program.to_account_infos());
+                account_infos.extend(self.ctoken_config_account.to_account_infos());
+                account_infos.extend(self.ctoken_rent_recipient.to_account_infos());
                 account_infos
                     .extend(self.compressed_token_0_pool_pda.to_account_infos());
                 account_infos
@@ -3671,6 +3706,8 @@ pub mod instructions {
                     );
                 account_metas
                     .extend(self.compressed_token_program.to_account_metas(None));
+                account_metas.extend(self.ctoken_config_account.to_account_metas(None));
+                account_metas.extend(self.ctoken_rent_recipient.to_account_metas(None));
                 account_metas
                     .extend(self.compressed_token_0_pool_pda.to_account_metas(None));
                 account_metas
@@ -3709,6 +3746,8 @@ pub mod instructions {
                     .map_err(|e| e.with_account_name("observation_state"))?;
                 anchor_lang::AccountsExit::exit(&self.rent_recipient, program_id)
                     .map_err(|e| e.with_account_name("rent_recipient"))?;
+                anchor_lang::AccountsExit::exit(&self.ctoken_rent_recipient, program_id)
+                    .map_err(|e| e.with_account_name("ctoken_rent_recipient"))?;
                 anchor_lang::AccountsExit::exit(
                         &self.compressed_token_0_pool_pda,
                         program_id,
@@ -3836,11 +3875,15 @@ pub mod instructions {
                 pub rent_recipient: Pubkey,
                 pub compressed_token_program_cpi_authority: Pubkey,
                 pub compressed_token_program: Pubkey,
+                pub ctoken_config_account: Pubkey,
+                pub ctoken_rent_recipient: Pubkey,
                 pub compressed_token_0_pool_pda: Pubkey,
                 pub compressed_token_1_pool_pda: Pubkey,
             }
             impl borsh::ser::BorshSerialize for Initialize
             where
+                Pubkey: borsh::ser::BorshSerialize,
+                Pubkey: borsh::ser::BorshSerialize,
                 Pubkey: borsh::ser::BorshSerialize,
                 Pubkey: borsh::ser::BorshSerialize,
                 Pubkey: borsh::ser::BorshSerialize,
@@ -3907,6 +3950,14 @@ pub mod instructions {
                     )?;
                     borsh::BorshSerialize::serialize(
                         &self.compressed_token_program,
+                        writer,
+                    )?;
+                    borsh::BorshSerialize::serialize(
+                        &self.ctoken_config_account,
+                        writer,
+                    )?;
+                    borsh::BorshSerialize::serialize(
+                        &self.ctoken_rent_recipient,
                         writer,
                     )?;
                     borsh::BorshSerialize::serialize(
@@ -4125,6 +4176,16 @@ pub mod instructions {
                                             },
                                             anchor_lang::idl::types::IdlField {
                                                 name: "compressed_token_program".into(),
+                                                docs: ::alloc::vec::Vec::new(),
+                                                ty: anchor_lang::idl::types::IdlType::Pubkey,
+                                            },
+                                            anchor_lang::idl::types::IdlField {
+                                                name: "ctoken_config_account".into(),
+                                                docs: ::alloc::vec::Vec::new(),
+                                                ty: anchor_lang::idl::types::IdlType::Pubkey,
+                                            },
+                                            anchor_lang::idl::types::IdlField {
+                                                name: "ctoken_rent_recipient".into(),
                                                 docs: ::alloc::vec::Vec::new(),
                                                 ty: anchor_lang::idl::types::IdlType::Pubkey,
                                             },
@@ -4354,6 +4415,20 @@ pub mod instructions {
                         );
                     account_metas
                         .push(
+                            anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
+                                self.ctoken_config_account,
+                                false,
+                            ),
+                        );
+                    account_metas
+                        .push(
+                            anchor_lang::solana_program::instruction::AccountMeta::new(
+                                self.ctoken_rent_recipient,
+                                false,
+                            ),
+                        );
+                    account_metas
+                        .push(
                             anchor_lang::solana_program::instruction::AccountMeta::new(
                                 self.compressed_token_0_pool_pda,
                                 false,
@@ -4471,6 +4546,12 @@ pub mod instructions {
                     'info,
                 >,
                 pub compressed_token_program: anchor_lang::solana_program::account_info::AccountInfo<
+                    'info,
+                >,
+                pub ctoken_config_account: anchor_lang::solana_program::account_info::AccountInfo<
+                    'info,
+                >,
+                pub ctoken_rent_recipient: anchor_lang::solana_program::account_info::AccountInfo<
                     'info,
                 >,
                 pub compressed_token_0_pool_pda: anchor_lang::solana_program::account_info::AccountInfo<
@@ -4673,6 +4754,20 @@ pub mod instructions {
                         );
                     account_metas
                         .push(
+                            anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
+                                anchor_lang::Key::key(&self.ctoken_config_account),
+                                false,
+                            ),
+                        );
+                    account_metas
+                        .push(
+                            anchor_lang::solana_program::instruction::AccountMeta::new(
+                                anchor_lang::Key::key(&self.ctoken_rent_recipient),
+                                false,
+                            ),
+                        );
+                    account_metas
+                        .push(
                             anchor_lang::solana_program::instruction::AccountMeta::new(
                                 anchor_lang::Key::key(&self.compressed_token_0_pool_pda),
                                 false,
@@ -4840,6 +4935,18 @@ pub mod instructions {
                         .extend(
                             anchor_lang::ToAccountInfos::to_account_infos(
                                 &self.compressed_token_program,
+                            ),
+                        );
+                    account_infos
+                        .extend(
+                            anchor_lang::ToAccountInfos::to_account_infos(
+                                &self.ctoken_config_account,
+                            ),
+                        );
+                    account_infos
+                        .extend(
+                            anchor_lang::ToAccountInfos::to_account_infos(
+                                &self.ctoken_rent_recipient,
                             ),
                         );
                     account_infos
@@ -5265,6 +5372,26 @@ pub mod instructions {
                             relations: ::alloc::vec::Vec::new(),
                         }),
                         anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
+                            name: "ctoken_config_account".into(),
+                            docs: ::alloc::vec::Vec::new(),
+                            writable: false,
+                            signer: false,
+                            optional: false,
+                            address: None,
+                            pda: None,
+                            relations: ::alloc::vec::Vec::new(),
+                        }),
+                        anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
+                            name: "ctoken_rent_recipient".into(),
+                            docs: ::alloc::vec::Vec::new(),
+                            writable: true,
+                            signer: false,
+                            optional: false,
+                            address: None,
+                            pda: None,
+                            relations: ::alloc::vec::Vec::new(),
+                        }),
+                        anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
                             name: "compressed_token_0_pool_pda".into(),
                             docs: ::alloc::vec::Vec::new(),
                             writable: true,
@@ -5306,7 +5433,7 @@ pub mod instructions {
                         error_origin: Some(
                             anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
                                 filename: "programs/cp-swap/src/instructions/initialize.rs",
-                                line: 211u32,
+                                line: 218u32,
                             }),
                         ),
                         compared_values: None,
@@ -5322,7 +5449,7 @@ pub mod instructions {
                         error_origin: Some(
                             anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
                                 filename: "programs/cp-swap/src/instructions/initialize.rs",
-                                line: 215u32,
+                                line: 222u32,
                             }),
                         ),
                         compared_values: None,
@@ -5343,7 +5470,7 @@ pub mod instructions {
                         error_origin: Some(
                             anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
                                 filename: "programs/cp-swap/src/instructions/initialize.rs",
-                                line: 223u32,
+                                line: 230u32,
                             }),
                         ),
                         compared_values: None,
@@ -5354,39 +5481,39 @@ pub mod instructions {
             if open_time <= block_timestamp {
                 open_time = block_timestamp + 1;
             }
-            create_compressible_token_account(
-                &ctx.accounts.authority.to_account_info(),
-                &ctx.accounts.creator.to_account_info(),
-                &ctx.accounts.token_0_vault.to_account_info(),
-                &ctx.accounts.token_0_mint.to_account_info(),
-                &ctx.accounts.system_program.to_account_info(),
-                &ctx.accounts.compressed_token_program.to_account_info(),
+            create_ctoken_account_signed(
+                crate::ID,
+                ctx.accounts.creator.to_account_info(),
+                ctx.accounts.token_0_vault.to_account_info(),
+                ctx.accounts.token_0_mint.to_account_info(),
+                ctx.accounts.authority.to_account_info(),
                 &[
                     POOL_VAULT_SEED.as_bytes(),
                     ctx.accounts.pool_state.key().as_ref(),
                     ctx.accounts.token_0_mint.key().as_ref(),
                     &[ctx.bumps.token_0_vault][..],
                 ],
-                &ctx.accounts.rent.to_account_info(),
-                &ctx.accounts.rent_recipient.to_account_info(),
-                compression_config.compression_delay as u64,
+                ctx.accounts.ctoken_rent_recipient.to_account_info(),
+                ctx.accounts.ctoken_config_account.to_account_info(),
+                Some(1),
+                None,
             )?;
-            create_compressible_token_account(
-                &ctx.accounts.authority.to_account_info(),
-                &ctx.accounts.creator.to_account_info(),
-                &ctx.accounts.token_1_vault.to_account_info(),
-                &ctx.accounts.token_1_mint.to_account_info(),
-                &ctx.accounts.system_program.to_account_info(),
-                &ctx.accounts.compressed_token_program.to_account_info(),
+            create_ctoken_account_signed(
+                crate::ID,
+                ctx.accounts.creator.to_account_info(),
+                ctx.accounts.token_1_vault.to_account_info(),
+                ctx.accounts.token_1_mint.to_account_info(),
+                ctx.accounts.authority.to_account_info(),
                 &[
                     POOL_VAULT_SEED.as_bytes(),
                     ctx.accounts.pool_state.key().as_ref(),
                     ctx.accounts.token_1_mint.key().as_ref(),
                     &[ctx.bumps.token_1_vault][..],
                 ],
-                &ctx.accounts.rent_recipient.to_account_info(),
-                &ctx.accounts.rent_recipient.to_account_info(),
-                compression_config.compression_delay as u64,
+                ctx.accounts.ctoken_rent_recipient.to_account_info(),
+                ctx.accounts.ctoken_config_account.to_account_info(),
+                Some(1),
+                None,
             )?;
             let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
                 ctx.accounts.token_0_mint.key(),
@@ -5511,32 +5638,33 @@ pub mod instructions {
                 &rent_recipient,
                 &compression_config.address_space,
             )?;
-            create_compressible_token_account(
-                &ctx.accounts.authority.to_account_info(),
-                &ctx.accounts.creator.to_account_info(),
-                &ctx.accounts.lp_vault.to_account_info(),
-                &ctx.accounts.lp_mint.to_account_info(),
-                &ctx.accounts.system_program.to_account_info(),
-                &ctx.accounts.compressed_token_program.to_account_info(),
+            create_ctoken_account_signed(
+                crate::ID,
+                ctx.accounts.creator.to_account_info(),
+                ctx.accounts.lp_vault.to_account_info(),
+                ctx.accounts.lp_mint.to_account_info(),
+                ctx.accounts.authority.to_account_info(),
                 &[
                     POOL_VAULT_SEED.as_bytes(),
                     ctx.accounts.lp_mint.key().as_ref(),
                     &[ctx.bumps.lp_vault][..],
                 ],
-                &ctx.accounts.rent.to_account_info(),
-                &ctx.accounts.rent_recipient.to_account_info(),
-                compression_config.compression_delay as u64,
+                ctx.accounts.ctoken_rent_recipient.to_account_info(),
+                ctx.accounts.ctoken_config_account.to_account_info(),
+                Some(1),
+                None,
             )?;
-            create_compressible_associated_token_account(
-                &ctx.accounts.creator.to_account_info(),
-                &ctx.accounts.creator.to_account_info(),
-                &ctx.accounts.creator_lp_token.to_account_info(),
-                &ctx.accounts.lp_mint.to_account_info(),
-                &ctx.accounts.system_program.to_account_info(),
-                &ctx.accounts.rent.to_account_info(),
-                &ctx.accounts.rent_recipient.to_account_info(),
-                compression_config.compression_delay as u64,
+            create_associated_ctoken_account(
+                ctx.accounts.creator.to_account_info(),
+                ctx.accounts.creator_lp_token.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+                ctx.accounts.ctoken_config_account.to_account_info(),
+                ctx.accounts.ctoken_rent_recipient.to_account_info(),
+                ctx.accounts.creator.to_account_info(),
+                *ctx.accounts.lp_mint.key,
                 compression_params.creator_lp_token_bump,
+                Some(1),
+                None,
             )?;
             create_and_mint_lp(
                 ctx.accounts.creator.to_account_info(),
@@ -15502,6 +15630,11 @@ pub mod states {
                 })
             }
         }
+        impl light_sdk::compressible::compression_info::CompressedInitSpace
+        for PoolState {
+            const COMPRESSED_INIT_SPACE: usize = Self::INIT_SPACE
+                - (0 + <CompressionInfo>::INIT_SPACE);
+        }
         pub struct PackedPoolState {
             pub amm_config: u8,
             pub pool_creator: u8,
@@ -17530,6 +17663,12 @@ pub mod states {
                 })
             }
         }
+        impl light_sdk::compressible::compression_info::CompressedInitSpace
+        for ObservationState {
+            const COMPRESSED_INIT_SPACE: usize = Self::INIT_SPACE
+                - (0 + (OBSERVATION_NUM as usize) * (<Observation>::INIT_SPACE)
+                    + <CompressionInfo>::INIT_SPACE);
+        }
         #[automatically_derived]
         impl anchor_lang::Space for ObservationState {
             const INIT_SPACE: usize = 0 + 1 + 2 + 32
@@ -18287,25 +18426,19 @@ pub mod utils {
     pub mod ctoken {
         use crate::{
             instructions::InitializeCompressionParams, states::POOL_LP_MINT_SEED,
-            utils::{create_or_allocate_account, LP_MINT_CREATION_INDEX},
+            utils::LP_MINT_CREATION_INDEX,
         };
-        use anchor_lang::{prelude::*, solana_program::program::{invoke, invoke_signed}};
+        use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
         use light_compressed_token_sdk::{
-            compressible::{
-                initialize_compressible_token_account, InitializeCompressibleTokenAccount,
-            },
             instructions::{
-                create_compressible_associated_token_account_with_bump as initialize_compressible_associated_token_account_with_bump,
                 create_mint_action_cpi, derive_compressed_mint_from_spl_mint, transfer,
-                transfer_signed, CreateCompressibleAssociatedTokenAccountInputs,
-                MintActionInputs, MintActionType,
+                transfer_signed, CreateMintInputs, MintActionInputs, MintActionType,
             },
             CompressedProof,
         };
         use light_ctoken_types::{
             instructions::mint_action::CompressedMintWithContext,
             instructions::mint_action::CpiContext as CompressedCpiContext,
-            COMPRESSIBLE_TOKEN_ACCOUNT_SIZE,
         };
         use light_sdk::cpi::CpiAccountsSmall;
         pub fn transfer_ctoken_from_user_to_pool_vault<'a>(
@@ -18331,84 +18464,6 @@ pub mod utils {
                 return Ok(());
             }
             transfer_signed(&from_vault, &to, &authority, amount, signer_seeds)?;
-            Ok(())
-        }
-        pub fn create_compressible_token_account<'a>(
-            authority: &AccountInfo<'a>,
-            payer: &AccountInfo<'a>,
-            token_account: &AccountInfo<'a>,
-            mint_account: &AccountInfo<'a>,
-            system_program: &AccountInfo<'a>,
-            token_program: &AccountInfo<'a>,
-            signer_seeds: &[&[u8]],
-            rent_authority: &AccountInfo<'a>,
-            rent_recipient: &AccountInfo<'a>,
-            slots_until_compression: u64,
-        ) -> Result<()> {
-            let space = COMPRESSIBLE_TOKEN_ACCOUNT_SIZE as usize;
-            create_or_allocate_account(
-                token_program.key,
-                payer.to_account_info(),
-                system_program.to_account_info(),
-                token_account.to_account_info(),
-                signer_seeds,
-                space,
-            )?;
-            let init_ix = initialize_compressible_token_account(InitializeCompressibleTokenAccount {
-                    account_pubkey: *token_account.key,
-                    mint_pubkey: *mint_account.key,
-                    owner_pubkey: *authority.key,
-                    rent_authority: *rent_authority.key,
-                    rent_recipient: *rent_recipient.key,
-                    slots_until_compression,
-                })
-                .map_err(|e| ProgramError::from(e))?;
-            invoke(
-                &init_ix,
-                &[
-                    token_account.to_account_info(),
-                    mint_account.to_account_info(),
-                    authority.to_account_info(),
-                    rent_authority.to_account_info(),
-                    rent_recipient.to_account_info(),
-                ],
-            )?;
-            Ok(())
-        }
-        pub fn create_compressible_associated_token_account<'a>(
-            owner: &AccountInfo<'a>,
-            payer: &AccountInfo<'a>,
-            associated_token_account: &AccountInfo<'a>,
-            mint_account: &AccountInfo<'a>,
-            system_program: &AccountInfo<'a>,
-            rent_authority: &AccountInfo<'a>,
-            rent_recipient: &AccountInfo<'a>,
-            slots_until_compression: u64,
-            bump: u8,
-        ) -> Result<()> {
-            let init_ix = initialize_compressible_associated_token_account_with_bump(
-                    CreateCompressibleAssociatedTokenAccountInputs {
-                        payer: *payer.key,
-                        mint: *mint_account.key,
-                        owner: *owner.key,
-                        rent_authority: *rent_authority.key,
-                        rent_recipient: *rent_recipient.key,
-                        slots_until_compression,
-                    },
-                    *associated_token_account.key,
-                    bump,
-                )
-                .map_err(|e| ProgramError::from(e))?;
-            invoke(
-                &init_ix,
-                &[
-                    payer.to_account_info(),
-                    associated_token_account.to_account_info(),
-                    mint_account.to_account_info(),
-                    owner.to_account_info(),
-                    system_program.to_account_info(),
-                ],
-            )?;
             Ok(())
         }
         pub fn get_bumps(
@@ -18479,18 +18534,19 @@ pub mod utils {
                     },
                 ]),
             );
+            let inputs = CreateMintInputs {
+                compressed_mint_inputs: compressed_mint_with_context,
+                mint_seed: lp_mint_signer.key(),
+                mint_bump: compression_params.lp_mint_bump,
+                authority: authority.key().into(),
+                payer: creator.key(),
+                proof: compression_params.proof.0.map(|p| CompressedProof::from(p)),
+                address_tree: address_tree_pubkey,
+                output_queue: output_state_queue,
+                actions,
+            };
             let mint_action_instruction: anchor_lang::solana_program::instruction::Instruction = create_mint_action_cpi(
-                    MintActionInputs::new_for_create_mint(
-                        compressed_mint_with_context,
-                        actions,
-                        output_state_queue,
-                        address_tree_pubkey,
-                        lp_mint_signer.key(),
-                        Some(compression_params.lp_mint_bump),
-                        authority.key().into(),
-                        creator.key(),
-                        compression_params.proof.0.map(|p| CompressedProof::from(p)),
-                    ),
+                    MintActionInputs::new_create_mint(inputs),
                     Some(
                         CompressedCpiContext::last_cpi_create_mint(
                             address_tree_idx,
@@ -24381,6 +24437,32 @@ pub mod create_pool_fee_receiver {
 use light_sdk::compressible::Unpack;
 use light_sdk::LightDiscriminator;
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
+const _: () = {
+    const COMPRESSED_SIZE: usize = 8
+        + <PoolState as light_sdk::compressible::compression_info::CompressedInitSpace>::COMPRESSED_INIT_SPACE;
+    if COMPRESSED_SIZE > 800 {
+        {
+            ::core::panicking::panic_fmt(
+                format_args!(
+                    "Compressed account \'PoolState\' exceeds 800-byte compressible account size limit. If you need support for larger accounts, send a message to team@lightprotocol.com",
+                ),
+            );
+        };
+    }
+};
+const _: () = {
+    const COMPRESSED_SIZE: usize = 8
+        + <ObservationState as light_sdk::compressible::compression_info::CompressedInitSpace>::COMPRESSED_INIT_SPACE;
+    if COMPRESSED_SIZE > 800 {
+        {
+            ::core::panicking::panic_fmt(
+                format_args!(
+                    "Compressed account \'ObservationState\' exceeds 800-byte compressible account size limit. If you need support for larger accounts, send a message to team@lightprotocol.com",
+                ),
+            );
+        };
+    }
+};
 #[repr(u32)]
 /// Auto-generated error codes for compressible instructions
 /// These are separate from the user's ErrorCode enum to avoid conflicts
@@ -24499,7 +24581,8 @@ impl std::fmt::Display for CompressibleInstructionError {
 /// Auto-generated CTokenAccountVariant enum from token seed specifications
 #[repr(u8)]
 pub enum CTokenAccountVariant {
-    Token1Vault = 0u8,
+    Token0Vault = 0u8,
+    Token1Vault = 1u8,
 }
 impl borsh::ser::BorshSerialize for CTokenAccountVariant {
     fn serialize<W: borsh::maybestd::io::Write>(
@@ -24507,10 +24590,12 @@ impl borsh::ser::BorshSerialize for CTokenAccountVariant {
         writer: &mut W,
     ) -> ::core::result::Result<(), borsh::maybestd::io::Error> {
         let variant_idx: u8 = match self {
-            CTokenAccountVariant::Token1Vault => 0u8,
+            CTokenAccountVariant::Token0Vault => 0u8,
+            CTokenAccountVariant::Token1Vault => 1u8,
         };
         writer.write_all(&variant_idx.to_le_bytes())?;
         match self {
+            CTokenAccountVariant::Token0Vault => {}
             CTokenAccountVariant::Token1Vault => {}
         }
         Ok(())
@@ -24537,6 +24622,10 @@ impl anchor_lang::idl::build::IdlBuild for CTokenAccountVariant {
             ty: anchor_lang::idl::types::IdlTypeDefTy::Enum {
                 variants: <[_]>::into_vec(
                     ::alloc::boxed::box_new([
+                        anchor_lang::idl::types::IdlEnumVariant {
+                            name: "Token0Vault".into(),
+                            fields: None,
+                        },
                         anchor_lang::idl::types::IdlEnumVariant {
                             name: "Token1Vault".into(),
                             fields: None,
@@ -24574,7 +24663,8 @@ impl borsh::de::EnumExt for CTokenAccountVariant {
         variant_idx: u8,
     ) -> ::core::result::Result<Self, borsh::maybestd::io::Error> {
         let mut return_value = match variant_idx {
-            0u8 => CTokenAccountVariant::Token1Vault,
+            0u8 => CTokenAccountVariant::Token0Vault,
+            1u8 => CTokenAccountVariant::Token1Vault,
             _ => {
                 return Err(
                     borsh::maybestd::io::Error::new(
@@ -24595,7 +24685,13 @@ impl borsh::de::EnumExt for CTokenAccountVariant {
 impl ::core::fmt::Debug for CTokenAccountVariant {
     #[inline]
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        ::core::fmt::Formatter::write_str(f, "Token1Vault")
+        ::core::fmt::Formatter::write_str(
+            f,
+            match self {
+                CTokenAccountVariant::Token0Vault => "Token0Vault",
+                CTokenAccountVariant::Token1Vault => "Token1Vault",
+            },
+        )
     }
 }
 #[automatically_derived]
@@ -25436,6 +25532,23 @@ pub fn get_observationstate_seeds(
     (seed_values, pda)
 }
 /// Auto-generated client-side CToken seed function
+pub fn get_token0vault_seeds(
+    pool_state: &anchor_lang::prelude::Pubkey,
+    token_0_mint: &anchor_lang::prelude::Pubkey,
+) -> (Vec<Vec<u8>>, anchor_lang::prelude::Pubkey) {
+    let mut seed_values = Vec::with_capacity(3usize + 1);
+    seed_values.push((POOL_VAULT_SEED.as_bytes()).to_vec());
+    seed_values.push((pool_state.as_ref()).to_vec());
+    seed_values.push((token_0_mint.as_ref()).to_vec());
+    let seed_slices: Vec<&[u8]> = seed_values.iter().map(|v| v.as_slice()).collect();
+    let (pda, bump) = anchor_lang::prelude::Pubkey::find_program_address(
+        &seed_slices,
+        &crate::ID,
+    );
+    seed_values.push(<[_]>::into_vec(::alloc::boxed::box_new([bump])));
+    (seed_values, pda)
+}
+/// Auto-generated client-side CToken seed function
 pub fn get_token1vault_seeds(
     pool_state: &anchor_lang::prelude::Pubkey,
     token_1_mint: &anchor_lang::prelude::Pubkey,
@@ -25454,11 +25567,29 @@ pub fn get_token1vault_seeds(
 }
 /// Auto-generated CTokenSeedProvider implementation
 impl ctoken_seed_system::CTokenSeedProvider for CTokenAccountVariant {
-    fn get_seeds<'a, 'c, 'info>(
+    fn get_seeds<'a, 'info>(
         &self,
-        ctx: &ctoken_seed_system::CTokenSeedContext<'a, 'c, 'info>,
+        ctx: &ctoken_seed_system::CTokenSeedContext<'a, 'info>,
     ) -> (Vec<Vec<u8>>, anchor_lang::prelude::Pubkey) {
         match self {
+            CTokenAccountVariant::Token0Vault => {
+                let seed_1 = ctx.accounts.pool_state.key();
+                let seed_2 = ctx.accounts.token_0_mint.key();
+                let seeds: &[&[u8]] = &[
+                    POOL_VAULT_SEED.as_bytes(),
+                    seed_1.as_ref(),
+                    seed_2.as_ref(),
+                ];
+                ::solana_msg::sol_log("in ctoken match arm");
+                let (pda, bump) = anchor_lang::prelude::Pubkey::find_program_address(
+                    seeds,
+                    &crate::ID,
+                );
+                let mut seeds_vec = Vec::with_capacity(seeds.len() + 1);
+                seeds_vec.extend(seeds.iter().map(|s| s.to_vec()));
+                seeds_vec.push(<[_]>::into_vec(::alloc::boxed::box_new([bump])));
+                (seeds_vec, pda)
+            }
             CTokenAccountVariant::Token1Vault => {
                 let seed_1 = ctx.accounts.pool_state.key();
                 let seed_2 = ctx.accounts.token_1_mint.key();
@@ -25467,6 +25598,7 @@ impl ctoken_seed_system::CTokenSeedProvider for CTokenAccountVariant {
                     seed_1.as_ref(),
                     seed_2.as_ref(),
                 ];
+                ::solana_msg::sol_log("in ctoken match arm");
                 let (pda, bump) = anchor_lang::prelude::Pubkey::find_program_address(
                     seeds,
                     &crate::ID,
@@ -25953,7 +26085,7 @@ mod __private {
                                 error_origin: Some(
                                     anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
                                         filename: "programs/cp-swap/src/lib.rs",
-                                        line: 66u32,
+                                        line: 67u32,
                                     }),
                                 ),
                                 compared_values: None,
@@ -28642,7 +28774,7 @@ mod __private {
                             error_origin: Some(
                                 anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
                                     filename: "programs/cp-swap/src/lib.rs",
-                                    line: 66u32,
+                                    line: 67u32,
                                 }),
                             ),
                             compared_values: None,
@@ -28689,7 +28821,7 @@ mod __private {
                             error_origin: Some(
                                 anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
                                     filename: "programs/cp-swap/src/lib.rs",
-                                    line: 66u32,
+                                    line: 67u32,
                                 }),
                             ),
                             compared_values: None,
@@ -29484,13 +29616,15 @@ pub mod raydium_cp_swap {
         pub rent_payer: Signer<'info>,
         /// UNCHECKED: Anyone can pay to init compressed tokens.
         #[account(mut)]
-        pub compressed_token_rent_payer: Signer<'info>,
+        pub ctoken_rent_payer: Signer<'info>,
         /// Compressed token program (always required in mixed variant)
         /// CHECK: Program ID validated to be cTokenmWW8bLPjZEBAUgYy3zKxQZW6VKi7bqNFEVv3m
-        pub compressed_token_program: UncheckedAccount<'info>,
+        pub ctoken_program: UncheckedAccount<'info>,
         /// CPI authority PDA of the compressed token program (always required in mixed variant)
         /// CHECK: PDA derivation validated with seeds ["cpi_authority"] and bump 254
-        pub compressed_token_cpi_authority: UncheckedAccount<'info>,
+        pub ctoken_cpi_authority: UncheckedAccount<'info>,
+        /// CHECK: CToken CompressibleConfig account
+        pub ctoken_config: UncheckedAccount<'info>,
         /// CHECK: Required for seed derivation - validated by program logic
         pub amm_config: UncheckedAccount<'info>,
         /// CHECK: Required for seed derivation - validated by program logic
@@ -29542,30 +29676,38 @@ pub mod raydium_cp_swap {
                     __reallocs,
                 )
                 .map_err(|e| e.with_account_name("rent_payer"))?;
-            let compressed_token_rent_payer: Signer = anchor_lang::Accounts::try_accounts(
+            let ctoken_rent_payer: Signer = anchor_lang::Accounts::try_accounts(
                     __program_id,
                     __accounts,
                     __ix_data,
                     __bumps,
                     __reallocs,
                 )
-                .map_err(|e| e.with_account_name("compressed_token_rent_payer"))?;
-            let compressed_token_program: UncheckedAccount = anchor_lang::Accounts::try_accounts(
+                .map_err(|e| e.with_account_name("ctoken_rent_payer"))?;
+            let ctoken_program: UncheckedAccount = anchor_lang::Accounts::try_accounts(
                     __program_id,
                     __accounts,
                     __ix_data,
                     __bumps,
                     __reallocs,
                 )
-                .map_err(|e| e.with_account_name("compressed_token_program"))?;
-            let compressed_token_cpi_authority: UncheckedAccount = anchor_lang::Accounts::try_accounts(
+                .map_err(|e| e.with_account_name("ctoken_program"))?;
+            let ctoken_cpi_authority: UncheckedAccount = anchor_lang::Accounts::try_accounts(
                     __program_id,
                     __accounts,
                     __ix_data,
                     __bumps,
                     __reallocs,
                 )
-                .map_err(|e| e.with_account_name("compressed_token_cpi_authority"))?;
+                .map_err(|e| e.with_account_name("ctoken_cpi_authority"))?;
+            let ctoken_config: UncheckedAccount = anchor_lang::Accounts::try_accounts(
+                    __program_id,
+                    __accounts,
+                    __ix_data,
+                    __bumps,
+                    __reallocs,
+                )
+                .map_err(|e| e.with_account_name("ctoken_config"))?;
             let amm_config: UncheckedAccount = anchor_lang::Accounts::try_accounts(
                     __program_id,
                     __accounts,
@@ -29614,21 +29756,22 @@ pub mod raydium_cp_swap {
                         .with_account_name("rent_payer"),
                 );
             }
-            if !AsRef::<AccountInfo>::as_ref(&compressed_token_rent_payer).is_writable {
+            if !AsRef::<AccountInfo>::as_ref(&ctoken_rent_payer).is_writable {
                 return Err(
                     anchor_lang::error::Error::from(
                             anchor_lang::error::ErrorCode::ConstraintMut,
                         )
-                        .with_account_name("compressed_token_rent_payer"),
+                        .with_account_name("ctoken_rent_payer"),
                 );
             }
             Ok(DecompressAccountsIdempotent {
                 fee_payer,
                 config,
                 rent_payer,
-                compressed_token_rent_payer,
-                compressed_token_program,
-                compressed_token_cpi_authority,
+                ctoken_rent_payer,
+                ctoken_program,
+                ctoken_cpi_authority,
+                ctoken_config,
                 amm_config,
                 token_0_mint,
                 token_1_mint,
@@ -29649,9 +29792,10 @@ pub mod raydium_cp_swap {
             account_infos.extend(self.fee_payer.to_account_infos());
             account_infos.extend(self.config.to_account_infos());
             account_infos.extend(self.rent_payer.to_account_infos());
-            account_infos.extend(self.compressed_token_rent_payer.to_account_infos());
-            account_infos.extend(self.compressed_token_program.to_account_infos());
-            account_infos.extend(self.compressed_token_cpi_authority.to_account_infos());
+            account_infos.extend(self.ctoken_rent_payer.to_account_infos());
+            account_infos.extend(self.ctoken_program.to_account_infos());
+            account_infos.extend(self.ctoken_cpi_authority.to_account_infos());
+            account_infos.extend(self.ctoken_config.to_account_infos());
             account_infos.extend(self.amm_config.to_account_infos());
             account_infos.extend(self.token_0_mint.to_account_infos());
             account_infos.extend(self.token_1_mint.to_account_infos());
@@ -29669,11 +29813,10 @@ pub mod raydium_cp_swap {
             account_metas.extend(self.fee_payer.to_account_metas(None));
             account_metas.extend(self.config.to_account_metas(None));
             account_metas.extend(self.rent_payer.to_account_metas(None));
-            account_metas
-                .extend(self.compressed_token_rent_payer.to_account_metas(None));
-            account_metas.extend(self.compressed_token_program.to_account_metas(None));
-            account_metas
-                .extend(self.compressed_token_cpi_authority.to_account_metas(None));
+            account_metas.extend(self.ctoken_rent_payer.to_account_metas(None));
+            account_metas.extend(self.ctoken_program.to_account_metas(None));
+            account_metas.extend(self.ctoken_cpi_authority.to_account_metas(None));
+            account_metas.extend(self.ctoken_config.to_account_metas(None));
             account_metas.extend(self.amm_config.to_account_metas(None));
             account_metas.extend(self.token_0_mint.to_account_metas(None));
             account_metas.extend(self.token_1_mint.to_account_metas(None));
@@ -29694,11 +29837,8 @@ pub mod raydium_cp_swap {
                 .map_err(|e| e.with_account_name("fee_payer"))?;
             anchor_lang::AccountsExit::exit(&self.rent_payer, program_id)
                 .map_err(|e| e.with_account_name("rent_payer"))?;
-            anchor_lang::AccountsExit::exit(
-                    &self.compressed_token_rent_payer,
-                    program_id,
-                )
-                .map_err(|e| e.with_account_name("compressed_token_rent_payer"))?;
+            anchor_lang::AccountsExit::exit(&self.ctoken_rent_payer, program_id)
+                .map_err(|e| e.with_account_name("ctoken_rent_payer"))?;
             Ok(())
         }
     }
@@ -29742,11 +29882,12 @@ pub mod raydium_cp_swap {
             ///UNCHECKED: Anyone can pay to init PDAs.
             pub rent_payer: Pubkey,
             ///UNCHECKED: Anyone can pay to init compressed tokens.
-            pub compressed_token_rent_payer: Pubkey,
+            pub ctoken_rent_payer: Pubkey,
             ///Compressed token program (always required in mixed variant)
-            pub compressed_token_program: Pubkey,
+            pub ctoken_program: Pubkey,
             ///CPI authority PDA of the compressed token program (always required in mixed variant)
-            pub compressed_token_cpi_authority: Pubkey,
+            pub ctoken_cpi_authority: Pubkey,
+            pub ctoken_config: Pubkey,
             pub amm_config: Pubkey,
             pub token_0_mint: Pubkey,
             pub token_1_mint: Pubkey,
@@ -29754,6 +29895,7 @@ pub mod raydium_cp_swap {
         }
         impl borsh::ser::BorshSerialize for DecompressAccountsIdempotent
         where
+            Pubkey: borsh::ser::BorshSerialize,
             Pubkey: borsh::ser::BorshSerialize,
             Pubkey: borsh::ser::BorshSerialize,
             Pubkey: borsh::ser::BorshSerialize,
@@ -29772,18 +29914,10 @@ pub mod raydium_cp_swap {
                 borsh::BorshSerialize::serialize(&self.fee_payer, writer)?;
                 borsh::BorshSerialize::serialize(&self.config, writer)?;
                 borsh::BorshSerialize::serialize(&self.rent_payer, writer)?;
-                borsh::BorshSerialize::serialize(
-                    &self.compressed_token_rent_payer,
-                    writer,
-                )?;
-                borsh::BorshSerialize::serialize(
-                    &self.compressed_token_program,
-                    writer,
-                )?;
-                borsh::BorshSerialize::serialize(
-                    &self.compressed_token_cpi_authority,
-                    writer,
-                )?;
+                borsh::BorshSerialize::serialize(&self.ctoken_rent_payer, writer)?;
+                borsh::BorshSerialize::serialize(&self.ctoken_program, writer)?;
+                borsh::BorshSerialize::serialize(&self.ctoken_cpi_authority, writer)?;
+                borsh::BorshSerialize::serialize(&self.ctoken_config, writer)?;
                 borsh::BorshSerialize::serialize(&self.amm_config, writer)?;
                 borsh::BorshSerialize::serialize(&self.token_0_mint, writer)?;
                 borsh::BorshSerialize::serialize(&self.token_1_mint, writer)?;
@@ -29833,7 +29967,7 @@ pub mod raydium_cp_swap {
                                             ty: anchor_lang::idl::types::IdlType::Pubkey,
                                         },
                                         anchor_lang::idl::types::IdlField {
-                                            name: "compressed_token_rent_payer".into(),
+                                            name: "ctoken_rent_payer".into(),
                                             docs: <[_]>::into_vec(
                                                 ::alloc::boxed::box_new([
                                                     "UNCHECKED: Anyone can pay to init compressed tokens."
@@ -29843,7 +29977,7 @@ pub mod raydium_cp_swap {
                                             ty: anchor_lang::idl::types::IdlType::Pubkey,
                                         },
                                         anchor_lang::idl::types::IdlField {
-                                            name: "compressed_token_program".into(),
+                                            name: "ctoken_program".into(),
                                             docs: <[_]>::into_vec(
                                                 ::alloc::boxed::box_new([
                                                     "Compressed token program (always required in mixed variant)"
@@ -29853,13 +29987,18 @@ pub mod raydium_cp_swap {
                                             ty: anchor_lang::idl::types::IdlType::Pubkey,
                                         },
                                         anchor_lang::idl::types::IdlField {
-                                            name: "compressed_token_cpi_authority".into(),
+                                            name: "ctoken_cpi_authority".into(),
                                             docs: <[_]>::into_vec(
                                                 ::alloc::boxed::box_new([
                                                     "CPI authority PDA of the compressed token program (always required in mixed variant)"
                                                         .into(),
                                                 ]),
                                             ),
+                                            ty: anchor_lang::idl::types::IdlType::Pubkey,
+                                        },
+                                        anchor_lang::idl::types::IdlField {
+                                            name: "ctoken_config".into(),
+                                            docs: ::alloc::vec::Vec::new(),
                                             ty: anchor_lang::idl::types::IdlType::Pubkey,
                                         },
                                         anchor_lang::idl::types::IdlField {
@@ -29938,21 +30077,28 @@ pub mod raydium_cp_swap {
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new(
-                            self.compressed_token_rent_payer,
+                            self.ctoken_rent_payer,
                             true,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
-                            self.compressed_token_program,
+                            self.ctoken_program,
                             false,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
-                            self.compressed_token_cpi_authority,
+                            self.ctoken_cpi_authority,
+                            false,
+                        ),
+                    );
+                account_metas
+                    .push(
+                        anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
+                            self.ctoken_config,
                             false,
                         ),
                     );
@@ -30007,15 +30153,18 @@ pub mod raydium_cp_swap {
                 'info,
             >,
             ///UNCHECKED: Anyone can pay to init compressed tokens.
-            pub compressed_token_rent_payer: anchor_lang::solana_program::account_info::AccountInfo<
+            pub ctoken_rent_payer: anchor_lang::solana_program::account_info::AccountInfo<
                 'info,
             >,
             ///Compressed token program (always required in mixed variant)
-            pub compressed_token_program: anchor_lang::solana_program::account_info::AccountInfo<
+            pub ctoken_program: anchor_lang::solana_program::account_info::AccountInfo<
                 'info,
             >,
             ///CPI authority PDA of the compressed token program (always required in mixed variant)
-            pub compressed_token_cpi_authority: anchor_lang::solana_program::account_info::AccountInfo<
+            pub ctoken_cpi_authority: anchor_lang::solana_program::account_info::AccountInfo<
+                'info,
+            >,
+            pub ctoken_config: anchor_lang::solana_program::account_info::AccountInfo<
                 'info,
             >,
             pub amm_config: anchor_lang::solana_program::account_info::AccountInfo<
@@ -30062,21 +30211,28 @@ pub mod raydium_cp_swap {
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new(
-                            anchor_lang::Key::key(&self.compressed_token_rent_payer),
+                            anchor_lang::Key::key(&self.ctoken_rent_payer),
                             true,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
-                            anchor_lang::Key::key(&self.compressed_token_program),
+                            anchor_lang::Key::key(&self.ctoken_program),
                             false,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
-                            anchor_lang::Key::key(&self.compressed_token_cpi_authority),
+                            anchor_lang::Key::key(&self.ctoken_cpi_authority),
+                            false,
+                        ),
+                    );
+                account_metas
+                    .push(
+                        anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
+                            anchor_lang::Key::key(&self.ctoken_config),
                             false,
                         ),
                     );
@@ -30131,19 +30287,25 @@ pub mod raydium_cp_swap {
                 account_infos
                     .extend(
                         anchor_lang::ToAccountInfos::to_account_infos(
-                            &self.compressed_token_rent_payer,
+                            &self.ctoken_rent_payer,
                         ),
                     );
                 account_infos
                     .extend(
                         anchor_lang::ToAccountInfos::to_account_infos(
-                            &self.compressed_token_program,
+                            &self.ctoken_program,
                         ),
                     );
                 account_infos
                     .extend(
                         anchor_lang::ToAccountInfos::to_account_infos(
-                            &self.compressed_token_cpi_authority,
+                            &self.ctoken_cpi_authority,
+                        ),
+                    );
+                account_infos
+                    .extend(
+                        anchor_lang::ToAccountInfos::to_account_infos(
+                            &self.ctoken_config,
                         ),
                     );
                 account_infos
@@ -30216,7 +30378,7 @@ pub mod raydium_cp_swap {
                         relations: ::alloc::vec::Vec::new(),
                     }),
                     anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
-                        name: "compressed_token_rent_payer".into(),
+                        name: "ctoken_rent_payer".into(),
                         docs: <[_]>::into_vec(
                             ::alloc::boxed::box_new([
                                 "UNCHECKED: Anyone can pay to init compressed tokens."
@@ -30231,7 +30393,7 @@ pub mod raydium_cp_swap {
                         relations: ::alloc::vec::Vec::new(),
                     }),
                     anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
-                        name: "compressed_token_program".into(),
+                        name: "ctoken_program".into(),
                         docs: <[_]>::into_vec(
                             ::alloc::boxed::box_new([
                                 "Compressed token program (always required in mixed variant)"
@@ -30246,13 +30408,23 @@ pub mod raydium_cp_swap {
                         relations: ::alloc::vec::Vec::new(),
                     }),
                     anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
-                        name: "compressed_token_cpi_authority".into(),
+                        name: "ctoken_cpi_authority".into(),
                         docs: <[_]>::into_vec(
                             ::alloc::boxed::box_new([
                                 "CPI authority PDA of the compressed token program (always required in mixed variant)"
                                     .into(),
                             ]),
                         ),
+                        writable: false,
+                        signer: false,
+                        optional: false,
+                        address: None,
+                        pda: None,
+                        relations: ::alloc::vec::Vec::new(),
+                    }),
+                    anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
+                        name: "ctoken_config".into(),
+                        docs: ::alloc::vec::Vec::new(),
                         writable: false,
                         signer: false,
                         optional: false,
@@ -30306,150 +30478,6 @@ pub mod raydium_cp_swap {
     }
     mod __macro_helpers {
         use super::*;
-        #[inline(never)]
-        fn handle_unpacked_PoolState<'a, 'b, 'info>(
-            accounts: &DecompressAccountsIdempotent<'info>,
-            cpi_accounts: &light_sdk::cpi::CpiAccountsSmall<'b, 'info>,
-            address_space: anchor_lang::prelude::Pubkey,
-            solana_accounts: &[anchor_lang::prelude::AccountInfo<'info>],
-            i: usize,
-            data: &PoolState,
-            meta: &light_sdk::instruction::account_meta::CompressedAccountMetaNoLamportsNoAddress,
-            compressed_pda_infos: &mut Vec<
-                light_compressed_account::instruction_data::with_account_info::CompressedAccountInfo,
-            >,
-        ) -> Result<()> {
-            let (seeds_vec, derived_pda) = {
-                let seed_binding_1 = accounts.amm_config.key();
-                let seed_binding_2 = accounts.token_0_mint.key();
-                let seed_binding_3 = accounts.token_1_mint.key();
-                let seeds: &[&[u8]] = &[
-                    POOL_SEED.as_bytes(),
-                    seed_binding_1.as_ref(),
-                    seed_binding_2.as_ref(),
-                    seed_binding_3.as_ref(),
-                ];
-                let (pda, bump) = anchor_lang::prelude::Pubkey::find_program_address(
-                    seeds,
-                    &crate::ID,
-                );
-                let mut seeds_vec = Vec::with_capacity(seeds.len() + 1);
-                seeds_vec.push(seeds[0usize].to_vec());
-                seeds_vec.push(seeds[1usize].to_vec());
-                seeds_vec.push(seeds[2usize].to_vec());
-                seeds_vec.push(seeds[3usize].to_vec());
-                seeds_vec.push(<[_]>::into_vec(::alloc::boxed::box_new([bump])));
-                (seeds_vec, pda)
-            };
-            if derived_pda != *solana_accounts[i].key {
-                ::solana_msg::sol_log(
-                    &::alloc::__export::must_use({
-                        ::alloc::fmt::format(
-                            format_args!(
-                                "(handle_unpacked) Derived PDA does not match account at index {0}: expected {1:?}, got {2:?}, seeds: {3:?}",
-                                i,
-                                solana_accounts[i].key,
-                                derived_pda,
-                                seeds_vec,
-                            ),
-                        )
-                    }),
-                );
-            }
-            let compressed_infos = {
-                let seed_refs: Vec<&[u8]> = seeds_vec
-                    .iter()
-                    .map(|v| v.as_slice())
-                    .collect();
-                light_sdk::compressible::prepare_account_for_decompression_idempotent::<
-                    PoolState,
-                >(
-                    &crate::ID,
-                    data.clone(),
-                    light_sdk::compressible::into_compressed_meta_with_address(
-                        meta,
-                        &solana_accounts[i],
-                        address_space,
-                        &crate::ID,
-                    ),
-                    &solana_accounts[i],
-                    &accounts.rent_payer,
-                    cpi_accounts,
-                    seed_refs.as_slice(),
-                )?
-            };
-            compressed_pda_infos.extend(compressed_infos);
-            Ok(())
-        }
-        #[inline(never)]
-        fn handle_unpacked_ObservationState<'a, 'b, 'info>(
-            accounts: &DecompressAccountsIdempotent<'info>,
-            cpi_accounts: &light_sdk::cpi::CpiAccountsSmall<'b, 'info>,
-            address_space: anchor_lang::prelude::Pubkey,
-            solana_accounts: &[anchor_lang::prelude::AccountInfo<'info>],
-            i: usize,
-            data: &ObservationState,
-            meta: &light_sdk::instruction::account_meta::CompressedAccountMetaNoLamportsNoAddress,
-            compressed_pda_infos: &mut Vec<
-                light_compressed_account::instruction_data::with_account_info::CompressedAccountInfo,
-            >,
-        ) -> Result<()> {
-            let (seeds_vec, derived_pda) = {
-                let seed_binding_1 = accounts.pool_state.key();
-                let seeds: &[&[u8]] = &[
-                    OBSERVATION_SEED.as_bytes(),
-                    seed_binding_1.as_ref(),
-                ];
-                let (pda, bump) = anchor_lang::prelude::Pubkey::find_program_address(
-                    seeds,
-                    &crate::ID,
-                );
-                let mut seeds_vec = Vec::with_capacity(seeds.len() + 1);
-                seeds_vec.push(seeds[0usize].to_vec());
-                seeds_vec.push(seeds[1usize].to_vec());
-                seeds_vec.push(<[_]>::into_vec(::alloc::boxed::box_new([bump])));
-                (seeds_vec, pda)
-            };
-            if derived_pda != *solana_accounts[i].key {
-                ::solana_msg::sol_log(
-                    &::alloc::__export::must_use({
-                        ::alloc::fmt::format(
-                            format_args!(
-                                "(handle_unpacked) Derived PDA does not match account at index {0}: expected {1:?}, got {2:?}, seeds: {3:?}",
-                                i,
-                                solana_accounts[i].key,
-                                derived_pda,
-                                seeds_vec,
-                            ),
-                        )
-                    }),
-                );
-            }
-            let compressed_infos = {
-                let seed_refs: Vec<&[u8]> = seeds_vec
-                    .iter()
-                    .map(|v| v.as_slice())
-                    .collect();
-                light_sdk::compressible::prepare_account_for_decompression_idempotent::<
-                    ObservationState,
-                >(
-                    &crate::ID,
-                    data.clone(),
-                    light_sdk::compressible::into_compressed_meta_with_address(
-                        meta,
-                        &solana_accounts[i],
-                        address_space,
-                        &crate::ID,
-                    ),
-                    &solana_accounts[i],
-                    &accounts.rent_payer,
-                    cpi_accounts,
-                    seed_refs.as_slice(),
-                )?
-            };
-            compressed_pda_infos.extend(compressed_infos);
-            Ok(())
-        }
         #[inline(never)]
         fn handle_packed_PoolState<'a, 'b, 'info>(
             accounts: &DecompressAccountsIdempotent<'info>,
@@ -30642,29 +30670,29 @@ pub mod raydium_cp_swap {
             for (i, compressed_data) in compressed_accounts.into_iter().enumerate() {
                 let meta = compressed_data.meta;
                 match compressed_data.data {
-                    CompressedAccountVariant::PoolState(data) => {
-                        handle_unpacked_PoolState(
-                            accounts,
-                            &cpi_accounts,
-                            address_space,
-                            solana_accounts,
-                            i,
-                            &data,
-                            &meta,
-                            &mut compressed_pda_infos,
-                        )?;
+                    CompressedAccountVariant::PoolState(_) => {
+                        {
+                            ::core::panicking::panic_fmt(
+                                format_args!(
+                                    "internal error: entered unreachable code: {0}",
+                                    format_args!(
+                                        "Unpacked variants should not be present during decompression - accounts are always packed in-flight",
+                                    ),
+                                ),
+                            );
+                        };
                     }
-                    CompressedAccountVariant::ObservationState(data) => {
-                        handle_unpacked_ObservationState(
-                            accounts,
-                            &cpi_accounts,
-                            address_space,
-                            solana_accounts,
-                            i,
-                            &data,
-                            &meta,
-                            &mut compressed_pda_infos,
-                        )?;
+                    CompressedAccountVariant::ObservationState(_) => {
+                        {
+                            ::core::panicking::panic_fmt(
+                                format_args!(
+                                    "internal error: entered unreachable code: {0}",
+                                    format_args!(
+                                        "Unpacked variants should not be present during decompression - accounts are always packed in-flight",
+                                    ),
+                                ),
+                            );
+                        };
                     }
                     CompressedAccountVariant::PackedPoolState(packed) => {
                         handle_packed_PoolState(
@@ -30711,115 +30739,19 @@ pub mod raydium_cp_swap {
             );
             Ok((compressed_pda_infos, compressed_token_accounts))
         }
-        #[inline(never)]
-        pub fn collect_pdas_only<'b, 'info>(
-            accounts: &DecompressAccountsIdempotent<'info>,
-            cpi_accounts: &light_sdk::cpi::CpiAccountsSmall<'b, 'info>,
-            address_space: anchor_lang::prelude::Pubkey,
-            compressed_accounts: Vec<CompressedAccountData>,
-            solana_accounts: &[anchor_lang::prelude::AccountInfo<'info>],
-        ) -> Result<
-            Vec<
-                light_compressed_account::instruction_data::with_account_info::CompressedAccountInfo,
-            >,
-        > {
-            let post_system_accounts = cpi_accounts.post_system_accounts().unwrap();
-            let mut compressed_pda_infos = Vec::with_capacity(compressed_accounts.len());
-            for (i, compressed_data) in compressed_accounts.into_iter().enumerate() {
-                let meta = compressed_data.meta;
-                match compressed_data.data {
-                    CompressedAccountVariant::PoolState(data) => {
-                        handle_unpacked_PoolState(
-                            accounts,
-                            &cpi_accounts,
-                            address_space,
-                            solana_accounts,
-                            i,
-                            &data,
-                            &meta,
-                            &mut compressed_pda_infos,
-                        )?;
-                    }
-                    CompressedAccountVariant::ObservationState(data) => {
-                        handle_unpacked_ObservationState(
-                            accounts,
-                            &cpi_accounts,
-                            address_space,
-                            solana_accounts,
-                            i,
-                            &data,
-                            &meta,
-                            &mut compressed_pda_infos,
-                        )?;
-                    }
-                    CompressedAccountVariant::PackedPoolState(packed) => {
-                        handle_packed_PoolState(
-                            accounts,
-                            &cpi_accounts,
-                            address_space,
-                            solana_accounts,
-                            i,
-                            &packed,
-                            &meta,
-                            post_system_accounts,
-                            &mut compressed_pda_infos,
-                        )?;
-                    }
-                    CompressedAccountVariant::PackedObservationState(packed) => {
-                        handle_packed_ObservationState(
-                            accounts,
-                            &cpi_accounts,
-                            address_space,
-                            solana_accounts,
-                            i,
-                            &packed,
-                            &meta,
-                            post_system_accounts,
-                            &mut compressed_pda_infos,
-                        )?;
-                    }
-                    CompressedAccountVariant::CompressibleTokenAccountPacked(_) => {
-                        return Err(
-                            anchor_lang::error::Error::from(anchor_lang::error::AnchorError {
-                                error_name: CompressibleInstructionError::CTokenDecompressionNotImplemented
-                                    .name(),
-                                error_code_number: CompressibleInstructionError::CTokenDecompressionNotImplemented
-                                    .into(),
-                                error_msg: CompressibleInstructionError::CTokenDecompressionNotImplemented
-                                    .to_string(),
-                                error_origin: Some(
-                                    anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
-                                        filename: "programs/cp-swap/src/lib.rs",
-                                        line: 61u32,
-                                    }),
-                                ),
-                                compared_values: None,
-                            }),
-                        );
-                    }
-                    CompressedAccountVariant::CompressibleTokenData(_) => {
-                        ::core::panicking::panic(
-                            "internal error: entered unreachable code",
-                        );
-                    }
-                }
-            }
-            Ok(compressed_pda_infos)
-        }
     }
     /// Trait-based system for generic CToken variant seed handling
     /// Users implement this trait for their CTokenAccountVariant enum
     pub mod ctoken_seed_system {
         use super::*;
-        /// separate lifetime `'c` for the slice taken from `Context`'s third lifetime
-        pub struct CTokenSeedContext<'a, 'c, 'info> {
+        pub struct CTokenSeedContext<'a, 'info> {
             pub accounts: &'a DecompressAccountsIdempotent<'info>,
-            pub remaining_accounts: &'c [anchor_lang::prelude::AccountInfo<'info>],
+            pub remaining_accounts: &'a [anchor_lang::prelude::AccountInfo<'info>],
         }
         pub trait CTokenSeedProvider {
-            fn get_seeds<'a, 'c, 'info>(
+            fn get_seeds<'a, 'info>(
                 &self,
-                ctx: &CTokenSeedContext<'a, 'c, 'info>,
+                ctx: &CTokenSeedContext<'a, 'info>,
             ) -> (Vec<Vec<u8>>, Pubkey);
         }
     }
@@ -30856,18 +30788,16 @@ pub mod raydium_cp_swap {
         }
         /// Helper function to process token decompression - separated to avoid stack overflow
         #[inline(never)]
-        fn process_tokens<'a, 'b, 'c, 'info>(
+        fn process_tokens<'a, 'b, 'info>(
             accounts: &DecompressAccountsIdempotent<'info>,
-            remaining_accounts: &'c [anchor_lang::prelude::AccountInfo<'info>],
+            remaining_accounts: &[anchor_lang::prelude::AccountInfo<'info>],
             fee_payer: &anchor_lang::prelude::AccountInfo<'info>,
-            compressed_token_program: &anchor_lang::prelude::UncheckedAccount<'info>,
-            compressed_token_rent_payer: &anchor_lang::prelude::Signer<'info>,
-            compressed_token_rent_recipient: &anchor_lang::prelude::AccountInfo<'info>,
-            compressed_token_cpi_authority: &anchor_lang::prelude::UncheckedAccount<
-                'info,
-            >,
+            ctoken_program: &anchor_lang::prelude::UncheckedAccount<'info>,
+            ctoken_rent_payer: &anchor_lang::prelude::AccountInfo<'info>,
+            ctoken_cpi_authority: &anchor_lang::prelude::UncheckedAccount<'info>,
+            ctoken_config: &anchor_lang::prelude::AccountInfo<'info>,
             config: &anchor_lang::prelude::AccountInfo<'info>,
-            compressed_token_accounts: Vec<
+            ctoken_accounts: Vec<
                 (
                     light_sdk::token::PackedCompressibleTokenDataWithVariant<
                         CTokenAccountVariant,
@@ -30880,41 +30810,63 @@ pub mod raydium_cp_swap {
             has_pdas: bool,
         ) -> Result<()> {
             let mut token_decompress_indices = Box::new(
-                Vec::with_capacity(compressed_token_accounts.len()),
+                Vec::with_capacity(ctoken_accounts.len()),
             );
             let mut token_signers_seeds = Box::new(
-                Vec::with_capacity(compressed_token_accounts.len() * 4),
+                Vec::with_capacity(ctoken_accounts.len() * 4),
             );
             let packed_accounts = cpi_accounts.post_system_accounts().unwrap();
-            use crate::ctoken_seed_system::{CTokenSeedProvider, CTokenSeedContext};
+            use crate::ctoken_seed_system::{CTokenSeedContext, CTokenSeedProvider};
             let seed_context = CTokenSeedContext {
                 accounts,
                 remaining_accounts,
             };
             let authority = cpi_accounts.authority().unwrap();
             let cpi_context = cpi_accounts.cpi_context().unwrap();
-            for (token_data, meta) in compressed_token_accounts.into_iter() {
+            for (token_data, meta) in ctoken_accounts.into_iter() {
                 let owner_index: u8 = token_data.token_data.owner;
                 let mint_index: u8 = token_data.token_data.mint;
                 let mint_info = packed_accounts[mint_index as usize].to_account_info();
                 let owner_info = packed_accounts[owner_index as usize].to_account_info();
-                let ctoken_signer_seeds = token_data.variant.get_seeds(&seed_context).0;
+                let (ctoken_signer_seeds, derived_token_account_address) = token_data
+                    .variant
+                    .get_seeds(&seed_context);
+                if derived_token_account_address != *owner_info.key {
+                    return Err(
+                        anchor_lang::error::Error::from(anchor_lang::error::AnchorError {
+                            error_name: CompressibleInstructionError::CTokenDecompressionNotImplemented
+                                .name(),
+                            error_code_number: CompressibleInstructionError::CTokenDecompressionNotImplemented
+                                .into(),
+                            error_msg: CompressibleInstructionError::CTokenDecompressionNotImplemented
+                                .to_string(),
+                            error_origin: Some(
+                                anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
+                                    filename: "programs/cp-swap/src/lib.rs",
+                                    line: 61u32,
+                                }),
+                            ),
+                            compared_values: None,
+                        }),
+                    );
+                }
                 {
-                    let seed_slices: Vec<&[u8]> = ctoken_signer_seeds
+                    let seed_refs: Vec<&[u8]> = ctoken_signer_seeds
                         .iter()
                         .map(|s| s.as_slice())
                         .collect();
-                    light_compressed_token_sdk::create_compressible_token_account(
-                        authority,
-                        fee_payer,
-                        &owner_info,
-                        &mint_info,
-                        cpi_accounts.system_program().unwrap(),
-                        compressed_token_program.as_ref(),
-                        &seed_slices,
-                        compressed_token_rent_payer.as_ref(),
-                        compressed_token_rent_recipient.as_ref(),
-                        0,
+                    let seeds_slice: &[&[u8]] = &seed_refs;
+                    light_compressed_token_sdk::instructions::create_token_account::create_ctoken_account_signed(
+                        crate::ID,
+                        fee_payer.clone().to_account_info(),
+                        owner_info.clone(),
+                        mint_info.clone(),
+                        authority.clone().to_account_info(),
+                        seeds_slice,
+                        ctoken_rent_payer.clone().to_account_info(),
+                        ctoken_config.to_account_info(),
+                        Some(1),
+                        None,
                     )?;
                 }
                 let decompress_index = light_compressed_token_sdk::instructions::DecompressFullIndices::from((
@@ -30937,12 +30889,9 @@ pub mod raydium_cp_swap {
                 let mut all_account_infos = <[_]>::into_vec(
                     ::alloc::boxed::box_new([fee_payer.to_account_info()]),
                 );
-                all_account_infos
-                    .extend(compressed_token_cpi_authority.to_account_infos());
-                all_account_infos.extend(compressed_token_program.to_account_infos());
-                all_account_infos.extend(compressed_token_rent_payer.to_account_infos());
-                all_account_infos
-                    .extend(compressed_token_rent_recipient.to_account_infos());
+                all_account_infos.extend(ctoken_cpi_authority.to_account_infos());
+                all_account_infos.extend(ctoken_program.to_account_infos());
+                all_account_infos.extend(ctoken_rent_payer.to_account_infos());
                 all_account_infos.extend(config.to_account_infos());
                 all_account_infos.extend(cpi_accounts.to_account_infos());
                 let seed_refs: Vec<&[u8]> = token_signers_seeds
@@ -30979,13 +30928,6 @@ pub mod raydium_cp_swap {
         let solana_accounts = &ctx
             .remaining_accounts[ctx.remaining_accounts.len()
             - compressed_accounts.len()..];
-        ::solana_msg::sol_log(
-            &::alloc::__export::must_use({
-                ::alloc::fmt::format(
-                    format_args!("MIXED! solana accs {0:?}", solana_accounts),
-                )
-            }),
-        );
         let (mut compressed_pda_infos, compressed_token_accounts) = __macro_helpers::collect_pda_and_token(
             &ctx.accounts,
             &cpi_accounts,
@@ -30995,41 +30937,12 @@ pub mod raydium_cp_swap {
         )?;
         let has_pdas = !compressed_pda_infos.is_empty();
         let has_tokens = !compressed_token_accounts.is_empty();
-        ::solana_msg::sol_log(
-            &::alloc::__export::must_use({
-                ::alloc::fmt::format(
-                    format_args!("has_pdas {0:?} has_tokens {1:?}", has_pdas, has_tokens),
-                )
-            }),
-        );
         if !has_pdas && !has_tokens {
             return Ok(());
         }
-        ::solana_msg::sol_log(
-            &::alloc::__export::must_use({
-                ::alloc::fmt::format(
-                    format_args!("fee_payer: {0:?}", ctx.accounts.fee_payer.as_ref()),
-                )
-            }),
-        );
         let fee_payer = ctx.accounts.fee_payer.as_ref();
-        ::solana_msg::sol_log(
-            &::alloc::__export::must_use({
-                ::alloc::fmt::format(
-                    format_args!("authority: {0:?}", cpi_accounts.authority()),
-                )
-            }),
-        );
         let authority = cpi_accounts.authority().unwrap();
-        ::solana_msg::sol_log(
-            &::alloc::__export::must_use({
-                ::alloc::fmt::format(
-                    format_args!("cpi_context: {0:?}", cpi_accounts.cpi_context()),
-                )
-            }),
-        );
         let cpi_context = cpi_accounts.cpi_context().unwrap();
-        ::solana_msg::sol_log("AUthority ok");
         if has_pdas && has_tokens {
             let system_cpi_accounts = light_sdk_types::cpi_context_write::CpiContextWriteAccounts {
                 fee_payer,
@@ -31051,10 +30964,10 @@ pub mod raydium_cp_swap {
                 &ctx.accounts,
                 &ctx.remaining_accounts,
                 &fee_payer,
-                &ctx.accounts.compressed_token_program,
-                &ctx.accounts.compressed_token_rent_payer,
-                &ctx.accounts.compressed_token_rent_payer.to_account_info(),
-                &ctx.accounts.compressed_token_cpi_authority,
+                &ctx.accounts.ctoken_program,
+                &ctx.accounts.ctoken_rent_payer,
+                &ctx.accounts.ctoken_cpi_authority,
+                &ctx.accounts.ctoken_config,
                 &ctx.accounts.config,
                 compressed_token_accounts,
                 proof,
@@ -31079,17 +30992,17 @@ pub mod raydium_cp_swap {
         pub compression_authority: AccountInfo<'info>,
         /// CHECK: token_compression_authority must be the rent_authority defined when creating the token account.
         #[account(mut)]
-        pub token_compression_authority: AccountInfo<'info>,
+        pub ctoken_compression_authority: AccountInfo<'info>,
         /// Token rent recipient - must match config
         /// CHECK: Token rent recipient is validated against the config
         #[account(mut)]
-        pub token_rent_recipient: AccountInfo<'info>,
+        pub ctoken_rent_recipient: AccountInfo<'info>,
         /// Compressed token program (always required in mixed variant)
         /// CHECK: Program ID validated to be cTokenmWW8bLPjZEBAUgYy3zKxQZW6VKi7bqNFEVv3m
-        pub compressed_token_program: UncheckedAccount<'info>,
+        pub ctoken_program: UncheckedAccount<'info>,
         /// CPI authority PDA of the compressed token program (always required in mixed variant)
         /// CHECK: PDA derivation validated with seeds ["cpi_authority"] and bump 254
-        pub compressed_token_cpi_authority: UncheckedAccount<'info>,
+        pub ctoken_cpi_authority: UncheckedAccount<'info>,
     }
     #[automatically_derived]
     impl<'info> anchor_lang::Accounts<'info, CompressAccountsIdempotentBumps>
@@ -31141,38 +31054,38 @@ pub mod raydium_cp_swap {
                     __reallocs,
                 )
                 .map_err(|e| e.with_account_name("compression_authority"))?;
-            let token_compression_authority: AccountInfo = anchor_lang::Accounts::try_accounts(
+            let ctoken_compression_authority: AccountInfo = anchor_lang::Accounts::try_accounts(
                     __program_id,
                     __accounts,
                     __ix_data,
                     __bumps,
                     __reallocs,
                 )
-                .map_err(|e| e.with_account_name("token_compression_authority"))?;
-            let token_rent_recipient: AccountInfo = anchor_lang::Accounts::try_accounts(
+                .map_err(|e| e.with_account_name("ctoken_compression_authority"))?;
+            let ctoken_rent_recipient: AccountInfo = anchor_lang::Accounts::try_accounts(
                     __program_id,
                     __accounts,
                     __ix_data,
                     __bumps,
                     __reallocs,
                 )
-                .map_err(|e| e.with_account_name("token_rent_recipient"))?;
-            let compressed_token_program: UncheckedAccount = anchor_lang::Accounts::try_accounts(
+                .map_err(|e| e.with_account_name("ctoken_rent_recipient"))?;
+            let ctoken_program: UncheckedAccount = anchor_lang::Accounts::try_accounts(
                     __program_id,
                     __accounts,
                     __ix_data,
                     __bumps,
                     __reallocs,
                 )
-                .map_err(|e| e.with_account_name("compressed_token_program"))?;
-            let compressed_token_cpi_authority: UncheckedAccount = anchor_lang::Accounts::try_accounts(
+                .map_err(|e| e.with_account_name("ctoken_program"))?;
+            let ctoken_cpi_authority: UncheckedAccount = anchor_lang::Accounts::try_accounts(
                     __program_id,
                     __accounts,
                     __ix_data,
                     __bumps,
                     __reallocs,
                 )
-                .map_err(|e| e.with_account_name("compressed_token_cpi_authority"))?;
+                .map_err(|e| e.with_account_name("ctoken_cpi_authority"))?;
             if !AsRef::<AccountInfo>::as_ref(&fee_payer).is_writable {
                 return Err(
                     anchor_lang::error::Error::from(
@@ -31197,20 +31110,20 @@ pub mod raydium_cp_swap {
                         .with_account_name("compression_authority"),
                 );
             }
-            if !&token_compression_authority.is_writable {
+            if !&ctoken_compression_authority.is_writable {
                 return Err(
                     anchor_lang::error::Error::from(
                             anchor_lang::error::ErrorCode::ConstraintMut,
                         )
-                        .with_account_name("token_compression_authority"),
+                        .with_account_name("ctoken_compression_authority"),
                 );
             }
-            if !&token_rent_recipient.is_writable {
+            if !&ctoken_rent_recipient.is_writable {
                 return Err(
                     anchor_lang::error::Error::from(
                             anchor_lang::error::ErrorCode::ConstraintMut,
                         )
-                        .with_account_name("token_rent_recipient"),
+                        .with_account_name("ctoken_rent_recipient"),
                 );
             }
             Ok(CompressAccountsIdempotent {
@@ -31218,10 +31131,10 @@ pub mod raydium_cp_swap {
                 config,
                 rent_recipient,
                 compression_authority,
-                token_compression_authority,
-                token_rent_recipient,
-                compressed_token_program,
-                compressed_token_cpi_authority,
+                ctoken_compression_authority,
+                ctoken_rent_recipient,
+                ctoken_program,
+                ctoken_cpi_authority,
             })
         }
     }
@@ -31238,10 +31151,10 @@ pub mod raydium_cp_swap {
             account_infos.extend(self.config.to_account_infos());
             account_infos.extend(self.rent_recipient.to_account_infos());
             account_infos.extend(self.compression_authority.to_account_infos());
-            account_infos.extend(self.token_compression_authority.to_account_infos());
-            account_infos.extend(self.token_rent_recipient.to_account_infos());
-            account_infos.extend(self.compressed_token_program.to_account_infos());
-            account_infos.extend(self.compressed_token_cpi_authority.to_account_infos());
+            account_infos.extend(self.ctoken_compression_authority.to_account_infos());
+            account_infos.extend(self.ctoken_rent_recipient.to_account_infos());
+            account_infos.extend(self.ctoken_program.to_account_infos());
+            account_infos.extend(self.ctoken_cpi_authority.to_account_infos());
             account_infos
         }
     }
@@ -31257,11 +31170,10 @@ pub mod raydium_cp_swap {
             account_metas.extend(self.rent_recipient.to_account_metas(None));
             account_metas.extend(self.compression_authority.to_account_metas(None));
             account_metas
-                .extend(self.token_compression_authority.to_account_metas(None));
-            account_metas.extend(self.token_rent_recipient.to_account_metas(None));
-            account_metas.extend(self.compressed_token_program.to_account_metas(None));
-            account_metas
-                .extend(self.compressed_token_cpi_authority.to_account_metas(None));
+                .extend(self.ctoken_compression_authority.to_account_metas(None));
+            account_metas.extend(self.ctoken_rent_recipient.to_account_metas(None));
+            account_metas.extend(self.ctoken_program.to_account_metas(None));
+            account_metas.extend(self.ctoken_cpi_authority.to_account_metas(None));
             account_metas
         }
     }
@@ -31281,12 +31193,12 @@ pub mod raydium_cp_swap {
             anchor_lang::AccountsExit::exit(&self.compression_authority, program_id)
                 .map_err(|e| e.with_account_name("compression_authority"))?;
             anchor_lang::AccountsExit::exit(
-                    &self.token_compression_authority,
+                    &self.ctoken_compression_authority,
                     program_id,
                 )
-                .map_err(|e| e.with_account_name("token_compression_authority"))?;
-            anchor_lang::AccountsExit::exit(&self.token_rent_recipient, program_id)
-                .map_err(|e| e.with_account_name("token_rent_recipient"))?;
+                .map_err(|e| e.with_account_name("ctoken_compression_authority"))?;
+            anchor_lang::AccountsExit::exit(&self.ctoken_rent_recipient, program_id)
+                .map_err(|e| e.with_account_name("ctoken_rent_recipient"))?;
             Ok(())
         }
     }
@@ -31329,13 +31241,13 @@ pub mod raydium_cp_swap {
             ///Rent recipient - must match config
             pub rent_recipient: Pubkey,
             pub compression_authority: Pubkey,
-            pub token_compression_authority: Pubkey,
+            pub ctoken_compression_authority: Pubkey,
             ///Token rent recipient - must match config
-            pub token_rent_recipient: Pubkey,
+            pub ctoken_rent_recipient: Pubkey,
             ///Compressed token program (always required in mixed variant)
-            pub compressed_token_program: Pubkey,
+            pub ctoken_program: Pubkey,
             ///CPI authority PDA of the compressed token program (always required in mixed variant)
-            pub compressed_token_cpi_authority: Pubkey,
+            pub ctoken_cpi_authority: Pubkey,
         }
         impl borsh::ser::BorshSerialize for CompressAccountsIdempotent
         where
@@ -31357,18 +31269,12 @@ pub mod raydium_cp_swap {
                 borsh::BorshSerialize::serialize(&self.rent_recipient, writer)?;
                 borsh::BorshSerialize::serialize(&self.compression_authority, writer)?;
                 borsh::BorshSerialize::serialize(
-                    &self.token_compression_authority,
+                    &self.ctoken_compression_authority,
                     writer,
                 )?;
-                borsh::BorshSerialize::serialize(&self.token_rent_recipient, writer)?;
-                borsh::BorshSerialize::serialize(
-                    &self.compressed_token_program,
-                    writer,
-                )?;
-                borsh::BorshSerialize::serialize(
-                    &self.compressed_token_cpi_authority,
-                    writer,
-                )?;
+                borsh::BorshSerialize::serialize(&self.ctoken_rent_recipient, writer)?;
+                borsh::BorshSerialize::serialize(&self.ctoken_program, writer)?;
+                borsh::BorshSerialize::serialize(&self.ctoken_cpi_authority, writer)?;
                 Ok(())
             }
         }
@@ -31419,12 +31325,12 @@ pub mod raydium_cp_swap {
                                             ty: anchor_lang::idl::types::IdlType::Pubkey,
                                         },
                                         anchor_lang::idl::types::IdlField {
-                                            name: "token_compression_authority".into(),
+                                            name: "ctoken_compression_authority".into(),
                                             docs: ::alloc::vec::Vec::new(),
                                             ty: anchor_lang::idl::types::IdlType::Pubkey,
                                         },
                                         anchor_lang::idl::types::IdlField {
-                                            name: "token_rent_recipient".into(),
+                                            name: "ctoken_rent_recipient".into(),
                                             docs: <[_]>::into_vec(
                                                 ::alloc::boxed::box_new([
                                                     "Token rent recipient - must match config".into(),
@@ -31433,7 +31339,7 @@ pub mod raydium_cp_swap {
                                             ty: anchor_lang::idl::types::IdlType::Pubkey,
                                         },
                                         anchor_lang::idl::types::IdlField {
-                                            name: "compressed_token_program".into(),
+                                            name: "ctoken_program".into(),
                                             docs: <[_]>::into_vec(
                                                 ::alloc::boxed::box_new([
                                                     "Compressed token program (always required in mixed variant)"
@@ -31443,7 +31349,7 @@ pub mod raydium_cp_swap {
                                             ty: anchor_lang::idl::types::IdlType::Pubkey,
                                         },
                                         anchor_lang::idl::types::IdlField {
-                                            name: "compressed_token_cpi_authority".into(),
+                                            name: "ctoken_cpi_authority".into(),
                                             docs: <[_]>::into_vec(
                                                 ::alloc::boxed::box_new([
                                                     "CPI authority PDA of the compressed token program (always required in mixed variant)"
@@ -31515,28 +31421,28 @@ pub mod raydium_cp_swap {
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new(
-                            self.token_compression_authority,
+                            self.ctoken_compression_authority,
                             false,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new(
-                            self.token_rent_recipient,
+                            self.ctoken_rent_recipient,
                             false,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
-                            self.compressed_token_program,
+                            self.ctoken_program,
                             false,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
-                            self.compressed_token_cpi_authority,
+                            self.ctoken_cpi_authority,
                             false,
                         ),
                     );
@@ -31565,19 +31471,19 @@ pub mod raydium_cp_swap {
             pub compression_authority: anchor_lang::solana_program::account_info::AccountInfo<
                 'info,
             >,
-            pub token_compression_authority: anchor_lang::solana_program::account_info::AccountInfo<
+            pub ctoken_compression_authority: anchor_lang::solana_program::account_info::AccountInfo<
                 'info,
             >,
             ///Token rent recipient - must match config
-            pub token_rent_recipient: anchor_lang::solana_program::account_info::AccountInfo<
+            pub ctoken_rent_recipient: anchor_lang::solana_program::account_info::AccountInfo<
                 'info,
             >,
             ///Compressed token program (always required in mixed variant)
-            pub compressed_token_program: anchor_lang::solana_program::account_info::AccountInfo<
+            pub ctoken_program: anchor_lang::solana_program::account_info::AccountInfo<
                 'info,
             >,
             ///CPI authority PDA of the compressed token program (always required in mixed variant)
-            pub compressed_token_cpi_authority: anchor_lang::solana_program::account_info::AccountInfo<
+            pub ctoken_cpi_authority: anchor_lang::solana_program::account_info::AccountInfo<
                 'info,
             >,
         }
@@ -31619,28 +31525,28 @@ pub mod raydium_cp_swap {
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new(
-                            anchor_lang::Key::key(&self.token_compression_authority),
+                            anchor_lang::Key::key(&self.ctoken_compression_authority),
                             false,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new(
-                            anchor_lang::Key::key(&self.token_rent_recipient),
+                            anchor_lang::Key::key(&self.ctoken_rent_recipient),
                             false,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
-                            anchor_lang::Key::key(&self.compressed_token_program),
+                            anchor_lang::Key::key(&self.ctoken_program),
                             false,
                         ),
                     );
                 account_metas
                     .push(
                         anchor_lang::solana_program::instruction::AccountMeta::new_readonly(
-                            anchor_lang::Key::key(&self.compressed_token_cpi_authority),
+                            anchor_lang::Key::key(&self.ctoken_cpi_authority),
                             false,
                         ),
                     );
@@ -31675,25 +31581,25 @@ pub mod raydium_cp_swap {
                 account_infos
                     .extend(
                         anchor_lang::ToAccountInfos::to_account_infos(
-                            &self.token_compression_authority,
+                            &self.ctoken_compression_authority,
                         ),
                     );
                 account_infos
                     .extend(
                         anchor_lang::ToAccountInfos::to_account_infos(
-                            &self.token_rent_recipient,
+                            &self.ctoken_rent_recipient,
                         ),
                     );
                 account_infos
                     .extend(
                         anchor_lang::ToAccountInfos::to_account_infos(
-                            &self.compressed_token_program,
+                            &self.ctoken_program,
                         ),
                     );
                 account_infos
                     .extend(
                         anchor_lang::ToAccountInfos::to_account_infos(
-                            &self.compressed_token_cpi_authority,
+                            &self.ctoken_cpi_authority,
                         ),
                     );
                 account_infos
@@ -31760,7 +31666,7 @@ pub mod raydium_cp_swap {
                         relations: ::alloc::vec::Vec::new(),
                     }),
                     anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
-                        name: "token_compression_authority".into(),
+                        name: "ctoken_compression_authority".into(),
                         docs: ::alloc::vec::Vec::new(),
                         writable: true,
                         signer: false,
@@ -31770,7 +31676,7 @@ pub mod raydium_cp_swap {
                         relations: ::alloc::vec::Vec::new(),
                     }),
                     anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
-                        name: "token_rent_recipient".into(),
+                        name: "ctoken_rent_recipient".into(),
                         docs: <[_]>::into_vec(
                             ::alloc::boxed::box_new([
                                 "Token rent recipient - must match config".into(),
@@ -31784,7 +31690,7 @@ pub mod raydium_cp_swap {
                         relations: ::alloc::vec::Vec::new(),
                     }),
                     anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
-                        name: "compressed_token_program".into(),
+                        name: "ctoken_program".into(),
                         docs: <[_]>::into_vec(
                             ::alloc::boxed::box_new([
                                 "Compressed token program (always required in mixed variant)"
@@ -31799,7 +31705,7 @@ pub mod raydium_cp_swap {
                         relations: ::alloc::vec::Vec::new(),
                     }),
                     anchor_lang::idl::types::IdlInstructionAccountItem::Single(anchor_lang::idl::types::IdlInstructionAccount {
-                        name: "compressed_token_cpi_authority".into(),
+                        name: "ctoken_cpi_authority".into(),
                         docs: <[_]>::into_vec(
                             ::alloc::boxed::box_new([
                                 "CPI authority PDA of the compressed token program (always required in mixed variant)"
@@ -31828,6 +31734,7 @@ pub mod raydium_cp_swap {
         signer_seeds: Vec<Vec<Vec<u8>>>,
         system_accounts_offset: u8,
     ) -> Result<()> {
+        let proof = light_sdk::instruction::ValidityProof::new(None);
         let compression_config = light_sdk::compressible::CompressibleConfig::load_checked(
             &ctx.accounts.config,
             &crate::ID,
@@ -31851,101 +31758,171 @@ pub mod raydium_cp_swap {
                 }),
             );
         }
+        let pda_and_token_accounts_start = ctx.remaining_accounts.len()
+            - signer_seeds.len();
+        let solana_accounts = &ctx.remaining_accounts[pda_and_token_accounts_start..];
+        #[inline(never)]
+        fn has_pdas_and_tokens<'info>(
+            solana_accounts: &[anchor_lang::prelude::AccountInfo<'info>],
+        ) -> (bool, bool) {
+            let (mut has_tokens, mut has_pdas) = (false, false);
+            for account_info in solana_accounts.iter() {
+                if account_info.data_is_empty() {
+                    continue;
+                }
+                if account_info.owner == &light_ctoken_types::CTOKEN_PROGRAM_ID.into() {
+                    has_tokens = true;
+                } else if account_info.owner == &crate::ID {
+                    has_pdas = true;
+                }
+                if has_tokens && has_pdas {
+                    break;
+                }
+            }
+            (has_tokens, has_pdas)
+        }
+        let (has_tokens, has_pdas) = has_pdas_and_tokens(solana_accounts);
+        if !has_tokens && !has_pdas {
+            return Ok(());
+        }
         let cpi_accounts = light_sdk_types::CpiAccountsSmall::new(
             ctx.accounts.fee_payer.as_ref(),
             &ctx.remaining_accounts[system_accounts_offset as usize..],
             LIGHT_CPI_SIGNER,
         );
-        let pda_accounts_start = ctx.remaining_accounts.len() - signer_seeds.len();
-        let solana_accounts = &ctx.remaining_accounts[pda_accounts_start..];
-        let mut compressed_pda_infos = Vec::with_capacity(solana_accounts.len());
-        let mut PoolState = Vec::with_capacity(solana_accounts.len());
-        let mut ObservationState = Vec::with_capacity(solana_accounts.len());
-        for (i, account_info) in solana_accounts.iter().enumerate() {
-            if account_info.data_is_empty() {
-                continue;
-            }
-            if account_info.owner
-                == &light_ctoken_types::COMPRESSED_TOKEN_PROGRAM_ID.into()
-            {
-                return Err(
-                    anchor_lang::error::Error::from(anchor_lang::error::AnchorError {
-                        error_name: CompressibleInstructionError::TokenCompressionNotImplemented
-                            .name(),
-                        error_code_number: CompressibleInstructionError::TokenCompressionNotImplemented
-                            .into(),
-                        error_msg: CompressibleInstructionError::TokenCompressionNotImplemented
-                            .to_string(),
-                        error_origin: Some(
-                            anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {
-                                filename: "programs/cp-swap/src/lib.rs",
-                                line: 61u32,
-                            }),
-                        ),
-                        compared_values: None,
-                    }),
-                );
-            } else if account_info.owner == &crate::ID {
-                let data = account_info.try_borrow_data()?;
-                let discriminator = &data[0..8];
-                let meta = compressed_accounts[i];
-                match discriminator {
-                    d if d == PoolState::discriminator() => {
-                        let mut anchor_account = anchor_lang::prelude::Account::<
-                            PoolState,
-                        >::try_from(account_info)?;
-                        let compressed_info = light_sdk::compressible::compress_account::prepare_account_for_compression::<
-                            PoolState,
-                        >(
-                            &crate::ID,
-                            &mut anchor_account,
-                            &meta,
-                            &cpi_accounts,
-                            &compression_config.compression_delay,
-                            &compression_config.address_space,
-                        )?;
-                        PoolState.push(anchor_account);
-                        compressed_pda_infos.push(compressed_info);
+        let mut compressed_pda_infos = Vec::with_capacity(0);
+        let mut token_accounts_to_compress: Vec<
+            light_compressed_token_sdk::AccountInfoToCompress<'info>,
+        > = Vec::with_capacity(0);
+        let mut pda_indices_to_close: Vec<usize> = Vec::with_capacity(0);
+        #[inline(never)]
+        fn collect_accounts_to_compress<'b, 'info>(
+            cpi_accounts: &light_sdk::cpi::CpiAccountsSmall<'b, 'info>,
+            compression_config: &light_sdk::compressible::CompressibleConfig,
+            solana_accounts: &'info [anchor_lang::prelude::AccountInfo<'info>],
+            signer_seeds: &[Vec<Vec<u8>>],
+            compressed_accounts: &[light_sdk::instruction::account_meta::CompressedAccountMetaNoLamportsNoAddress],
+            token_accounts_to_compress: &mut Vec<
+                light_compressed_token_sdk::AccountInfoToCompress<'info>,
+            >,
+            compressed_pda_infos: &mut Vec<
+                light_compressed_account::instruction_data::with_account_info::CompressedAccountInfo,
+            >,
+            pda_indices_to_close: &mut Vec<usize>,
+        ) -> Result<()> {
+            let mut pda_meta_index: usize = 0;
+            for (i, account_info) in solana_accounts.iter().enumerate() {
+                if account_info.data_is_empty() {
+                    continue;
+                }
+                if account_info.owner == &light_ctoken_types::CTOKEN_PROGRAM_ID.into() {
+                    if let Ok(token_account) = anchor_lang::prelude::InterfaceAccount::<
+                        anchor_spl::token_interface::TokenAccount,
+                    >::try_from(account_info) {
+                        let account_signer_seeds = signer_seeds[i].clone();
+                        token_accounts_to_compress
+                            .push(light_compressed_token_sdk::AccountInfoToCompress {
+                                account_info: token_account.to_account_info(),
+                                signer_seeds: account_signer_seeds,
+                            });
                     }
-                    d if d == ObservationState::discriminator() => {
-                        let mut anchor_account = anchor_lang::prelude::Account::<
-                            ObservationState,
-                        >::try_from(account_info)?;
-                        let compressed_info = light_sdk::compressible::compress_account::prepare_account_for_compression::<
-                            ObservationState,
-                        >(
-                            &crate::ID,
-                            &mut anchor_account,
-                            &meta,
-                            &cpi_accounts,
-                            &compression_config.compression_delay,
-                            &compression_config.address_space,
-                        )?;
-                        ObservationState.push(anchor_account);
-                        compressed_pda_infos.push(compressed_info);
-                    }
-                    _ => {
-                        {
-                            ::core::panicking::panic_fmt(
-                                format_args!(
-                                    "Trying to compress with invalid account discriminator",
-                                ),
-                            );
-                        };
+                } else if account_info.owner == &crate::ID {
+                    let data = account_info.try_borrow_data()?;
+                    let discriminator = &data[0..8];
+                    let meta = compressed_accounts[pda_meta_index];
+                    pda_meta_index += 1;
+                    match discriminator {
+                        d if d == PoolState::discriminator() => {
+                            let mut anchor_account = anchor_lang::prelude::Account::<
+                                PoolState,
+                            >::try_from(account_info)?;
+                            let compressed_info = light_sdk::compressible::compress_account::prepare_account_for_compression::<
+                                PoolState,
+                            >(
+                                &crate::ID,
+                                &mut anchor_account,
+                                &meta,
+                                &cpi_accounts,
+                                &compression_config.compression_delay,
+                                &compression_config.address_space,
+                            )?;
+                            compressed_pda_infos.push(compressed_info);
+                            pda_indices_to_close.push(i);
+                        }
+                        d if d == ObservationState::discriminator() => {
+                            let mut anchor_account = anchor_lang::prelude::Account::<
+                                ObservationState,
+                            >::try_from(account_info)?;
+                            let compressed_info = light_sdk::compressible::compress_account::prepare_account_for_compression::<
+                                ObservationState,
+                            >(
+                                &crate::ID,
+                                &mut anchor_account,
+                                &meta,
+                                &cpi_accounts,
+                                &compression_config.compression_delay,
+                                &compression_config.address_space,
+                            )?;
+                            compressed_pda_infos.push(compressed_info);
+                            pda_indices_to_close.push(i);
+                        }
+                        _ => {
+                            {
+                                ::core::panicking::panic_fmt(
+                                    format_args!(
+                                        "Trying to compress with invalid account discriminator",
+                                    ),
+                                );
+                            };
+                        }
                     }
                 }
             }
+            Ok(())
         }
-        if compressed_pda_infos.is_empty() {
-            return Ok(());
+        collect_accounts_to_compress(
+            &cpi_accounts,
+            &compression_config,
+            solana_accounts,
+            &signer_seeds,
+            &compressed_accounts,
+            &mut token_accounts_to_compress,
+            &mut compressed_pda_infos,
+            &mut pda_indices_to_close,
+        )?;
+        let has_pdas = !compressed_pda_infos.is_empty();
+        let has_tokens = !token_accounts_to_compress.is_empty();
+        if has_tokens {
+            let system_offset = cpi_accounts.system_accounts_end_offset();
+            let post_system = &cpi_accounts.to_account_infos()[system_offset..];
+            let output_queue = cpi_accounts
+                .tree_accounts()
+                .unwrap()[0]
+                .to_account_info();
+            let cpi_authority = cpi_accounts.authority().unwrap().to_account_info();
+            light_compressed_token_sdk::instructions::compress_and_close::compress_and_close_ctoken_accounts_signed(
+                &token_accounts_to_compress,
+                &ctx.accounts.fee_payer.key(),
+                output_queue,
+                ctx.accounts.ctoken_rent_recipient.to_account_info(),
+                ctx.accounts.ctoken_cpi_authority.to_account_info(),
+                cpi_authority,
+                post_system,
+                &cpi_accounts.to_account_infos(),
+                LIGHT_CPI_SIGNER,
+            )?;
         }
-        let cpi_inputs = light_sdk::cpi::CpiInputs::new(proof, compressed_pda_infos);
-        cpi_inputs.invoke_light_system_program_small(cpi_accounts)?;
-        for anchor_account in PoolState.iter() {
-            anchor_account.close(ctx.accounts.rent_recipient.clone())?;
-        }
-        for anchor_account in ObservationState.iter() {
-            anchor_account.close(ctx.accounts.rent_recipient.clone())?;
+        if has_pdas {
+            let cpi_inputs = light_sdk::cpi::CpiInputs::new(proof, compressed_pda_infos);
+            cpi_inputs.invoke_light_system_program_small(cpi_accounts.clone())?;
+            for idx in pda_indices_to_close.into_iter() {
+                let mut info = solana_accounts[idx].clone();
+                light_sdk::compressible::compress_account_on_init_native::close(
+                        &mut info,
+                        ctx.accounts.rent_recipient.clone(),
+                    )
+                    .map_err(|e| anchor_lang::prelude::ProgramError::from(e))?;
+            }
         }
         Ok(())
     }
@@ -34294,17 +34271,17 @@ pub mod instruction {
 /// mirroring the structs deriving `Accounts`, where each field is
 /// a `Pubkey`. This is useful for specifying accounts for a client.
 pub mod accounts {
-    pub use crate::__client_accounts_decompress_accounts_idempotent::*;
+    pub use crate::__client_accounts_swap::*;
     pub use crate::__client_accounts_collect_fund_fee::*;
-    pub use crate::__client_accounts_deposit::*;
-    pub use crate::__client_accounts_withdraw::*;
-    pub use crate::__client_accounts_collect_protocol_fee::*;
+    pub use crate::__client_accounts_initialize::*;
     pub use crate::__client_accounts_compress_accounts_idempotent::*;
     pub use crate::__client_accounts_initialize_compression_config::*;
     pub use crate::__client_accounts_update_compression_config::*;
+    pub use crate::__client_accounts_withdraw::*;
+    pub use crate::__client_accounts_decompress_accounts_idempotent::*;
     pub use crate::__client_accounts_update_pool_status::*;
+    pub use crate::__client_accounts_deposit::*;
     pub use crate::__client_accounts_create_amm_config::*;
-    pub use crate::__client_accounts_initialize::*;
+    pub use crate::__client_accounts_collect_protocol_fee::*;
     pub use crate::__client_accounts_update_amm_config::*;
-    pub use crate::__client_accounts_swap::*;
 }

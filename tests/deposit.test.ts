@@ -75,7 +75,7 @@ describe("deposit test", () => {
       confirmOptions
     );
 
-    const { account: newPoolState } = await fetchCompressibleAccount(
+    const { parsed: newPoolState } = await fetchCompressibleAccount(
       poolAddress,
       getDefaultAddressTreeInfo(),
       program,
@@ -192,7 +192,7 @@ describe("deposit test", () => {
       confirmOptions
     );
 
-    const { account: newPoolState2 } = await fetchCompressibleAccount(
+    const { parsed: newPoolState2 } = await fetchCompressibleAccount(
       poolAddress2,
       getDefaultAddressTreeInfo(),
       program,
@@ -313,7 +313,13 @@ describe("deposit test", () => {
       new BN(20000000000),
       confirmOptions
     );
-    const newPoolState = await program.account.poolState.fetch(poolAddress);
+    const { parsed: newPoolState } = await fetchCompressibleAccount(
+      poolAddress,
+      getDefaultAddressTreeInfo(),
+      program,
+      "poolState",
+      connection
+    );
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {

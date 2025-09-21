@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { TreeInfo } from "@lightprotocol/stateless.js";
+import { TreeInfo, BN } from "@lightprotocol/stateless.js";
 import {
   deriveCompressedMintAddress,
   findMintAddress,
@@ -132,7 +132,8 @@ export async function getPoolVaultSignerSeeds(
   vaultTokenMint: PublicKey,
   programId: PublicKey
 ): Promise<Buffer[]> {
-  const seeds = [POOL_VAULT_SEED, pool.toBuffer(), vaultTokenMint.toBuffer()];
+  const seeds = [POOL_AUTH_SEED];
+  // const seeds = [POOL_VAULT_SEED, pool.toBuffer(), vaultTokenMint.toBuffer()];
   const [_, bump] = PublicKey.findProgramAddressSync(seeds, programId);
   return seeds.concat([Buffer.from([bump])]);
 }
@@ -199,4 +200,23 @@ export function getPoolLpMintCompressedAddress(
   addressTreeInfo: TreeInfo
 ): number[] {
   return deriveCompressedMintAddress(mintSigner, addressTreeInfo);
+}
+
+export function deriveTokenProgramConfig(
+  version?: number
+): [PublicKey, number] {
+  const versionValue = version ?? 1;
+  const registryProgramId = new PublicKey(
+    "Lighton6oQpVkeewmo2mcPTQQp7kYHr4fWpAgJyEmDX"
+  );
+
+  const [compressibleConfig, configBump] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("compressible_config"),
+      new BN(versionValue).toArrayLike(Buffer, "le", 8),
+    ],
+    registryProgramId
+  );
+
+  return [compressibleConfig, configBump];
 }

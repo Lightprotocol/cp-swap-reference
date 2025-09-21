@@ -40,6 +40,7 @@ light-sdk-macros = { path = "./../../../light-protocol/sdk-libs/macros", feature
 light-compressed-account = { path = "./../../../light-protocol/program-libs/compressed-account", features = ["anchor"] }
 light-compressed-token-sdk = { path = "./../../../light-protocol/sdk-libs/compressed-token-sdk", features = ["anchor"] }
 light-ctoken-types = { path = "./../../../light-protocol/program-libs/ctoken-types", features = ["anchor"] }
+light-compressible = { path = "./../../../light-protocol/program-libs/compressible" }
 
 
 [dev-dependencies]
