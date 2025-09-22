@@ -213,10 +213,18 @@ export function deriveTokenProgramConfig(
   const [compressibleConfig, configBump] = PublicKey.findProgramAddressSync(
     [
       Buffer.from("compressible_config"),
-      new BN(versionValue).toArrayLike(Buffer, "le", 8),
+      new BN(versionValue).toArrayLike(Buffer, "le", 2),
     ],
     registryProgramId
   );
 
+  const ctokenConfigAccountRight = new PublicKey(
+    "ACXg8a7VaqecBWrSbdu73W4Pg9gsqXJ3EXAqkHyhvVXg"
+  );
+  if (!compressibleConfig.equals(ctokenConfigAccountRight)) {
+    console.log("compressibleConfig:", compressibleConfig);
+    console.log("ctokenConfigAccountRight:", ctokenConfigAccountRight);
+    throw new Error("ctokenConfigAccountRight is not correct");
+  }
   return [compressibleConfig, configBump];
 }

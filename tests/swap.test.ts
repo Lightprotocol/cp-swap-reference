@@ -15,7 +15,7 @@ describe.only("swap test", () => {
     skipPreflight: true,
   };
 
-  it.only("swap base input without transfer fee", async () => {
+  it("swap base input without transfer fee", async () => {
     const { configAddress, poolAddress, poolState } = await setupSwapTest(
       program,
       anchor.getProvider().connection,

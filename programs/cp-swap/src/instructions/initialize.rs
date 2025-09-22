@@ -240,7 +240,7 @@ pub fn initialize<'info>(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.token_0_mint.to_account_info(),
-        ctx.accounts.authority.to_account_info(),
+        *ctx.accounts.authority.to_account_info().key,
         &[
             POOL_VAULT_SEED.as_bytes(),
             ctx.accounts.pool_state.key().as_ref(),
@@ -258,7 +258,7 @@ pub fn initialize<'info>(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_mint.to_account_info(),
-        ctx.accounts.authority.to_account_info(),
+        *ctx.accounts.authority.to_account_info().key,
         &[
             POOL_VAULT_SEED.as_bytes(),
             ctx.accounts.pool_state.key().as_ref(),
@@ -412,7 +412,7 @@ pub fn initialize<'info>(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.lp_vault.to_account_info(),
         ctx.accounts.lp_mint.to_account_info(),
-        ctx.accounts.authority.to_account_info(),
+        *ctx.accounts.authority.to_account_info().key,
         &[
             POOL_VAULT_SEED.as_bytes(),
             ctx.accounts.lp_mint.key().as_ref(),

@@ -48,21 +48,17 @@ import {
   getDefaultAddressTreeInfo,
   packTreeInfos,
   deriveCompressionConfigAddress,
-  createPackedAccountsSmall,
   buildAndSignTx,
-  PackedStateTreeInfo,
   createPackedAccountsSmallWithCpiContext,
   packCompressAccountsIdempotent,
   packDecompressAccountsIdempotent,
-  packWithAccounts,
 } from "@lightprotocol/stateless.js";
 
 import {
   CompressedTokenProgram,
-  CTOKEN_RENT_RECIPIENT,
+  CTOKEN_RENT_SPONSOR,
   getAssociatedCTokenAddressAndBump,
 } from "@lightprotocol/compressed-token";
-import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 
 featureFlags.version = VERSION.V2;
 const COMPRESSION_DELAY = 0;
@@ -386,14 +382,11 @@ export async function initialize(
     program.programId
   );
 
-  console.log("poolAddress:", poolAddress);
-  console.log("program.programId:", program.programId);
   // 1. mintSigner
   const [lpMintSignerAddress] = getPoolLpMintSignerAddress(
     poolAddress,
     program.programId
   );
-  console.log("lpMintSignerAddress:", lpMintSignerAddress);
   // 2. lpMint
   const [lpMintAddress, lpMintBump] = await getPoolLpMintAddress(
     lpMintSignerAddress
@@ -508,9 +501,8 @@ export async function initialize(
 
   // Get ctoken config PDA
   const [ctokenConfigAccount] = deriveTokenProgramConfig();
-  const ctokenRentRecipient: PublicKey = new PublicKey(
-    "14GGjbqyMp5KGYUCgaSyxGyJJTE9ob8dbALNp8bwZN5Y"
-  );
+
+  const ctokenRentSponsor = CTOKEN_RENT_SPONSOR;
 
   const initializeIx = await program.methods
     .initialize(
@@ -544,7 +536,7 @@ export async function initialize(
       compressionConfig,
       rentRecipient: creator.publicKey,
       ctokenConfigAccount,
-      ctokenRentRecipient,
+      ctokenRentRecipient: ctokenRentSponsor,
       lpMintSigner: lpMintSignerAddress,
       compressedTokenProgramCpiAuthority:
         CompressedTokenProgram.deriveCpiAuthorityPda,
@@ -596,21 +588,21 @@ export async function compressIdempotent(
   feePayer: Signer,
   poolAddress: PublicKey,
   observationAddress: PublicKey,
+  lpVault: PublicKey,
   token0Vault: PublicKey,
   token1Vault: PublicKey,
-  lpVault: PublicKey,
   signerSeeds: Buffer<ArrayBufferLike>[][],
   rpc: Rpc,
   confirmOptions?: ConfirmOptions,
   compressionAuthority?: PublicKey,
   tokenCompressionAuthority?: PublicKey,
-  rentRecipient?: PublicKey,
-  tokenRentRecipient?: PublicKey
+  rentRecipient?: PublicKey
+  // tokenRentRecipient?: PublicKey
 ) {
   compressionAuthority = compressionAuthority ?? feePayer.publicKey;
   tokenCompressionAuthority = tokenCompressionAuthority ?? feePayer.publicKey;
   rentRecipient = rentRecipient ?? feePayer.publicKey;
-  tokenRentRecipient = tokenRentRecipient ?? feePayer.publicKey;
+  // tokenRentRecipient = tokenRentRecipient ?? feePayer.publicKey;
 
   const addressTreeInfo = getDefaultAddressTreeInfo();
   const stateTreeInfo = selectStateTreeInfo(await rpc.getStateTreeInfos());
@@ -704,21 +696,9 @@ export async function compressIdempotent(
     ],
     stateTreeInfo
   );
-  console.log(
-    "compressedAccountMetas:",
-    compressedAccountMetas.map((meta) => meta.treeInfo)
-  );
-  console.log("token0VaultState:", token0VaultState);
-  console.log("token1VaultState:", token1VaultState);
 
   const [config] = deriveCompressionConfigAddress(program.programId);
-  console.log("proofOption:", proofOption);
-  console.log("proof:", { 0: proof.compressedProof });
 
-  console.log(
-    "all remaining accounts:",
-    remainingAccounts.map((account) => account.pubkey.toBase58())
-  );
   // FIXME: proofOption is received onchain as some even if it is passed ass
   // none.
   const compressIx = await program.methods
@@ -734,7 +714,7 @@ export async function compressIdempotent(
       rentRecipient,
       compressionAuthority,
       ctokenCompressionAuthority: tokenCompressionAuthority,
-      ctokenRentRecipient: tokenRentRecipient,
+      ctokenRentSponsor: CTOKEN_RENT_SPONSOR,
       ctokenProgram: CompressedTokenProgram.programId,
       ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
     })
@@ -756,6 +736,7 @@ export async function decompressIdempotent(
   token0Vault: PublicKey,
   token1Vault: PublicKey,
   configAddress: PublicKey,
+  lpMint: PublicKey,
   token0: PublicKey,
   token1: PublicKey,
   rpc: Rpc
@@ -780,9 +761,6 @@ export async function decompressIdempotent(
       rpc
     );
 
-  console.log("lpVault:", lpVault.toBase58());
-  console.log("token0Vault:", token0Vault.toBase58());
-  console.log("token1Vault:", token1Vault.toBase58());
   const {
     accountInfo: lpVaultAccountInfo,
     parsed: lpVaultState,
@@ -866,22 +844,31 @@ export async function decompressIdempotent(
       ...[
         lpVaultMerkleContext
           ? {
-              key: "lpVault",
-              data: lpVaultState,
+              key: "cTokenData", // Use the enum variant
+              data: {
+                variant: { lpVault: {} }, // Anchor enum expects object variant
+                tokenData: lpVaultState,
+              },
               treeInfo: lpVaultMerkleContext.treeInfo,
             }
           : null,
         token0VaultMerkleContext
           ? {
-              key: "token0Vault",
-              data: token0VaultState,
+              key: "cTokenData",
+              data: {
+                variant: { token0Vault: {} }, // Anchor enum expects object variant
+                tokenData: token0VaultState,
+              },
               treeInfo: token0VaultMerkleContext.treeInfo,
             }
           : null,
         token1VaultMerkleContext
           ? {
-              key: "token1Vault",
-              data: token1VaultState,
+              key: "cTokenData",
+              data: {
+                variant: { token1Vault: {} }, // Anchor enum expects object variant
+                tokenData: token1VaultState,
+              },
               treeInfo: token1VaultMerkleContext.treeInfo,
             }
           : null,
@@ -893,7 +880,7 @@ export async function decompressIdempotent(
       ...(lpVaultMerkleContext ? [lpVault] : []),
       ...(token0VaultMerkleContext ? [token0Vault] : []),
       ...(token1VaultMerkleContext ? [token1Vault] : []),
-    ].filter(Boolean)
+    ]
   );
 
   const [ctokenConfig] = deriveTokenProgramConfig();
@@ -908,9 +895,10 @@ export async function decompressIdempotent(
       feePayer: owner.publicKey,
       config: deriveCompressionConfigAddress(program.programId)[0],
       rentPayer: owner.publicKey,
-      ctokenRentPayer: owner.publicKey,
+      ctokenRentSponsor: CTOKEN_RENT_SPONSOR,
       ctokenProgram: CompressedTokenProgram.programId,
       ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
+      lpMint,
       token0Mint: token0,
       token1Mint: token1,
       poolState: poolAddress,
@@ -939,29 +927,19 @@ export async function compressHelper(
     token1,
     program.programId
   );
-  console.log("poolAddress:", poolAddress);
   const [observationAddress, observationBump] = await getOracleAccountAddress(
     poolAddress,
     program.programId
   );
-  console.log("observationAddress:", observationAddress);
   const poolSignerSeeds = getPoolSignerSeeds(
     configAddress,
     token0,
     token1,
     program.programId
   );
-  console.log(
-    "poolSignerSeeds:",
-    poolSignerSeeds.map((seed) => Array.from(seed))
-  );
   const observationSignerSeeds = getOracleSignerSeeds(
     poolAddress,
     program.programId
-  );
-  console.log(
-    "observationSignerSeeds:",
-    observationSignerSeeds.map((seed) => Array.from(seed))
   );
 
   const [mintSigner] = getPoolLpMintSignerAddress(
@@ -981,15 +959,10 @@ export async function compressHelper(
     token0,
     program.programId
   );
-  console.log("token0VaultAddress:", token0VaultAddress);
   const token0VaultSignerSeeds = await getPoolVaultSignerSeeds(
     poolAddress,
     token0,
     program.programId
-  );
-  console.log(
-    "token0VaultSignerSeeds:",
-    token0VaultSignerSeeds.map((seed) => Array.from(seed))
   );
 
   const [token1VaultAddress] = await getPoolVaultAddress(
@@ -997,21 +970,12 @@ export async function compressHelper(
     token1,
     program.programId
   );
-  console.log("token1VaultAddress:", token1VaultAddress);
   const token1VaultSignerSeeds = await getPoolVaultSignerSeeds(
     poolAddress,
     token1,
     program.programId
   );
-  console.log(
-    "token1VaultSignerSeeds:",
-    token1VaultSignerSeeds.map((seed) => Array.from(seed))
-  );
 
-  console.log("pooladdress:", poolAddress.toBase58());
-  console.log("observationaddress:", observationAddress.toBase58());
-  console.log("token0:", token0.toBase58());
-  console.log("token1:", token1.toBase58());
   const signerSeeds = [
     poolSignerSeeds,
     observationSignerSeeds,
@@ -1025,16 +989,16 @@ export async function compressHelper(
     owner,
     poolAddress,
     observationAddress,
+    lpVault,
     token0VaultAddress,
     token1VaultAddress,
-    lpVault,
     signerSeeds,
     rpc,
     confirmOptions,
     undefined,
     undefined,
-    undefined,
-    CTOKEN_RENT_RECIPIENT
+    undefined
+    // CTOKEN_RENT_RECIPIENT
   );
   const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_200_000,
@@ -1052,14 +1016,6 @@ export async function compressHelper(
     [lookupTableAccount]
   );
   const compressTxId = await sendAndConfirmTx(rpc, compressTx, confirmOptions);
-  console.log("compress helper signature:", compressTxId);
-
-  console.log("compressed accounts: ");
-  console.log("poolAddress:", poolAddress.toBase58());
-  console.log("observationAddress:", observationAddress.toBase58());
-  console.log("lpVault:", lpVault.toBase58());
-  console.log("token0VaultAddress:", token0VaultAddress.toBase58());
-  console.log("token1VaultAddress:", token1VaultAddress.toBase58());
 
   return compressTxId;
 }
@@ -1144,6 +1100,7 @@ export async function deposit(
     vault0,
     vault1,
     configAddress,
+    lpMintAddress,
     token0,
     token1,
     rpc
@@ -1371,6 +1328,7 @@ export async function swap_base_input(
     inputVault,
     outputVault,
     configAddress,
+    lpMintAddress,
     inputToken,
     outputToken,
     createRpc()
