@@ -218,13 +218,13 @@ export function deriveTokenProgramConfig(
     registryProgramId
   );
 
-  const ctokenConfigAccountRight = new PublicKey(
+  const expected = new PublicKey(
     "ACXg8a7VaqecBWrSbdu73W4Pg9gsqXJ3EXAqkHyhvVXg"
   );
-  if (!compressibleConfig.equals(ctokenConfigAccountRight)) {
+  if (!compressibleConfig.equals(expected)) {
     console.log("compressibleConfig:", compressibleConfig);
-    console.log("ctokenConfigAccountRight:", ctokenConfigAccountRight);
-    throw new Error("ctokenConfigAccountRight is not correct");
+    console.log("expected:", expected);
+    throw new Error("compressibleConfig is not correct");
   }
   return [compressibleConfig, configBump];
 }

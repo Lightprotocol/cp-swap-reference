@@ -5,7 +5,7 @@ import { setupSwapTest, swap_base_input, swap_base_output } from "./utils";
 import { assert } from "chai";
 import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
 
-describe.only("swap test", () => {
+describe("swap test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 

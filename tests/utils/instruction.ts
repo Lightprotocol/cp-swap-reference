@@ -1400,6 +1400,16 @@ export async function swap_base_output(
     program.programId
   );
 
+  const [lpMintSignerAddress] = getPoolLpMintSignerAddress(
+    poolAddress,
+    program.programId
+  );
+  const [lpMintAddress] = await getPoolLpMintAddress(lpMintSignerAddress);
+  const [lpVaultAddress] = await getLpVaultAddress(
+    lpMintAddress,
+    program.programId
+  );
+
   const [inputVault] = await getPoolVaultAddress(
     poolAddress,
     inputToken,
@@ -1428,7 +1438,22 @@ export async function swap_base_output(
     program.programId
   );
 
-  const tx = await program.methods
+  const decompressIx = await decompressIdempotent(
+    program,
+    owner,
+    poolAddress,
+    observationAddress,
+    lpVaultAddress,
+    inputVault,
+    outputVault,
+    configAddress,
+    lpMintAddress,
+    inputToken,
+    outputToken,
+    createRpc()
+  );
+
+  const ix = await program.methods
     .swapBaseOutput(max_amount_in, amount_out_less_fee)
     .accountsStrict({
       payer: owner.publicKey,
@@ -1452,9 +1477,26 @@ export async function swap_base_output(
       compressedToken1PoolPda:
         CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
-    .rpc(confirmOptions);
+    .instruction();
 
-  console.log("swap base_out signature:", tx);
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1_200_000,
+  });
+  const rpc = createRpc();
+  const { blockhash } = await program.provider.connection.getLatestBlockhash();
+  const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
+    new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+  );
 
-  return tx;
+  const tx = buildAndSignTx(
+    [computeBudgetIx, decompressIx, ix],
+    owner,
+    blockhash,
+    [],
+    [lookupTableAccount]
+  );
+  const txId = await sendAndConfirmTx(rpc, tx, confirmOptions);
+  console.log("swap base_out signature:", txId);
+
+  return txId;
 }
