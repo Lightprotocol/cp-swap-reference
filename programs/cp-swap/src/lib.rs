@@ -49,7 +49,6 @@ pub mod create_pool_fee_receiver {
     pub const ID: Pubkey = pubkey!("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8");
 }
 
-use light_sdk::compressible::Unpack;
 use light_sdk::LightDiscriminator;
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
