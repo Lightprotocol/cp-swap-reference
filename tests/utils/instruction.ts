@@ -34,6 +34,7 @@ import {
   getOracleSignerSeeds,
   getPoolVaultSignerSeeds,
   deriveTokenProgramConfig,
+  POOL_AUTH_SEED,
 } from "./index";
 import {
   createRpc,
@@ -392,6 +393,19 @@ export async function initialize(
     lpMintSignerAddress
   );
 
+  console.log(
+    "lpMintSignerAddress: ",
+    lpMintSignerAddress.toBase58(),
+    lpMintSignerAddress.toBytes()
+  );
+
+  console.log(
+    "lpMintAddress: ",
+    lpMintAddress.toBase58(),
+    lpMintAddress.toBytes()
+  );
+  console.log("lpMintBump: ", lpMintBump);
+
   // 3. cMint
   const lpMintCompressedAddress = getPoolLpMintCompressedAddress(
     lpMintSignerAddress,
@@ -503,6 +517,30 @@ export async function initialize(
   const [ctokenConfigAccount] = deriveTokenProgramConfig();
 
   const ctokenRentSponsor = CTOKEN_RENT_SPONSOR;
+
+  console.log("lpMint, ", lpMintAddress.toBase58());
+  console.log("lpMintSigner, ", lpMintSignerAddress.toBase58());
+  // console.log("lpMintCompressedAddress, ", lpMintCompressedAddress);
+  console.log("lpVault, ", lpVault.toBase58());
+  console.log("ctokenConfigAccount, ", ctokenConfigAccount.toBase58());
+  console.log("ctokenRentSponsor, ", ctokenRentSponsor.toBase58());
+  console.log("compressionConfig, ", compressionConfig.toBase58());
+  console.log("authority, ", auth.toBase58());
+  console.log("creator, ", creator.publicKey.toBase58());
+  console.log("ammConfig, ", configAddress.toBase58());
+  console.log("token0, ", token0.toBase58());
+  console.log("token1, ", token1.toBase58());
+  console.log("token0Program, ", token0Program.toBase58());
+  console.log("token1Program, ", token1Program.toBase58());
+  console.log("creatorToken0, ", creatorToken0.toBase58());
+  console.log("creatorToken1, ", creatorToken1.toBase58());
+  console.log("creatorLpToken, ", creatorLpToken.toBase58());
+  console.log("poolAddress, ", poolAddress.toBase58());
+  console.log("observationAddress, ", observationAddress.toBase58());
+  console.log("poolState, ", poolAddress.toBase58());
+  console.log("observationState, ", observationAddress.toBase58());
+  console.log("token0Vault, ", vault0.toBase58());
+  console.log("token1Vault, ", vault1.toBase58());
 
   const initializeIx = await program.methods
     .initialize(

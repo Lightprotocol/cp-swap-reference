@@ -46,14 +46,15 @@ pub struct Initialize<'info> {
     #[account(
         init,
         compress_on_init,
+        cpda::authority = authority,
         cpda::address_tree_info = compression_params.pool_address_tree_info,
         cpda::proof = compression_params.proof,
         cpda::output_state_tree_index = compression_params.output_state_tree_index,
         seeds = [
             POOL_SEED.as_bytes(),
-            amm_config.key().as_ref(),
-            token_0_mint.key().as_ref(),
-            token_1_mint.key().as_ref(),
+            amm_config.to_account_info().key.as_ref(),
+            token_0_mint.to_account_info().key.as_ref(),
+            token_1_mint.to_account_info().key.as_ref(),
         ],
         bump,
         payer = creator,
@@ -79,13 +80,14 @@ pub struct Initialize<'info> {
     #[account(
         seeds = [
             POOL_LP_MINT_SEED.as_bytes(),
-            pool_state.key().as_ref(),
+            pool_state.to_account_info().key.as_ref(),
             ],
         bump,
     )]
     pub lp_mint_signer: UncheckedAccount<'info>,
 
     /// Compressed mint for LP tokens
+    /// CHECK: checked in instruction.
     #[account(
         cmint::authority = authority,
         cmint::decimals = 9,
@@ -121,7 +123,7 @@ pub struct Initialize<'info> {
         mut,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
-            lp_mint.key().as_ref()
+            lp_mint.to_account_info().key.as_ref()
         ],
         bump,
     )]
@@ -132,8 +134,8 @@ pub struct Initialize<'info> {
         mut,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
-            pool_state.key().as_ref(),
-            token_0_mint.key().as_ref()
+            pool_state.to_account_info().key.as_ref(),
+            token_0_mint.to_account_info().key.as_ref()
         ],
         bump,
     )]
@@ -144,8 +146,8 @@ pub struct Initialize<'info> {
         mut,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
-            pool_state.key().as_ref(),
-            token_1_mint.key().as_ref()
+            pool_state.to_account_info().key.as_ref(),
+            token_1_mint.to_account_info().key.as_ref()
         ],
         bump,
     )]
@@ -162,12 +164,13 @@ pub struct Initialize<'info> {
     #[account(
         init,
         compress_on_init,
+        cpda::authority = authority,
         cpda::address_tree_info = compression_params.observation_address_tree_info,
         cpda::proof = compression_params.proof,
         cpda::output_state_tree_index = compression_params.output_state_tree_index,
         seeds = [
             OBSERVATION_SEED.as_bytes(),
-            pool_state.key().as_ref(),
+            pool_state.to_account_info().key.as_ref(),
         ],
         bump,
         payer = creator,
@@ -256,8 +259,8 @@ pub fn initialize<'info>(
         *ctx.accounts.authority.to_account_info().key,
         &[
             POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.pool_state.key().as_ref(),
-            ctx.accounts.token_0_mint.key().as_ref(),
+            ctx.accounts.pool_state.to_account_info().key.as_ref(),
+            ctx.accounts.token_0_mint.to_account_info().key.as_ref(),
             &[ctx.bumps.token_0_vault][..],
         ],
         ctx.accounts.ctoken_rent_recipient.to_account_info(),
@@ -274,8 +277,8 @@ pub fn initialize<'info>(
         *ctx.accounts.authority.to_account_info().key,
         &[
             POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.pool_state.key().as_ref(),
-            ctx.accounts.token_1_mint.key().as_ref(),
+            ctx.accounts.pool_state.to_account_info().key.as_ref(),
+            ctx.accounts.token_1_mint.to_account_info().key.as_ref(),
             &[ctx.bumps.token_1_vault][..],
         ],
         ctx.accounts.ctoken_rent_recipient.to_account_info(),
@@ -428,7 +431,7 @@ pub fn initialize<'info>(
         *ctx.accounts.authority.to_account_info().key,
         &[
             POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.lp_mint.key().as_ref(),
+            ctx.accounts.lp_mint.to_account_info().key.as_ref(),
             &[ctx.bumps.lp_vault][..],
         ],
         ctx.accounts.ctoken_rent_recipient.to_account_info(),
@@ -449,13 +452,14 @@ pub fn initialize<'info>(
         None,
     )?;
 
-    ctx.accounts
-        .lp_mint
-        .mint_to(&ctx.accounts.creator_lp_token.key(), user_lp_amount)?;
+    ctx.accounts.lp_mint.mint_to(
+        &ctx.accounts.creator_lp_token.to_account_info(),
+        user_lp_amount,
+    )?;
 
     ctx.accounts
         .lp_mint
-        .mint_to(&ctx.accounts.lp_vault.key(), vault_lp_amount)?;
+        .mint_to(&ctx.accounts.lp_vault.to_account_info(), vault_lp_amount)?;
 
     // ZK Compression Step 5: We create the lp cMint and distribute the lp tokens
     // to the lp_vault and user based on the regular LP math.
