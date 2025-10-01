@@ -486,6 +486,7 @@ export async function initialize(
   const outputStateTreeIndex = remainingAccounts.insertOrGet(
     stateTreeInfo.queue
   );
+  console.log("outputStateTreeIndex", outputStateTreeIndex);
   const packedTreeInfos = packTreeInfos(proofRpcResult, remainingAccounts);
 
   const [creatorLpToken, creatorLpTokenBump] =
@@ -505,6 +506,9 @@ export async function initialize(
     proof: { 0: proofRpcResult.compressedProof },
     outputStateTreeIndex,
     creatorLpTokenBump,
+    name: Buffer.from("Test Token"),
+    symbol: Buffer.from("TTT"),
+    uri: Buffer.from("https://test.com"),
   };
   // Get compression config PDA
   const [compressionConfig] = deriveCompressionConfigAddress(program.programId);

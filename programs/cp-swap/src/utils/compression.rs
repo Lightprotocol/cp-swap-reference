@@ -66,8 +66,6 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
         &[pool_new_address_params],
         &[compression_params.output_state_tree_index],
         &cpi_accounts,
-        &address_space,
-        rent_recipient,
     )?;
     all_compressed_infos.extend(pool_state_compressed_info);
 
@@ -77,8 +75,6 @@ pub fn compress_pool_and_observation_pdas<'a, 'b, 'info>(
         &[observation_new_address_params],
         &[compression_params.output_state_tree_index],
         &cpi_accounts,
-        &address_space,
-        rent_recipient,
     )?;
     all_compressed_infos.extend(observation_compressed_infos);
 

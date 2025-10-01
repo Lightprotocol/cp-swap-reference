@@ -138,8 +138,26 @@ pub fn get_transfer_fee(mint_info: &AccountInfo, pre_fee_amount: u64) -> Result<
     Ok(fee)
 }
 
-pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> {
+
+pub fn is_ctoken_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> {
     let mint_info = mint_account.to_account_info();
+    if *mint_info.owner == anchor_lang::solana_program::system_program::ID {
+        let data = mint_info.try_borrow_data()?;
+        if data.len() == 0 {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> {
+
+    if is_ctoken_mint(mint_account)? {
+        return Ok(true);
+    }
+    
+    let mint_info = mint_account.to_account_info();
+    
     if *mint_info.owner == Token::id() {
         return Ok(true);
     }

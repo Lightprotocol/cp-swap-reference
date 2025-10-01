@@ -45,11 +45,8 @@ pub struct Initialize<'info> {
     /// CHECK: Initialize an account to store the pool state
     #[account(
         init,
-        compress_on_init,
         cpda::authority = authority,
         cpda::address_tree_info = compression_params.pool_address_tree_info,
-        cpda::proof = compression_params.proof,
-        cpda::output_state_tree_index = compression_params.output_state_tree_index,
         seeds = [
             POOL_SEED.as_bytes(),
             amm_config.to_account_info().key.as_ref(),
@@ -89,13 +86,14 @@ pub struct Initialize<'info> {
     /// Compressed mint for LP tokens
     /// CHECK: checked in instruction.
     #[account(
-        cmint::authority = authority,
-        cmint::decimals = 9,
-        cmint::payer = creator,
-        cmint::mint_signer = lp_mint_signer,
-        cmint::address_tree_info = compression_params.lp_mint_address_tree_info,
-        cmint::proof = compression_params.proof,
-        cmint::output_state_tree_index = compression_params.output_state_tree_index,
+        mint::authority = authority,
+        mint::decimals = 9,
+        mint::payer = creator,
+        mint::mint_signer = lp_mint_signer,
+        mint::address_tree_info = compression_params.lp_mint_address_tree_info,
+        metadata::name = compression_params.name,
+        metadata::symbol = compression_params.symbol,
+        metadata::uri = compression_params.uri,
     )]
     pub lp_mint: CMint<'info>,
     /// payer token0 account
@@ -163,11 +161,8 @@ pub struct Initialize<'info> {
     /// an account to store oracle observations
     #[account(
         init,
-        compress_on_init,
         cpda::authority = authority,
         cpda::address_tree_info = compression_params.observation_address_tree_info,
-        cpda::proof = compression_params.proof,
-        cpda::output_state_tree_index = compression_params.output_state_tree_index,
         seeds = [
             OBSERVATION_SEED.as_bytes(),
             pool_state.to_account_info().key.as_ref(),
@@ -401,25 +396,6 @@ pub fn initialize<'info>(
         &ctx.accounts.lp_mint.to_account_info(),
         observation_state_key,
     );
-    let _pool_auth_bump = pool_state.auth_bump;
-
-    // ZK Compression Step 2: Setup CPI accounts. We compress PDAs **and**
-    // create a cMint (lp_mint), so we need to use 'with_cpi_context'.
-    // let cpi_accounts = CpiAccountsSmall::new_with_config(
-    //     &ctx.accounts.creator,
-    //     ctx.remaining_accounts,
-    //     CpiAccountsConfig::new_with_cpi_context(LIGHT_CPI_SIGNER),
-    // );
-
-    // // ZK Compression Step 3: Compress the PDAs.
-    // compress_pool_and_observation_pdas(
-    //     &cpi_accounts,
-    //     &pool_state,
-    //     &observation_state,
-    //     &compression_params,
-    //     &rent_recipient,
-    //     &compression_config.address_space,
-    // )?;
 
     // ZK Compression Step 4: Create ctoken accounts. These match regular
     // SPL token accounts but are compressible.
@@ -461,42 +437,6 @@ pub fn initialize<'info>(
         .lp_mint
         .mint_to(&ctx.accounts.lp_vault.to_account_info(), vault_lp_amount)?;
 
-    // ZK Compression Step 5: We create the lp cMint and distribute the lp tokens
-    // to the lp_vault and user based on the regular LP math.
-    // create_and_mint_lp(
-    //     ctx.accounts.creator.to_account_info(),
-    //     ctx.accounts.authority.to_account_info(),
-    //     &ctx.accounts.lp_mint.key(),
-    //     ctx.accounts.lp_vault.to_account_info(),
-    //     ctx.accounts.creator_lp_token.to_account_info(),
-    //     ctx.accounts.lp_mint_signer.to_account_info(),
-    //     &pool_state_key,
-    //     ctx.accounts
-    //         .compressed_token_program_cpi_authority
-    //         .to_account_info(),
-    //     ctx.accounts.compressed_token_program.to_account_info(),
-    //     ctx.bumps.lp_mint_signer,
-    //     &compression_params,
-    //     &cpi_accounts,
-    //     user_lp_amount,
-    //     vault_lp_amount,
-    //     pool_auth_bump,
-    // )?;
-
-    // ZK Compression Step 6: Clean up compressed onchain PDAs. Always do this
-    // at the end of your instruction. Only PoolState and ObservationState are
-    // being compressed right away. All other accounts only initialized as
-    // compressible - for async compression once they're inactive. PoolState and
-    // ObservationState are compressed atomically for demo purposes. You can
-    // choose whether to compress_at_init or only after they've become inactive.
-    // If you compress_at_init, you pay 0 upfront rent, but the first
-    // transaction to use the account must include a
-    // decompress_accounts_idempotent instruction in their transaction which
-    // fronts then rent. Only the first touch will actually decompress the
-    // account; swap n+1 will still succeed.
-    // pool_state.close(rent_recipient.clone())?;
-    // observation_state.close(rent_recipient.clone())?;
-
     Ok(())
 }
 
@@ -510,6 +450,11 @@ pub struct InitializeCompressionParams {
     pub lp_mint_address_tree_info: PackedAddressTreeInfo,
     pub lp_mint_bump: u8,
     pub creator_lp_token_bump: u8,
+
+    // Metadata fields (optional)
+    pub name: Vec<u8>,
+    pub symbol: Vec<u8>,
+    pub uri: Vec<u8>,
 
     // Shared compression params
     pub proof: ValidityProof,
