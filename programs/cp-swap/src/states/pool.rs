@@ -109,6 +109,8 @@ impl PoolState {
         token_1_vault: Pubkey,
         token_0_mint: &InterfaceAccount<Mint>,
         token_1_mint: &InterfaceAccount<Mint>,
+        token_0_program: Pubkey,
+        token_1_program: Pubkey,
         lp_vault: &AccountInfo,
         lp_mint: &AccountInfo,
         observation_key: Pubkey,
@@ -121,13 +123,13 @@ impl PoolState {
         self.lp_vault = lp_vault.key();
         self.token_0_mint = token_0_mint.key();
         self.token_1_mint = token_1_mint.key();
-        self.token_0_program = *token_0_mint.to_account_info().owner;
-        self.token_1_program = *token_1_mint.to_account_info().owner;
+        self.token_0_program = token_0_program;
+        self.token_1_program = token_1_program;
         self.observation_key = observation_key;
         self.auth_bump = auth_bump;
         self.lp_mint_decimals = 9; // LP mint decimals are fixed at 9
-        self.mint_0_decimals = token_0_mint.decimals;
-        self.mint_1_decimals = token_1_mint.decimals;
+        self.mint_0_decimals = 0; // unused
+        self.mint_1_decimals = 0; // unused
         self.lp_supply = lp_supply;
         self.protocol_fees_token_0 = 0;
         self.protocol_fees_token_1 = 0;

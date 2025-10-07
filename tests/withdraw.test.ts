@@ -81,8 +81,8 @@ describe("withdraw test", () => {
     );
     const liquidity = new BN(10000000000);
     const {
-      ownerToken0Account: ownerToken0AccountBefore,
-      ownerToken1Account: ownerToken1AccountBefore,
+      ownerToken0Account: { parsed: ownerToken0AccountBefore },
+      ownerToken1Account: { parsed: ownerToken1AccountBefore },
       poolVault0TokenAccount: poolVault0TokenAccountBefore,
       poolVault1TokenAccount: poolVault1TokenAccountBefore,
     } = await getUserAndPoolVaultAmount(
@@ -126,8 +126,8 @@ describe("withdraw test", () => {
     assert(newPoolState.lpSupply.eq(poolState.lpSupply));
 
     const {
-      ownerToken0Account: ownerToken0AccountAfter,
-      ownerToken1Account: ownerToken1AccountAfter,
+      ownerToken0Account: { parsed: ownerToken0AccountAfter },
+      ownerToken1Account: { parsed: ownerToken1AccountAfter },
       poolVault0TokenAccount: poolVault0TokenAccountAfter,
       poolVault1TokenAccount: poolVault1TokenAccountAfter,
     } = await getUserAndPoolVaultAmount(

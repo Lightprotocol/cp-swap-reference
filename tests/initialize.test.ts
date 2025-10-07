@@ -8,7 +8,7 @@ import { createRpc, featureFlags, VERSION } from "@lightprotocol/stateless.js";
 import { CompressedTokenProgram } from "@lightprotocol/compressed-token";
 
 featureFlags.version = VERSION.V2;
-describe.only("initialize test", () => {
+describe("initialize test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const owner = anchor.Wallet.local().payer;
 
@@ -20,7 +20,7 @@ describe.only("initialize test", () => {
   // Extend connection with zkcompression endpoints
   const connection = createRpc();
 
-  it.only("create pool without fee", async () => {
+  it("create pool without fee", async () => {
     const { configAddress, token0, token0Program, token1, token1Program } =
       await setupInitializeTest(
         program,

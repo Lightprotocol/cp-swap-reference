@@ -3,10 +3,13 @@ import { Program, BN } from "@coral-xyz/anchor";
 import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 import { setupSwapTest, swap_base_input, swap_base_output } from "./utils";
 import { assert } from "chai";
-import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { getAccountInterface } from "@lightprotocol/compressed-token";
+import { createRpc } from "@lightprotocol/stateless.js";
 
 describe("swap test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
+  const rpc = createRpc();
   const owner = anchor.Wallet.local().payer;
 
   const program = anchor.workspace.RaydiumCpSwap as Program<RaydiumCpSwap>;
@@ -18,7 +21,7 @@ describe("swap test", () => {
   it("swap base input without transfer fee", async () => {
     const { configAddress, poolAddress, poolState } = await setupSwapTest(
       program,
-      anchor.getProvider().connection,
+      rpc,
       owner,
       {
         config_index: 0,
@@ -38,8 +41,8 @@ describe("swap test", () => {
       false,
       inputTokenProgram
     );
-    const inputTokenAccountBefore = await getAccount(
-      anchor.getProvider().connection,
+    const { parsed: inputTokenAccountBefore } = await getAccountInterface(
+      rpc,
       inputTokenAccountAddr,
       "processed",
       inputTokenProgram
@@ -58,8 +61,8 @@ describe("swap test", () => {
       new BN(0),
       confirmOptions
     );
-    const inputTokenAccountAfter = await getAccount(
-      anchor.getProvider().connection,
+    const { parsed: inputTokenAccountAfter } = await getAccountInterface(
+      rpc,
       inputTokenAccountAddr,
       "processed",
       inputTokenProgram
@@ -100,8 +103,8 @@ describe("swap test", () => {
       false,
       outputTokenProgram
     );
-    const outputTokenAccountBefore = await getAccount(
-      anchor.getProvider().connection,
+    const { parsed: outputTokenAccountBefore } = await getAccountInterface(
+      rpc,
       outputTokenAccountAddr,
       "processed",
       outputTokenProgram
@@ -120,8 +123,8 @@ describe("swap test", () => {
       new BN(10000000000000),
       confirmOptions
     );
-    const outputTokenAccountAfter = await getAccount(
-      anchor.getProvider().connection,
+    const { parsed: outputTokenAccountAfter } = await getAccountInterface(
+      rpc,
       outputTokenAccountAddr,
       "processed",
       outputTokenProgram
@@ -136,7 +139,7 @@ describe("swap test", () => {
     const transferFeeConfig = { transferFeeBasisPoints: 5, MaxFee: 5000 }; // %5
     const { configAddress, poolAddress, poolState } = await setupSwapTest(
       program,
-      anchor.getProvider().connection,
+      rpc,
       owner,
       {
         config_index: 0,
@@ -164,8 +167,8 @@ describe("swap test", () => {
       false,
       outputTokenProgram
     );
-    const outputTokenAccountBefore = await getAccount(
-      anchor.getProvider().connection,
+    const { parsed: outputTokenAccountBefore } = await getAccountInterface(
+      rpc,
       outputTokenAccountAddr,
       "processed",
       outputTokenProgram
@@ -184,8 +187,8 @@ describe("swap test", () => {
       new BN(10000000000000),
       confirmOptions
     );
-    const outputTokenAccountAfter = await getAccount(
-      anchor.getProvider().connection,
+    const { parsed: outputTokenAccountAfter } = await getAccountInterface(
+      rpc,
       outputTokenAccountAddr,
       "processed",
       outputTokenProgram

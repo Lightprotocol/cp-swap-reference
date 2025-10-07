@@ -46,8 +46,8 @@ describe("deposit test", () => {
     );
 
     const {
-      ownerToken0Account: ownerToken0AccountBefore,
-      ownerToken1Account: ownerToken1AccountBefore,
+      ownerToken0Account: { parsed: ownerToken0AccountBefore },
+      ownerToken1Account: { parsed: ownerToken1AccountBefore },
       poolVault0TokenAccount: poolVault0TokenAccountBefore,
       poolVault1TokenAccount: poolVault1TokenAccountBefore,
     } = await getUserAndPoolVaultAmount(
@@ -85,8 +85,8 @@ describe("deposit test", () => {
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {
-      ownerToken0Account: ownerToken0AccountAfter,
-      ownerToken1Account: ownerToken1AccountAfter,
+      ownerToken0Account: { parsed: ownerToken0AccountAfter },
+      ownerToken1Account: { parsed: ownerToken1AccountAfter },
       poolVault0TokenAccount: poolVault0TokenAccountAfter,
       poolVault1TokenAccount: poolVault1TokenAccountAfter,
     } = await getUserAndPoolVaultAmount(
@@ -154,8 +154,8 @@ describe("deposit test", () => {
         }
       );
     const {
-      ownerToken0Account: ownerToken0AccountBefore2,
-      ownerToken1Account: ownerToken1AccountBefore2,
+      ownerToken0Account: { parsed: ownerToken0AccountBefore2 },
+      ownerToken1Account: { parsed: ownerToken1AccountBefore2 },
       poolVault0TokenAccount: poolVault0TokenAccountBefore2,
       poolVault1TokenAccount: poolVault1TokenAccountBefore2,
     } = await getUserAndPoolVaultAmount(
@@ -203,8 +203,8 @@ describe("deposit test", () => {
     assert(newPoolState2.lpSupply.eq(liquidity.add(poolState2.lpSupply)));
 
     const {
-      ownerToken0Account: ownerToken0AccountAfter2,
-      ownerToken1Account: ownerToken1AccountAfter2,
+      ownerToken0Account: { parsed: ownerToken0AccountAfter2 },
+      ownerToken1Account: { parsed: ownerToken1AccountAfter2 },
       poolVault0TokenAccount: poolVault0TokenAccountAfter2,
       poolVault1TokenAccount: poolVault1TokenAccountAfter2,
     } = await getUserAndPoolVaultAmount(
@@ -285,8 +285,8 @@ describe("deposit test", () => {
     );
 
     const {
-      ownerToken0Account: ownerToken0AccountBefore,
-      ownerToken1Account: ownerToken1AccountBefore,
+      ownerToken0Account: { parsed: ownerToken0AccountBefore },
+      ownerToken1Account: { parsed: ownerToken1AccountBefore },
       poolVault0TokenAccount: poolVault0TokenAccountBefore,
       poolVault1TokenAccount: poolVault1TokenAccountBefore,
     } = await getUserAndPoolVaultAmount(
@@ -323,8 +323,8 @@ describe("deposit test", () => {
     assert(newPoolState.lpSupply.eq(liquidity.add(poolState.lpSupply)));
 
     const {
-      ownerToken0Account: ownerToken0AccountAfter,
-      ownerToken1Account: ownerToken1AccountAfter,
+      ownerToken0Account: { parsed: ownerToken0AccountAfter },
+      ownerToken1Account: { parsed: ownerToken1AccountAfter },
       poolVault0TokenAccount: poolVault0TokenAccountAfter,
       poolVault1TokenAccount: poolVault1TokenAccountAfter,
     } = await getUserAndPoolVaultAmount(

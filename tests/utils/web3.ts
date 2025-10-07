@@ -86,7 +86,7 @@ export async function fetchCompressibleAccount<
 } | null> {
   // Fetches account info irrespective of whether it's currently compressed or
   // decompressed.
-  const info = await rpc.getCompressibleAccountInfo(
+  const info = await rpc.getAccountInfoInterface(
     address,
     anchorProgram.programId,
     addressTreeInfo

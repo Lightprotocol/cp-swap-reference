@@ -11,7 +11,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
-  createMint,
+  createMint as createSplMint,
   TOKEN_PROGRAM_ID,
   getOrCreateAssociatedTokenAccount,
   mintTo,
@@ -24,21 +24,25 @@ import {
   getAccount,
 } from "@solana/spl-token";
 import { sendTransaction } from "./index";
-import {
-  COMPRESSED_TOKEN_PROGRAM_ID,
-  createRpc,
-} from "@lightprotocol/stateless.js";
+import { CTOKEN_PROGRAM_ID, createRpc } from "@lightprotocol/stateless.js";
 import {
   CompressedTokenProgram,
   createTokenPool,
+  createMint as createCompressedMint,
+  getAccountInterface,
 } from "@lightprotocol/compressed-token";
+
+// anchor get provider
+// TODO: add to anchor ts.
+const rpc = createRpc();
 
 // create a token mint and a token2022 mint with transferFeeConfig
 export async function createTokenMintAndAssociatedTokenAccount(
   connection: Connection,
   payer: Signer,
   mintAuthority: Signer,
-  transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number }
+  transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number },
+  ctoken: boolean = false
 ) {
   let ixs: TransactionInstruction[] = [];
   ixs.push(
@@ -56,27 +60,65 @@ export async function createTokenMintAndAssociatedTokenAccount(
   }
 
   let tokenArray: Token[] = [];
-  let token0 = await createMint(
-    connection,
-    mintAuthority,
-    mintAuthority.publicKey,
-    null,
-    9
-  );
-  tokenArray.push({ address: token0, program: TOKEN_PROGRAM_ID });
+  let token0: PublicKey;
+  let token0Program: PublicKey;
+  let token1: PublicKey;
+  let token1Program: PublicKey;
 
-  let token1 = await createMint(
-    connection,
-    mintAuthority,
-    mintAuthority.publicKey,
-    null,
-    9,
-    undefined,
-    undefined,
-    TOKEN_2022_PROGRAM_ID
-  );
+  if (ctoken) {
+    const rpc = createRpc();
 
-  tokenArray.push({ address: token1, program: TOKEN_2022_PROGRAM_ID });
+    const { mint: mint0 } = await createCompressedMint(
+      rpc,
+      mintAuthority,
+      mintAuthority,
+      null,
+      9,
+      undefined,
+      undefined,
+      undefined
+    );
+    token0 = mint0;
+    token0Program = CTOKEN_PROGRAM_ID;
+    tokenArray.push({ address: token0, program: token0Program });
+
+    const { mint: mint1 } = await createCompressedMint(
+      rpc,
+      mintAuthority,
+      mintAuthority,
+      null,
+      9,
+      undefined,
+      undefined,
+      undefined
+    );
+    token1 = mint1;
+    token1Program = CTOKEN_PROGRAM_ID;
+    tokenArray.push({ address: token1, program: token1Program });
+  } else {
+    token0 = await createSplMint(
+      connection,
+      mintAuthority,
+      mintAuthority.publicKey,
+      null,
+      9
+    );
+    token0Program = TOKEN_PROGRAM_ID;
+    tokenArray.push({ address: token0, program: token0Program });
+
+    token1 = await createSplMint(
+      connection,
+      mintAuthority,
+      mintAuthority.publicKey,
+      null,
+      9,
+      undefined,
+      undefined,
+      TOKEN_2022_PROGRAM_ID
+    );
+    token1Program = TOKEN_2022_PROGRAM_ID;
+    tokenArray.push({ address: token1, program: token1Program });
+  }
 
   tokenArray.sort(function (x, y) {
     const buffer1 = x.address.toBuffer();
@@ -103,10 +145,8 @@ export async function createTokenMintAndAssociatedTokenAccount(
 
   token0 = tokenArray[0].address;
   token1 = tokenArray[1].address;
-  //   console.log("Token 0", token0.toString());
-  //   console.log("Token 1", token1.toString());
-  const token0Program = tokenArray[0].program;
-  const token1Program = tokenArray[1].program;
+  token0Program = tokenArray[0].program;
+  token1Program = tokenArray[1].program;
 
   const ownerToken0Account = await getOrCreateAssociatedTokenAccount(
     connection,
@@ -153,23 +193,24 @@ export async function createTokenMintAndAssociatedTokenAccount(
     token1Program
   );
 
-  // SPL mints have to be registered in the compression protocol.
-  const rpc = createRpc();
-  await createTokenPool(
-    rpc,
-    payer,
-    token0,
-    { skipPreflight: true },
-    token0Program
-  );
+  if (!ctoken) {
+    const rpc = createRpc();
+    await createTokenPool(
+      rpc,
+      payer,
+      token0,
+      { skipPreflight: true },
+      token0Program
+    );
 
-  await createTokenPool(
-    rpc,
-    payer,
-    token1,
-    { skipPreflight: true },
-    token1Program
-  );
+    await createTokenPool(
+      rpc,
+      payer,
+      token1,
+      { skipPreflight: true },
+      token1Program
+    );
+  }
 
   return [
     { token0, token0Program },
@@ -252,15 +293,15 @@ export async function getUserAndPoolVaultAmount(
     token1Program
   );
 
-  const ownerToken0Account = await getAccount(
-    anchor.getProvider().connection,
+  const ownerToken0Account = await getAccountInterface(
+    rpc,
     ownerToken0AccountAddr,
     "processed",
     token0Program
   );
 
-  const ownerToken1Account = await getAccount(
-    anchor.getProvider().connection,
+  const ownerToken1Account = await getAccountInterface(
+    rpc,
     ownerToken1AccountAddr,
     "processed",
     token1Program
@@ -297,22 +338,22 @@ export async function getUserAndPoolLpAmount(
     lpMint,
     owner,
     undefined,
-    COMPRESSED_TOKEN_PROGRAM_ID,
-    COMPRESSED_TOKEN_PROGRAM_ID
+    CTOKEN_PROGRAM_ID,
+    CTOKEN_PROGRAM_ID
   );
 
-  const userLpAccount = await getAccount(
-    anchor.getProvider().connection,
+  const userLpAccount = await getAccountInterface(
+    rpc,
     userLpTokenAddr,
     "processed",
-    COMPRESSED_TOKEN_PROGRAM_ID
+    CTOKEN_PROGRAM_ID
   );
 
   const poolLpVaultAccount = await getAccount(
     anchor.getProvider().connection,
     lpVault,
     "processed",
-    COMPRESSED_TOKEN_PROGRAM_ID
+    CTOKEN_PROGRAM_ID
   );
 
   return {

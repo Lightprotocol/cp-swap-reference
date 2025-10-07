@@ -55,7 +55,7 @@ pub struct Initialize<'info> {
         ],
         bump,
         payer = creator,
-        space = PoolState::INIT_SPACE
+        space = 8 + PoolState::INIT_SPACE
     )]
     pub pool_state: Box<Account<'info, PoolState>>,
 
@@ -169,7 +169,7 @@ pub struct Initialize<'info> {
         ],
         bump,
         payer = creator,
-        space = ObservationState::INIT_SPACE
+        space = 8 + ObservationState::INIT_SPACE
     )]
     pub observation_state: Box<Account<'info, ObservationState>>,
 
@@ -231,14 +231,6 @@ pub fn initialize<'info>(
 
     if ctx.accounts.amm_config.disable_create_pool {
         return err!(ErrorCode::NotApproved);
-    }
-
-    // ZK Compression Step 1: Load compression config and check rent recipient
-    let compression_config =
-        CompressibleConfig::load_checked(&ctx.accounts.compression_config, &crate::ID)?;
-    let rent_recipient = &ctx.accounts.rent_recipient;
-    if rent_recipient.key() != compression_config.rent_recipient {
-        return err!(ErrorCode::InvalidRentRecipient);
     }
 
     let block_timestamp = clock::Clock::get()?.unix_timestamp as u64;
@@ -392,6 +384,8 @@ pub fn initialize<'info>(
         ctx.accounts.token_1_vault.key(),
         &ctx.accounts.token_0_mint,
         &ctx.accounts.token_1_mint,
+        ctx.accounts.token_0_program.key(),
+        ctx.accounts.token_1_program.key(),
         &ctx.accounts.lp_vault,
         &ctx.accounts.lp_mint.to_account_info(),
         observation_state_key,

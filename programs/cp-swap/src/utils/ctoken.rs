@@ -5,8 +5,7 @@ use crate::{
 use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use light_compressed_token_sdk::{
     instructions::{
-        create_mint_action_cpi, derive_compressed_mint_from_spl_mint, transfer, transfer_signed,
-        CreateMintInputs, MintActionInputs, MintActionType,
+        create_compressed_mint::instruction::derive_compressed_mint_from_spl_mint, create_mint_action_cpi, transfer, transfer_signed, CreateMintInputs, MintActionInputs, MintActionType
     },
     CompressedProof,
 };
