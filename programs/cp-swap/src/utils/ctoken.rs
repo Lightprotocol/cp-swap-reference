@@ -5,7 +5,10 @@ use crate::{
 use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
 use light_compressed_token_sdk::{
     instructions::{
-        create_compressed_mint::instruction::derive_compressed_mint_from_spl_mint, create_mint_action_cpi, transfer, transfer_signed, CreateMintInputs, MintActionInputs, MintActionType
+        create_compressed_mint::instruction::derive_compressed_mint_from_spl_mint,
+        create_mint_action_cpi,
+        transfer2::{transfer_interface, transfer_interface_signed},
+        CreateMintInputs, MintActionInputs, MintActionType,
     },
     CompressedProof,
 };
@@ -25,7 +28,9 @@ pub fn transfer_ctoken_from_user_to_pool_vault<'a>(
         return Ok(());
     }
 
-    transfer(&from, &to_vault, &authority, amount)?;
+    transfer_interface(
+        &from, &to_vault, &authority, amount, &authority, &authority, None, None, None, None,
+    )?;
     Ok(())
 }
 
@@ -39,7 +44,19 @@ pub fn transfer_ctoken_from_pool_vault_to_user<'a>(
     if amount == 0 {
         return Ok(());
     }
-    transfer_signed(&from_vault, &to, &authority, amount, signer_seeds)?;
+    transfer_interface_signed(
+        &from_vault,
+        &to,
+        &authority,
+        amount,
+        &authority,
+        &authority,
+        None,
+        None,
+        None,
+        None,
+        signer_seeds,
+    )?;
     Ok(())
 }
 

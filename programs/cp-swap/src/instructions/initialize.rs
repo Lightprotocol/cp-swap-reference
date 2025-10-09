@@ -290,10 +290,10 @@ pub fn initialize<'info>(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.creator_token_0.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
-        ctx.accounts.token_0_mint.to_account_info(),
-        ctx.accounts.token_0_program.to_account_info(),
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
+        Some(ctx.accounts.token_0_mint.to_account_info()),
+        Some(ctx.accounts.token_0_program.to_account_info()),
+        Some(ctx.accounts.compressed_token_0_pool_pda.to_account_info()),
+        Some(compressed_token_0_pool_bump),
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
@@ -304,10 +304,10 @@ pub fn initialize<'info>(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.creator_token_1.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
-        ctx.accounts.token_1_mint.to_account_info(),
-        ctx.accounts.token_1_program.to_account_info(),
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
+        Some(ctx.accounts.token_1_mint.to_account_info()),
+        Some(ctx.accounts.token_1_program.to_account_info()),
+        Some(ctx.accounts.compressed_token_1_pool_pda.to_account_info()),
+        Some(compressed_token_1_pool_bump),
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),

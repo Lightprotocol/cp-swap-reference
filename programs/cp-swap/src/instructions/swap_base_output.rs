@@ -177,10 +177,10 @@ pub fn swap_base_output(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.input_token_account.to_account_info(),
         ctx.accounts.input_vault.to_account_info(),
-        ctx.accounts.input_token_mint.to_account_info(),
-        ctx.accounts.input_token_program.to_account_info(),
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
+        Some(ctx.accounts.input_token_mint.to_account_info()),
+        Some(ctx.accounts.input_token_program.to_account_info()),
+        Some(ctx.accounts.compressed_token_0_pool_pda.to_account_info()),
+        Some(compressed_token_0_pool_bump),
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
@@ -192,10 +192,10 @@ pub fn swap_base_output(
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.output_vault.to_account_info(),
         ctx.accounts.output_token_account.to_account_info(),
-        ctx.accounts.output_token_mint.to_account_info(),
-        ctx.accounts.output_token_program.to_account_info(),
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
+        Some(ctx.accounts.output_token_mint.to_account_info()),
+        Some(ctx.accounts.output_token_program.to_account_info()),
+        Some(ctx.accounts.compressed_token_1_pool_pda.to_account_info()),
+        Some(compressed_token_1_pool_bump),
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),

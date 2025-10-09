@@ -2,7 +2,7 @@ use crate::error::ErrorCode;
 use anchor_lang::prelude::*;
 use anchor_spl::{token::Token, token_interface::Mint};
 use light_compressed_token_sdk::instructions::transfer2::{
-    transfer_ctoken_to_spl_signed, transfer_spl_to_ctoken,
+    transfer_interface, transfer_interface_signed,
 };
 use spl_token_2022::{
     self,
@@ -24,27 +24,27 @@ pub fn transfer_from_user_to_pool_vault<'a, 'b>(
     authority: AccountInfo<'a>,
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
-    mint: AccountInfo<'a>,
-    spl_token_program: AccountInfo<'a>,
-    compressed_token_pool_pda: AccountInfo<'a>,
-    compressed_token_pool_pda_bump: u8,
+    mint: Option<AccountInfo<'a>>,
+    spl_token_program: Option<AccountInfo<'a>>,
+    compressed_token_pool_pda: Option<AccountInfo<'a>>,
+    compressed_token_pool_pda_bump: Option<u8>,
     compressed_token_program_authority: AccountInfo<'a>,
     amount: u64,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    transfer_spl_to_ctoken(
-        authority.clone(),
-        authority,
-        from,
-        to_vault,
-        mint,
-        spl_token_program,
-        compressed_token_pool_pda,
-        compressed_token_pool_pda_bump,
-        compressed_token_program_authority,
+    transfer_interface(
+        &from,
+        &to_vault,
+        &authority,
         amount,
+        &authority,
+        &compressed_token_program_authority,
+        mint.as_ref(),
+        spl_token_program.as_ref(),
+        compressed_token_pool_pda.as_ref(),
+        compressed_token_pool_pda_bump,
     )?;
     Ok(())
 }
@@ -54,10 +54,10 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     authority: AccountInfo<'a>,
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
-    mint: AccountInfo<'a>,
-    spl_token_program: AccountInfo<'a>,
-    compressed_token_pool_pda: AccountInfo<'a>,
-    compressed_token_pool_pda_bump: u8,
+    mint: Option<AccountInfo<'a>>,
+    spl_token_program: Option<AccountInfo<'a>>,
+    compressed_token_pool_pda: Option<AccountInfo<'a>>,
+    compressed_token_pool_pda_bump: Option<u8>,
     compressed_token_program_authority: AccountInfo<'a>,
     amount: u64,
     signer_seeds: &[&[&[u8]]],
@@ -65,17 +65,17 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     if amount == 0 {
         return Ok(());
     }
-    transfer_ctoken_to_spl_signed(
-        payer,
-        authority,
-        from_vault,
-        to,
-        mint,
-        spl_token_program,
-        compressed_token_pool_pda,
-        compressed_token_pool_pda_bump,
-        compressed_token_program_authority,
+    transfer_interface_signed(
+        &from_vault,
+        &to,
+        &authority,
         amount,
+        &payer,
+        &compressed_token_program_authority,
+        mint.as_ref(),
+        spl_token_program.as_ref(),
+        compressed_token_pool_pda.as_ref(),
+        compressed_token_pool_pda_bump,
         signer_seeds,
     )?;
     Ok(())

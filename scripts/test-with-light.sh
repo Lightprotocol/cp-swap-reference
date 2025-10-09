@@ -18,4 +18,4 @@
 solana airdrop 1000 ~/.config/solana/id.json --url "localhost"
 
 echo "Running anchor test..."
-anchor test --skip-local-validator --skip-deploy
+NODE_OPTIONS="--enable-source-maps" anchor test --skip-local-validator --skip-deploy

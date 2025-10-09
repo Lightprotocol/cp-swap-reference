@@ -112,14 +112,14 @@ pub fn collect_fund_fee(
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.recipient_token_0_account.to_account_info(),
-        ctx.accounts.vault_0_mint.to_account_info(),
-        if ctx.accounts.vault_0_mint.to_account_info().owner == ctx.accounts.token_program.key {
+        Some(ctx.accounts.vault_0_mint.to_account_info()),
+        Some(if ctx.accounts.vault_0_mint.to_account_info().owner == ctx.accounts.token_program.key {
             ctx.accounts.token_program.to_account_info()
         } else {
             ctx.accounts.token_program_2022.to_account_info()
-        },
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
+        }),
+        Some(ctx.accounts.compressed_token_0_pool_pda.to_account_info()),
+        Some(compressed_token_0_pool_bump),
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),
@@ -132,14 +132,14 @@ pub fn collect_fund_fee(
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.recipient_token_1_account.to_account_info(),
-        ctx.accounts.vault_1_mint.to_account_info(),
-        if ctx.accounts.vault_1_mint.to_account_info().owner == ctx.accounts.token_program.key {
+        Some(ctx.accounts.vault_1_mint.to_account_info()),
+        Some(if ctx.accounts.vault_1_mint.to_account_info().owner == ctx.accounts.token_program.key {
             ctx.accounts.token_program.to_account_info()
         } else {
             ctx.accounts.token_program_2022.to_account_info()
-        },
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
+        }),
+        Some(ctx.accounts.compressed_token_1_pool_pda.to_account_info()),
+        Some(compressed_token_1_pool_bump),
         ctx.accounts
             .compressed_token_program_cpi_authority
             .to_account_info(),

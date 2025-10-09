@@ -46,7 +46,8 @@ export async function createTokenMintAndAssociatedTokenAccount(
   payer: Signer,
   mintAuthority: Signer,
   transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number },
-  ctoken: boolean = true
+  token0Type: "ctoken" | "spl" | "token2022" = "ctoken",
+  token1Type: "ctoken" | "spl" | "token2022" = "ctoken"
 ) {
   let ixs: TransactionInstruction[] = [];
   ixs.push(
@@ -61,6 +62,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
   interface Token {
     address: PublicKey;
     program: PublicKey;
+    type: "ctoken" | "spl" | "token2022";
   }
 
   let tokenArray: Token[] = [];
@@ -68,10 +70,12 @@ export async function createTokenMintAndAssociatedTokenAccount(
   let token0Program: PublicKey;
   let token1: PublicKey;
   let token1Program: PublicKey;
+  let finalToken0Type: "ctoken" | "spl" | "token2022";
+  let finalToken1Type: "ctoken" | "spl" | "token2022";
 
-  if (ctoken) {
-    const rpc = createRpc();
+  const rpc = createRpc();
 
+  if (token0Type === "ctoken") {
     const { mint: mint0 } = await createCompressedMint(
       rpc,
       mintAuthority,
@@ -84,8 +88,35 @@ export async function createTokenMintAndAssociatedTokenAccount(
     );
     token0 = mint0;
     token0Program = CTOKEN_PROGRAM_ID;
-    tokenArray.push({ address: token0, program: token0Program });
+  } else if (token0Type === "token2022") {
+    token0 = await createSplMint(
+      connection,
+      mintAuthority,
+      mintAuthority.publicKey,
+      null,
+      9,
+      undefined,
+      undefined,
+      TOKEN_2022_PROGRAM_ID
+    );
+    token0Program = TOKEN_2022_PROGRAM_ID;
+  } else {
+    token0 = await createSplMint(
+      connection,
+      mintAuthority,
+      mintAuthority.publicKey,
+      null,
+      9
+    );
+    token0Program = TOKEN_PROGRAM_ID;
+  }
+  tokenArray.push({
+    address: token0,
+    program: token0Program,
+    type: token0Type,
+  });
 
+  if (token1Type === "ctoken") {
     const { mint: mint1 } = await createCompressedMint(
       rpc,
       mintAuthority,
@@ -98,18 +129,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
     );
     token1 = mint1;
     token1Program = CTOKEN_PROGRAM_ID;
-    tokenArray.push({ address: token1, program: token1Program });
-  } else {
-    token0 = await createSplMint(
-      connection,
-      mintAuthority,
-      mintAuthority.publicKey,
-      null,
-      9
-    );
-    token0Program = TOKEN_PROGRAM_ID;
-    tokenArray.push({ address: token0, program: token0Program });
-
+  } else if (token1Type === "token2022") {
     token1 = await createSplMint(
       connection,
       mintAuthority,
@@ -121,8 +141,21 @@ export async function createTokenMintAndAssociatedTokenAccount(
       TOKEN_2022_PROGRAM_ID
     );
     token1Program = TOKEN_2022_PROGRAM_ID;
-    tokenArray.push({ address: token1, program: token1Program });
+  } else {
+    token1 = await createSplMint(
+      connection,
+      mintAuthority,
+      mintAuthority.publicKey,
+      null,
+      9
+    );
+    token1Program = TOKEN_PROGRAM_ID;
   }
+  tokenArray.push({
+    address: token1,
+    program: token1Program,
+    type: token1Type,
+  });
 
   tokenArray.sort(function (x, y) {
     const buffer1 = x.address.toBuffer();
@@ -151,6 +184,12 @@ export async function createTokenMintAndAssociatedTokenAccount(
   token1 = tokenArray[1].address;
   token0Program = tokenArray[0].program;
   token1Program = tokenArray[1].program;
+  finalToken0Type = tokenArray[0].type;
+  finalToken1Type = tokenArray[1].type;
+  console.log("token0", token0.toBase58());
+  console.log("token1", token1.toBase58());
+  console.log("token0Program", token0Program.toBase58());
+  console.log("token1Program", token1Program.toBase58());
 
   const ownerToken0Account = await getOrCreateAssociatedTokenAccountInterface(
     rpc,
@@ -161,8 +200,12 @@ export async function createTokenMintAndAssociatedTokenAccount(
     "processed",
     { skipPreflight: true },
     token0Program,
-    ctoken ? CTOKEN_PROGRAM_ID : ASSOCIATED_TOKEN_PROGRAM_ID
+    finalToken0Type === "ctoken"
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
+
+  console.log("ownerToken0Account", ownerToken0Account.address.toBase58());
   const ownerToken1Account = await getOrCreateAssociatedTokenAccountInterface(
     rpc,
     payer,
@@ -172,11 +215,16 @@ export async function createTokenMintAndAssociatedTokenAccount(
     "processed",
     { skipPreflight: true },
     token1Program,
-    ctoken ? CTOKEN_PROGRAM_ID : ASSOCIATED_TOKEN_PROGRAM_ID
+    finalToken1Type === "ctoken"
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
+  console.log("ownerToken1Account", ownerToken1Account.address.toBase58());
+
   const queue = (await rpc.getStateTreeInfos())[0].queue;
-  if (ctoken) {
+
+  if (finalToken0Type === "ctoken") {
     await mintTo(
       rpc,
       payer,
@@ -187,9 +235,27 @@ export async function createTokenMintAndAssociatedTokenAccount(
       queue,
       queue,
       { skipPreflight: true }
-      // token0Program
     );
+  } else {
+    await mintToSpl(
+      connection,
+      payer,
+      token0,
+      ownerToken0Account.address,
+      mintAuthority,
+      100_000_000_000_000,
+      [],
+      { skipPreflight: true },
+      token0Program
+    );
+    console.log("mintToSpl token0", token0.toBase58());
+    console.log(
+      "mintToSpl ownerToken0Account",
+      ownerToken0Account.address.toBase58()
+    );
+  }
 
+  if (finalToken1Type === "ctoken") {
     await mintTo(
       rpc,
       payer,
@@ -200,21 +266,8 @@ export async function createTokenMintAndAssociatedTokenAccount(
       queue,
       queue,
       { skipPreflight: true }
-      // token1Program
     );
   } else {
-    await mintToSpl(
-      rpc,
-      payer,
-      token0,
-      ownerToken0Account.address,
-      mintAuthority,
-      100_000_000_000_000,
-      [],
-      { skipPreflight: true },
-      token0Program
-    );
-
     await mintToSpl(
       connection,
       payer,
@@ -226,10 +279,14 @@ export async function createTokenMintAndAssociatedTokenAccount(
       { skipPreflight: true },
       token1Program
     );
+    console.log("mintToSpl token1", token1.toBase58());
+    console.log(
+      "mintToSpl ownerToken1Account",
+      ownerToken1Account.address.toBase58()
+    );
   }
 
-  if (!ctoken) {
-    const rpc = createRpc();
+  if (finalToken0Type !== "ctoken") {
     await createTokenPool(
       rpc,
       payer,
@@ -237,7 +294,9 @@ export async function createTokenMintAndAssociatedTokenAccount(
       { skipPreflight: true },
       token0Program
     );
+  }
 
+  if (finalToken1Type !== "ctoken") {
     await createTokenPool(
       rpc,
       payer,
@@ -323,7 +382,6 @@ export async function getUserAndPoolVaultAmount(
       ? CTOKEN_PROGRAM_ID
       : ASSOCIATED_TOKEN_PROGRAM_ID
   );
-  console.log("ownerToken0AccountAddr", ownerToken0AccountAddr.toBase58());
 
   const ownerToken1AccountAddr = getAssociatedTokenAddressSync(
     token1Mint,
@@ -334,14 +392,13 @@ export async function getUserAndPoolVaultAmount(
       ? CTOKEN_PROGRAM_ID
       : ASSOCIATED_TOKEN_PROGRAM_ID
   );
-  console.log("ownerToken1AccountAddr", ownerToken1AccountAddr.toBase58());
+
   const ownerToken0Account = await getAccountInterface(
     rpc,
     ownerToken0AccountAddr,
     "processed",
     token0Program
   );
-  console.log("ownerToken0Account", ownerToken0Account);
 
   const ownerToken1Account = await getAccountInterface(
     rpc,
@@ -349,21 +406,19 @@ export async function getUserAndPoolVaultAmount(
     "processed",
     token1Program
   );
-  console.log("ownerToken1Account", ownerToken1Account);
+
   const poolVault0TokenAccount = await getAccount(
     anchor.getProvider().connection,
     poolToken0Vault,
     "processed",
     CompressedTokenProgram.programId
   );
-  console.log("poolVault0TokenAccount", poolVault0TokenAccount);
   const poolVault1TokenAccount = await getAccount(
     anchor.getProvider().connection,
     poolToken1Vault,
     "processed",
     CompressedTokenProgram.programId
   );
-  console.log("poolVault1TokenAccount", poolVault1TokenAccount);
   return {
     ownerToken0Account,
     ownerToken1Account,
