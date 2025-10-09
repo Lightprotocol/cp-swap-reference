@@ -45,6 +45,8 @@ describe("deposit test", () => {
       { transferFeeBasisPoints: 0, MaxFee: 0 }
     );
 
+    console.log("call getUserAndPoolVaultAmount 1");
+    console.log("poolstate!", poolState);
     const {
       ownerToken0Account: { parsed: ownerToken0AccountBefore },
       ownerToken1Account: { parsed: ownerToken1AccountBefore },
@@ -60,6 +62,7 @@ describe("deposit test", () => {
       poolState.token1Vault
     );
 
+    console.log("call deposit 1");
     const liquidity = new BN(10000000000);
     await deposit(
       program,

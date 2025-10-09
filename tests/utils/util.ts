@@ -14,7 +14,7 @@ import {
   createMint as createSplMint,
   TOKEN_PROGRAM_ID,
   getOrCreateAssociatedTokenAccount,
-  mintTo,
+  mintTo as mintToSpl,
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddressSync,
   ExtensionType,
@@ -22,6 +22,7 @@ import {
   createInitializeTransferFeeConfigInstruction,
   createInitializeMintInstruction,
   getAccount,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { sendTransaction } from "./index";
 import { CTOKEN_PROGRAM_ID, createRpc } from "@lightprotocol/stateless.js";
@@ -30,6 +31,9 @@ import {
   createTokenPool,
   createMint as createCompressedMint,
   getAccountInterface,
+  getMintInterface,
+  getOrCreateAssociatedTokenAccountInterface,
+  mintTo,
 } from "@lightprotocol/compressed-token";
 
 // anchor get provider
@@ -42,7 +46,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
   payer: Signer,
   mintAuthority: Signer,
   transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number },
-  ctoken: boolean = false
+  ctoken: boolean = true
 ) {
   let ixs: TransactionInstruction[] = [];
   ixs.push(
@@ -148,50 +152,81 @@ export async function createTokenMintAndAssociatedTokenAccount(
   token0Program = tokenArray[0].program;
   token1Program = tokenArray[1].program;
 
-  const ownerToken0Account = await getOrCreateAssociatedTokenAccount(
-    connection,
+  const ownerToken0Account = await getOrCreateAssociatedTokenAccountInterface(
+    rpc,
     payer,
     token0,
     payer.publicKey,
     false,
     "processed",
     { skipPreflight: true },
-    token0Program
+    token0Program,
+    ctoken ? CTOKEN_PROGRAM_ID : ASSOCIATED_TOKEN_PROGRAM_ID
   );
-
-  await mintTo(
-    connection,
-    payer,
-    token0,
-    ownerToken0Account.address,
-    mintAuthority,
-    100_000_000_000_000,
-    [],
-    { skipPreflight: true },
-    token0Program
-  );
-  const ownerToken1Account = await getOrCreateAssociatedTokenAccount(
-    connection,
+  const ownerToken1Account = await getOrCreateAssociatedTokenAccountInterface(
+    rpc,
     payer,
     token1,
     payer.publicKey,
     false,
     "processed",
     { skipPreflight: true },
-    token1Program
+    token1Program,
+    ctoken ? CTOKEN_PROGRAM_ID : ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
-  await mintTo(
-    connection,
-    payer,
-    token1,
-    ownerToken1Account.address,
-    mintAuthority,
-    100_000_000_000_000,
-    [],
-    { skipPreflight: true },
-    token1Program
-  );
+  const queue = (await rpc.getStateTreeInfos())[0].queue;
+  if (ctoken) {
+    await mintTo(
+      rpc,
+      payer,
+      token0,
+      ownerToken0Account.address,
+      mintAuthority,
+      100_000_000_000_000,
+      queue,
+      queue,
+      { skipPreflight: true }
+      // token0Program
+    );
+
+    await mintTo(
+      rpc,
+      payer,
+      token1,
+      ownerToken1Account.address,
+      mintAuthority,
+      100_000_000_000_000,
+      queue,
+      queue,
+      { skipPreflight: true }
+      // token1Program
+    );
+  } else {
+    await mintToSpl(
+      rpc,
+      payer,
+      token0,
+      ownerToken0Account.address,
+      mintAuthority,
+      100_000_000_000_000,
+      [],
+      { skipPreflight: true },
+      token0Program
+    );
+
+    await mintToSpl(
+      connection,
+      payer,
+      token1,
+      ownerToken1Account.address,
+      mintAuthority,
+      100_000_000_000_000,
+      [],
+      { skipPreflight: true },
+      token1Program
+    );
+  }
 
   if (!ctoken) {
     const rpc = createRpc();
@@ -283,22 +318,30 @@ export async function getUserAndPoolVaultAmount(
     token0Mint,
     owner,
     false,
-    token0Program
+    token0Program,
+    token0Program.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
+  console.log("ownerToken0AccountAddr", ownerToken0AccountAddr.toBase58());
 
   const ownerToken1AccountAddr = getAssociatedTokenAddressSync(
     token1Mint,
     owner,
     false,
-    token1Program
+    token1Program,
+    token1Program.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
-
+  console.log("ownerToken1AccountAddr", ownerToken1AccountAddr.toBase58());
   const ownerToken0Account = await getAccountInterface(
     rpc,
     ownerToken0AccountAddr,
     "processed",
     token0Program
   );
+  console.log("ownerToken0Account", ownerToken0Account);
 
   const ownerToken1Account = await getAccountInterface(
     rpc,
@@ -306,21 +349,21 @@ export async function getUserAndPoolVaultAmount(
     "processed",
     token1Program
   );
-
+  console.log("ownerToken1Account", ownerToken1Account);
   const poolVault0TokenAccount = await getAccount(
     anchor.getProvider().connection,
     poolToken0Vault,
     "processed",
     CompressedTokenProgram.programId
   );
-
+  console.log("poolVault0TokenAccount", poolVault0TokenAccount);
   const poolVault1TokenAccount = await getAccount(
     anchor.getProvider().connection,
     poolToken1Vault,
     "processed",
     CompressedTokenProgram.programId
   );
-
+  console.log("poolVault1TokenAccount", poolVault1TokenAccount);
   return {
     ownerToken0Account,
     ownerToken1Account,

@@ -3,9 +3,12 @@ import { Program, BN } from "@coral-xyz/anchor";
 import { RaydiumCpSwap } from "../target/types/raydium_cp_swap";
 import { setupSwapTest, swap_base_input, swap_base_output } from "./utils";
 import { assert } from "chai";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import { getAccountInterface } from "@lightprotocol/compressed-token";
-import { createRpc } from "@lightprotocol/stateless.js";
+import { createRpc, CTOKEN_PROGRAM_ID } from "@lightprotocol/stateless.js";
 
 describe("swap test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -39,7 +42,10 @@ describe("swap test", () => {
       inputToken,
       owner.publicKey,
       false,
-      inputTokenProgram
+      inputTokenProgram,
+      inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
+        ? CTOKEN_PROGRAM_ID
+        : ASSOCIATED_TOKEN_PROGRAM_ID
     );
     const { parsed: inputTokenAccountBefore } = await getAccountInterface(
       rpc,
@@ -93,7 +99,10 @@ describe("swap test", () => {
       inputToken,
       owner.publicKey,
       false,
-      inputTokenProgram
+      inputTokenProgram,
+      inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
+        ? CTOKEN_PROGRAM_ID
+        : ASSOCIATED_TOKEN_PROGRAM_ID
     );
     const outputToken = poolState.token1Mint;
     const outputTokenProgram = poolState.token1Program;
@@ -101,7 +110,10 @@ describe("swap test", () => {
       outputToken,
       owner.publicKey,
       false,
-      outputTokenProgram
+      outputTokenProgram,
+      outputTokenProgram.equals(CTOKEN_PROGRAM_ID)
+        ? CTOKEN_PROGRAM_ID
+        : ASSOCIATED_TOKEN_PROGRAM_ID
     );
     const { parsed: outputTokenAccountBefore } = await getAccountInterface(
       rpc,
@@ -157,7 +169,10 @@ describe("swap test", () => {
       inputToken,
       owner.publicKey,
       false,
-      inputTokenProgram
+      inputTokenProgram,
+      inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
+        ? CTOKEN_PROGRAM_ID
+        : ASSOCIATED_TOKEN_PROGRAM_ID
     );
     const outputToken = poolState.token1Mint;
     const outputTokenProgram = poolState.token1Program;
@@ -165,7 +180,10 @@ describe("swap test", () => {
       outputToken,
       owner.publicKey,
       false,
-      outputTokenProgram
+      outputTokenProgram,
+      outputTokenProgram.equals(CTOKEN_PROGRAM_ID)
+        ? CTOKEN_PROGRAM_ID
+        : ASSOCIATED_TOKEN_PROGRAM_ID
     );
     const { parsed: outputTokenAccountBefore } = await getAccountInterface(
       rpc,

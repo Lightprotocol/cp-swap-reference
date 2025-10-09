@@ -73,13 +73,15 @@ pub struct Withdraw<'info> {
 
     /// The mint of token_0 vault
     #[account(
-        address = token_0_vault.mint
+        address = token_0_vault.mint,
+        mint::token_program = pool_state.token_0_program,
     )]
     pub vault_0_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// The mint of token_1 vault
     #[account(
-        address = token_1_vault.mint
+        address = token_1_vault.mint,
+        mint::token_program = pool_state.token_1_program,
     )]
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 

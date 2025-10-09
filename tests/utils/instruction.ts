@@ -53,6 +53,7 @@ import {
   createPackedAccountsSmallWithCpiContext,
   packCompressAccountsIdempotent,
   packDecompressAccountsIdempotent,
+  CTOKEN_PROGRAM_ID,
 } from "@lightprotocol/stateless.js";
 
 import {
@@ -420,13 +421,20 @@ export async function initialize(
     token0,
     creator.publicKey,
     false,
-    token0Program
+    token0Program,
+    token0Program.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
+
   const creatorToken1 = getAssociatedTokenAddressSync(
     token1,
     creator.publicKey,
     false,
-    token1Program
+    token1Program,
+    token1Program.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
   // 1. Derive compressed addresses
@@ -509,6 +517,17 @@ export async function initialize(
   const [ctokenConfigAccount] = deriveTokenProgramConfig();
 
   const ctokenRentSponsor = CTOKEN_RENT_SPONSOR;
+
+  console.log("creatorToken0", creatorToken0.toBase58());
+  console.log("creatorToken1", creatorToken1.toBase58());
+  console.log("creatorLpToken", creatorLpToken.toBase58());
+  console.log("lpVault", lpVault.toBase58());
+  console.log("token0Vault", vault0.toBase58());
+  console.log("token1Vault", vault1.toBase58());
+
+  console.log("token0", token0.toBase58());
+  console.log("token1", token1.toBase58());
+  console.log("lpMintAddress", lpMintAddress.toBase58());
 
   const initializeIx = await program.methods
     .initialize(
@@ -1111,13 +1130,19 @@ export async function deposit(
     token0,
     owner.publicKey,
     false,
-    token0Program
+    token0Program,
+    token0Program.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
   const ownerToken1 = getAssociatedTokenAddressSync(
     token1,
     owner.publicKey,
     false,
-    token1Program
+    token1Program,
+    token1Program.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
   // Fetch observation address
@@ -1241,13 +1266,19 @@ export async function withdraw(
     token0,
     owner.publicKey,
     false,
-    token0Program
+    token0Program,
+    token0Program.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
   const ownerToken1 = getAssociatedTokenAddressSync(
     token1,
     owner.publicKey,
     false,
-    token1Program
+    token1Program,
+    token1Program.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
   const withdrawIx = await program.methods
@@ -1342,13 +1373,19 @@ export async function swap_base_input(
     inputToken,
     owner.publicKey,
     false,
-    inputTokenProgram
+    inputTokenProgram,
+    inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
   const outputTokenAccount = getAssociatedTokenAddressSync(
     outputToken,
     owner.publicKey,
     false,
-    outputTokenProgram
+    outputTokenProgram,
+    outputTokenProgram.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
   const [observationAddress] = await getOracleAccountAddress(
     poolAddress,
@@ -1461,13 +1498,19 @@ export async function swap_base_output(
     inputToken,
     owner.publicKey,
     false,
-    inputTokenProgram
+    inputTokenProgram,
+    inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
   const outputTokenAccount = getAssociatedTokenAddressSync(
     outputToken,
     owner.publicKey,
     false,
-    outputTokenProgram
+    outputTokenProgram,
+    outputTokenProgram.equals(CTOKEN_PROGRAM_ID)
+      ? CTOKEN_PROGRAM_ID
+      : ASSOCIATED_TOKEN_PROGRAM_ID
   );
   const [observationAddress] = await getOracleAccountAddress(
     poolAddress,

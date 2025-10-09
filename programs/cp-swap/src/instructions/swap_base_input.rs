@@ -61,13 +61,15 @@ pub struct Swap<'info> {
 
     /// The mint of input token
     #[account(
-        address = input_vault.mint
+        address = input_vault.mint,
+        mint::token_program = input_token_program.key(),
     )]
     pub input_token_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// The mint of output token
     #[account(
-        address = output_vault.mint
+        address = output_vault.mint,
+        mint::token_program = output_token_program.key(),
     )]
     pub output_token_mint: Box<InterfaceAccount<'info, Mint>>,
     /// The program account for the most recent oracle observation
