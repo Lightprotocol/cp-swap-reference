@@ -47,7 +47,7 @@ export async function createTokenMintAndAssociatedTokenAccount(
   mintAuthority: Signer,
   transferFeeConfig: { transferFeeBasisPoints: number; MaxFee: number },
   token0Type: "ctoken" | "spl" | "token2022" = "ctoken",
-  token1Type: "ctoken" | "spl" | "token2022" = "ctoken"
+  token1Type: "ctoken" | "spl" | "token2022" = "token2022"
 ) {
   let ixs: TransactionInstruction[] = [];
   ixs.push(
@@ -106,7 +106,10 @@ export async function createTokenMintAndAssociatedTokenAccount(
       mintAuthority,
       mintAuthority.publicKey,
       null,
-      9
+      9,
+      undefined,
+      undefined,
+      TOKEN_PROGRAM_ID
     );
     token0Program = TOKEN_PROGRAM_ID;
   }
@@ -147,7 +150,10 @@ export async function createTokenMintAndAssociatedTokenAccount(
       mintAuthority,
       mintAuthority.publicKey,
       null,
-      9
+      9,
+      undefined,
+      undefined,
+      TOKEN_PROGRAM_ID
     );
     token1Program = TOKEN_PROGRAM_ID;
   }
@@ -187,9 +193,12 @@ export async function createTokenMintAndAssociatedTokenAccount(
   finalToken0Type = tokenArray[0].type;
   finalToken1Type = tokenArray[1].type;
   console.log("token0", token0.toBase58());
+  // console.log("token0.owner", tokenArray[0].program.toBase58());
   console.log("token1", token1.toBase58());
   console.log("token0Program", token0Program.toBase58());
   console.log("token1Program", token1Program.toBase58());
+  console.log("finalToken0Type", finalToken0Type);
+  console.log("finalToken1Type", finalToken1Type);
 
   const ownerToken0Account = await getOrCreateAssociatedTokenAccountInterface(
     rpc,
@@ -407,14 +416,14 @@ export async function getUserAndPoolVaultAmount(
     token1Program
   );
 
-  const poolVault0TokenAccount = await getAccount(
-    anchor.getProvider().connection,
+  const poolVault0TokenAccount = await getAccountInterface(
+    rpc,
     poolToken0Vault,
     "processed",
     CompressedTokenProgram.programId
   );
-  const poolVault1TokenAccount = await getAccount(
-    anchor.getProvider().connection,
+  const poolVault1TokenAccount = await getAccountInterface(
+    rpc,
     poolToken1Vault,
     "processed",
     CompressedTokenProgram.programId
@@ -447,8 +456,8 @@ export async function getUserAndPoolLpAmount(
     CTOKEN_PROGRAM_ID
   );
 
-  const poolLpVaultAccount = await getAccount(
-    anchor.getProvider().connection,
+  const poolLpVaultAccount = await getAccountInterface(
+    rpc,
     lpVault,
     "processed",
     CTOKEN_PROGRAM_ID

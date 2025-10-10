@@ -83,8 +83,8 @@ describe("withdraw test", () => {
     const {
       ownerToken0Account: { parsed: ownerToken0AccountBefore },
       ownerToken1Account: { parsed: ownerToken1AccountBefore },
-      poolVault0TokenAccount: poolVault0TokenAccountBefore,
-      poolVault1TokenAccount: poolVault1TokenAccountBefore,
+      poolVault0TokenAccount: { parsed: poolVault0TokenAccountBefore },
+      poolVault1TokenAccount: { parsed: poolVault1TokenAccountBefore },
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
       poolState.token0Mint,
@@ -128,8 +128,8 @@ describe("withdraw test", () => {
     const {
       ownerToken0Account: { parsed: ownerToken0AccountAfter },
       ownerToken1Account: { parsed: ownerToken1AccountAfter },
-      poolVault0TokenAccount: poolVault0TokenAccountAfter,
-      poolVault1TokenAccount: poolVault1TokenAccountAfter,
+      poolVault0TokenAccount: { parsed: poolVault0TokenAccountAfter },
+      poolVault1TokenAccount: { parsed: poolVault1TokenAccountAfter },
     } = await getUserAndPoolVaultAmount(
       owner.publicKey,
       poolState.token0Mint,

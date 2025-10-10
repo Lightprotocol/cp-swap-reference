@@ -5,7 +5,10 @@ import { getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { setupInitializeTest, initialize, calculateFee } from "./utils";
 import { assert } from "chai";
 import { createRpc, featureFlags, VERSION } from "@lightprotocol/stateless.js";
-import { CompressedTokenProgram } from "@lightprotocol/compressed-token";
+import {
+  CompressedTokenProgram,
+  getAccountInterface,
+} from "@lightprotocol/compressed-token";
 
 featureFlags.version = VERSION.V2;
 describe("initialize test", () => {
@@ -50,7 +53,7 @@ describe("initialize test", () => {
       confirmOptions,
       { initAmount0, initAmount1 }
     );
-    let vault0 = await getAccount(
+    let { parsed: vault0 } = await getAccountInterface(
       connection,
       poolState.token0Vault,
       "processed",
@@ -58,7 +61,7 @@ describe("initialize test", () => {
     );
     assert.equal(vault0.amount.toString(), initAmount0.toString());
 
-    let vault1 = await getAccount(
+    let { parsed: vault1 } = await getAccountInterface(
       connection,
       poolState.token1Vault,
       "processed",
@@ -97,7 +100,7 @@ describe("initialize test", () => {
       confirmOptions,
       { initAmount0, initAmount1 }
     );
-    let vault0 = await getAccount(
+    let { parsed: vault0 } = await getAccountInterface(
       connection,
       poolState.token0Vault,
       "processed",
@@ -105,8 +108,8 @@ describe("initialize test", () => {
     );
     assert.equal(vault0.amount.toString(), initAmount0.toString());
 
-    let vault1 = await getAccount(
-      anchor.getProvider().connection,
+    let { parsed: vault1 } = await getAccountInterface(
+      connection,
       poolState.token1Vault,
       "processed",
       CompressedTokenProgram.programId
@@ -146,8 +149,8 @@ describe("initialize test", () => {
       confirmOptions,
       { initAmount0, initAmount1 }
     );
-    let vault0 = await getAccount(
-      anchor.getProvider().connection,
+    let { parsed: vault0 } = await getAccountInterface(
+      connection,
       poolState.token0Vault,
       "processed",
       poolState.token0Program
@@ -165,8 +168,8 @@ describe("initialize test", () => {
       assert(new BN(total.toString()).gte(initAmount0));
     }
 
-    let vault1 = await getAccount(
-      anchor.getProvider().connection,
+    let { parsed: vault1 } = await getAccountInterface(
+      connection,
       poolState.token1Vault,
       "processed",
       poolState.token1Program
