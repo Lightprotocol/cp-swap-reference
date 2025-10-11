@@ -26,7 +26,7 @@ import {
   getPoolVaultAddress,
   createTokenMintAndAssociatedTokenAccount,
   getOracleAccountAddress,
-  fetchCompressibleAccount,
+  fetchAccountInterface,
   getLpVaultAddress,
   getPoolLpMintSignerAddress,
   getPoolLpMintCompressedAddress,
@@ -34,7 +34,6 @@ import {
   getOracleSignerSeeds,
   getPoolVaultSignerSeeds,
   deriveTokenProgramConfig,
-  POOL_AUTH_SEED,
 } from "./index";
 import {
   createRpc,
@@ -61,6 +60,7 @@ import {
   CTOKEN_RENT_SPONSOR,
   getAccountInterface,
   getAssociatedCTokenAddressAndBump,
+  getAtaProgramId,
 } from "@lightprotocol/compressed-token";
 
 featureFlags.version = VERSION.V2;
@@ -68,9 +68,6 @@ const COMPRESSION_DELAY = 0;
 const ADDRESS_SPACE = [
   new PublicKey("EzKE84aVTkCUhDHLELqyJaq1Y7UVVmqxXqZjVHwHY3rK"),
 ];
-
-type CompressedAccountVariant =
-  IdlTypes<RaydiumCpSwap>["compressedAccountVariant"];
 
 export async function setupInitializeTest(
   program: Program<RaydiumCpSwap>,
@@ -168,7 +165,6 @@ export async function setupDepositTest(
 
   const [address, _] = deriveCompressionConfigAddress(program.programId);
   if (!(await accountExist(connection, address))) {
-    // Extend connection with zkcompression endpoints
     const rpc = createRpc();
     const txId = await initializeCompressionConfig(
       rpc,
@@ -255,7 +251,6 @@ export async function setupSwapTest(
 
   const [address, _] = deriveCompressionConfigAddress(program.programId);
   if (!(await accountExist(connection, address))) {
-    // Extend connection with zkcompression endpoints
     const rpc = createRpc();
     await initializeCompressionConfig(
       rpc,
@@ -370,13 +365,12 @@ export async function initialize(
   },
   createPoolFee = new PublicKey("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8")
 ) {
-  // Extend connection with zkcompression endpoints
   const rpc = createRpc();
 
   const addressTreeInfo = getDefaultAddressTreeInfo();
   const stateTreeInfo = selectStateTreeInfo(await rpc.getStateTreeInfos());
 
-  const [auth, authBump] = await getAuthAddress(program.programId);
+  const [auth, _authBump] = await getAuthAddress(program.programId);
 
   const [poolAddress] = await getPoolAddress(
     configAddress,
@@ -422,9 +416,7 @@ export async function initialize(
     creator.publicKey,
     false,
     token0Program,
-    token0Program.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(token0Program)
   );
 
   const creatorToken1 = getAssociatedTokenAddressSync(
@@ -432,9 +424,7 @@ export async function initialize(
     creator.publicKey,
     false,
     token1Program,
-    token1Program.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(token1Program)
   );
 
   // 1. Derive compressed addresses
@@ -592,7 +582,7 @@ export async function initialize(
   const txId = await sendAndConfirmTx(rpc, tx, { skipPreflight: true });
   console.log("initialize signature:", txId);
 
-  const { parsed: poolState } = await fetchCompressibleAccount(
+  const { parsed: poolState } = await fetchAccountInterface(
     poolAddress,
     addressTreeInfo,
     program,
@@ -622,12 +612,10 @@ export async function compressIdempotent(
   compressionAuthority?: PublicKey,
   tokenCompressionAuthority?: PublicKey,
   rentRecipient?: PublicKey
-  // tokenRentRecipient?: PublicKey
 ) {
   compressionAuthority = compressionAuthority ?? feePayer.publicKey;
   tokenCompressionAuthority = tokenCompressionAuthority ?? feePayer.publicKey;
   rentRecipient = rentRecipient ?? feePayer.publicKey;
-  // tokenRentRecipient = tokenRentRecipient ?? feePayer.publicKey;
 
   const addressTreeInfo = getDefaultAddressTreeInfo();
   const stateTreeInfo = selectStateTreeInfo(await rpc.getStateTreeInfos());
@@ -636,7 +624,7 @@ export async function compressIdempotent(
     accountInfo: poolAccountInfo,
     parsed: poolState,
     merkleContext: poolMerkleContext,
-  } = await fetchCompressibleAccount(
+  } = await fetchAccountInterface(
     poolAddress,
     addressTreeInfo,
     program,
@@ -648,7 +636,7 @@ export async function compressIdempotent(
     accountInfo: observationAccountInfo,
     parsed: observationState,
     merkleContext: observationMerkleContext,
-  } = await fetchCompressibleAccount(
+  } = await fetchAccountInterface(
     observationAddress,
     addressTreeInfo,
     program,
@@ -784,7 +772,7 @@ export async function decompressIdempotent(
   const addressTreeInfo = getDefaultAddressTreeInfo();
 
   const { parsed: poolState, merkleContext: poolMerkleContext } =
-    await fetchCompressibleAccount(
+    await fetchAccountInterface(
       poolAddress,
       addressTreeInfo,
       program,
@@ -793,7 +781,7 @@ export async function decompressIdempotent(
     );
 
   const { parsed: observationState, merkleContext: observationMerkleContext } =
-    await fetchCompressibleAccount(
+    await fetchAccountInterface(
       observationAddress,
       addressTreeInfo,
       program,
@@ -801,36 +789,27 @@ export async function decompressIdempotent(
       rpc
     );
 
-  const {
-    accountInfo: lpVaultAccountInfo,
-    parsed: lpVaultState,
-    merkleContext: lpVaultMerkleContext,
-  } = await getAccountInterface(
-    rpc,
-    lpVault,
-    undefined,
-    CompressedTokenProgram.programId
-  );
-  const {
-    accountInfo: token0VaultAccountInfo,
-    parsed: token0VaultState,
-    merkleContext: token0VaultMerkleContext,
-  } = await getAccountInterface(
-    rpc,
-    token0Vault,
-    undefined,
-    CompressedTokenProgram.programId
-  );
-  const {
-    accountInfo: token1VaultAccountInfo,
-    parsed: token1VaultState,
-    merkleContext: token1VaultMerkleContext,
-  } = await getAccountInterface(
-    rpc,
-    token1Vault,
-    undefined,
-    CompressedTokenProgram.programId
-  );
+  const { parsed: lpVaultState, merkleContext: lpVaultMerkleContext } =
+    await getAccountInterface(
+      rpc,
+      lpVault,
+      undefined,
+      CompressedTokenProgram.programId
+    );
+  const { parsed: token0VaultState, merkleContext: token0VaultMerkleContext } =
+    await getAccountInterface(
+      rpc,
+      token0Vault,
+      undefined,
+      CompressedTokenProgram.programId
+    );
+  const { parsed: token1VaultState, merkleContext: token1VaultMerkleContext } =
+    await getAccountInterface(
+      rpc,
+      token1Vault,
+      undefined,
+      CompressedTokenProgram.programId
+    );
 
   if (
     !poolMerkleContext &&
@@ -942,7 +921,8 @@ export async function decompressIdempotent(
 
   const decompressIx = await program.methods
     .decompressAccountsIdempotent(
-      { 0: proof.compressedProof },
+      // { 0: proof.compressedProof },
+      proofOption,
       compressedAccounts,
       systemAccountsOffset
     )
@@ -1053,7 +1033,6 @@ export async function compressHelper(
     undefined,
     undefined,
     undefined
-    // CTOKEN_RENT_RECIPIENT
   );
   const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_200_000,
@@ -1131,18 +1110,14 @@ export async function deposit(
     owner.publicKey,
     false,
     token0Program,
-    token0Program.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(token0Program)
   );
   const ownerToken1 = getAssociatedTokenAddressSync(
     token1,
     owner.publicKey,
     false,
     token1Program,
-    token1Program.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(token1Program)
   );
 
   // Fetch observation address
@@ -1267,18 +1242,14 @@ export async function withdraw(
     owner.publicKey,
     false,
     token0Program,
-    token0Program.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(token0Program)
   );
   const ownerToken1 = getAssociatedTokenAddressSync(
     token1,
     owner.publicKey,
     false,
     token1Program,
-    token1Program.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(token1Program)
   );
 
   const withdrawIx = await program.methods
@@ -1374,18 +1345,14 @@ export async function swap_base_input(
     owner.publicKey,
     false,
     inputTokenProgram,
-    inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(inputTokenProgram)
   );
   const outputTokenAccount = getAssociatedTokenAddressSync(
     outputToken,
     owner.publicKey,
     false,
     outputTokenProgram,
-    outputTokenProgram.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(outputTokenProgram)
   );
   const [observationAddress] = await getOracleAccountAddress(
     poolAddress,
@@ -1499,18 +1466,14 @@ export async function swap_base_output(
     owner.publicKey,
     false,
     inputTokenProgram,
-    inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(inputTokenProgram)
   );
   const outputTokenAccount = getAssociatedTokenAddressSync(
     outputToken,
     owner.publicKey,
     false,
     outputTokenProgram,
-    outputTokenProgram.equals(CTOKEN_PROGRAM_ID)
-      ? CTOKEN_PROGRAM_ID
-      : ASSOCIATED_TOKEN_PROGRAM_ID
+    getAtaProgramId(outputTokenProgram)
   );
   const [observationAddress] = await getOracleAccountAddress(
     poolAddress,

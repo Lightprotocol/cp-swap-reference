@@ -7,7 +7,10 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
-import { getAccountInterface } from "@lightprotocol/compressed-token";
+import {
+  getAccountInterface,
+  getAtaProgramId,
+} from "@lightprotocol/compressed-token";
 import { createRpc, CTOKEN_PROGRAM_ID } from "@lightprotocol/stateless.js";
 
 describe("swap test", () => {
@@ -43,9 +46,7 @@ describe("swap test", () => {
       owner.publicKey,
       false,
       inputTokenProgram,
-      inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
-        ? CTOKEN_PROGRAM_ID
-        : ASSOCIATED_TOKEN_PROGRAM_ID
+      getAtaProgramId(inputTokenProgram)
     );
     const { parsed: inputTokenAccountBefore } = await getAccountInterface(
       rpc,
@@ -100,9 +101,7 @@ describe("swap test", () => {
       owner.publicKey,
       false,
       inputTokenProgram,
-      inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
-        ? CTOKEN_PROGRAM_ID
-        : ASSOCIATED_TOKEN_PROGRAM_ID
+      getAtaProgramId(inputTokenProgram)
     );
     const outputToken = poolState.token1Mint;
     const outputTokenProgram = poolState.token1Program;
@@ -111,9 +110,7 @@ describe("swap test", () => {
       owner.publicKey,
       false,
       outputTokenProgram,
-      outputTokenProgram.equals(CTOKEN_PROGRAM_ID)
-        ? CTOKEN_PROGRAM_ID
-        : ASSOCIATED_TOKEN_PROGRAM_ID
+      getAtaProgramId(outputTokenProgram)
     );
     const { parsed: outputTokenAccountBefore } = await getAccountInterface(
       rpc,
@@ -170,9 +167,7 @@ describe("swap test", () => {
       owner.publicKey,
       false,
       inputTokenProgram,
-      inputTokenProgram.equals(CTOKEN_PROGRAM_ID)
-        ? CTOKEN_PROGRAM_ID
-        : ASSOCIATED_TOKEN_PROGRAM_ID
+      getAtaProgramId(inputTokenProgram)
     );
     const outputToken = poolState.token1Mint;
     const outputTokenProgram = poolState.token1Program;
@@ -181,9 +176,7 @@ describe("swap test", () => {
       owner.publicKey,
       false,
       outputTokenProgram,
-      outputTokenProgram.equals(CTOKEN_PROGRAM_ID)
-        ? CTOKEN_PROGRAM_ID
-        : ASSOCIATED_TOKEN_PROGRAM_ID
+      getAtaProgramId(outputTokenProgram)
     );
     const { parsed: outputTokenAccountBefore } = await getAccountInterface(
       rpc,

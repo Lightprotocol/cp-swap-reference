@@ -69,7 +69,7 @@ export async function getBlockTimestamp(
 }
 
 // Anchor-only
-export async function fetchCompressibleAccount<
+export async function fetchAccountInterface<
   TIdl extends Idl,
   TAccountName extends keyof IdlAccounts<TIdl>
 >(

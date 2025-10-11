@@ -2,7 +2,7 @@
 
 # Starts solana-test-validator with all ZK Compression programs, prover, photon
 # indexer, cp-amm accounts, and a lookup table. Also deploys the
-# cp-swap program.
+# # cp-swap program.
 
 ./../light-protocol/cli/test_bin/run test-validator --validator-args "--clone DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8 \
      --clone D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2 \

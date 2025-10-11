@@ -7,7 +7,7 @@ import {
   deposit,
   getUserAndPoolVaultAmount,
   setupDepositTest,
-  fetchCompressibleAccount,
+  fetchAccountInterface,
 } from "./utils";
 import { assert } from "chai";
 import { MAX_FEE_BASIS_POINTS, TOKEN_PROGRAM_ID } from "@solana/spl-token";
@@ -78,7 +78,7 @@ describe("deposit test", () => {
       confirmOptions
     );
 
-    const { parsed: newPoolState } = await fetchCompressibleAccount(
+    const { parsed: newPoolState } = await fetchAccountInterface(
       poolAddress,
       getDefaultAddressTreeInfo(),
       program,
@@ -195,7 +195,7 @@ describe("deposit test", () => {
       confirmOptions
     );
 
-    const { parsed: newPoolState2 } = await fetchCompressibleAccount(
+    const { parsed: newPoolState2 } = await fetchAccountInterface(
       poolAddress2,
       getDefaultAddressTreeInfo(),
       program,
@@ -316,7 +316,7 @@ describe("deposit test", () => {
       new BN(20000000000),
       confirmOptions
     );
-    const { parsed: newPoolState } = await fetchCompressibleAccount(
+    const { parsed: newPoolState } = await fetchAccountInterface(
       poolAddress,
       getDefaultAddressTreeInfo(),
       program,
