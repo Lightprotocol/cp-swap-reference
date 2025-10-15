@@ -61,6 +61,7 @@ import {
   getAccountInterface,
   getAssociatedCTokenAddressAndBump,
   getAtaProgramId,
+  buildDecompressParams,
 } from "@lightprotocol/compressed-token";
 
 featureFlags.version = VERSION.V2;
@@ -771,160 +772,99 @@ export async function decompressIdempotent(
 ) {
   const addressTreeInfo = getDefaultAddressTreeInfo();
 
-  const { parsed: poolState, merkleContext: poolMerkleContext } =
-    await fetchAccountInterface(
-      poolAddress,
-      addressTreeInfo,
-      program,
-      "poolState",
-      rpc
-    );
+  const poolStateInterface = await fetchAccountInterface(
+    poolAddress,
+    addressTreeInfo,
+    program,
+    "poolState",
+    rpc
+  );
 
-  const { parsed: observationState, merkleContext: observationMerkleContext } =
-    await fetchAccountInterface(
-      observationAddress,
-      addressTreeInfo,
-      program,
-      "observationState",
-      rpc
-    );
+  const observationInterface = await fetchAccountInterface(
+    observationAddress,
+    addressTreeInfo,
+    program,
+    "observationState",
+    rpc
+  );
 
-  const { parsed: lpVaultState, merkleContext: lpVaultMerkleContext } =
-    await getAccountInterface(
-      rpc,
-      lpVault,
-      undefined,
-      CompressedTokenProgram.programId
-    );
-  const { parsed: token0VaultState, merkleContext: token0VaultMerkleContext } =
-    await getAccountInterface(
-      rpc,
-      token0Vault,
-      undefined,
-      CompressedTokenProgram.programId
-    );
-  const { parsed: token1VaultState, merkleContext: token1VaultMerkleContext } =
-    await getAccountInterface(
-      rpc,
-      token1Vault,
-      undefined,
-      CompressedTokenProgram.programId
-    );
+  const lpVaultInterface = await getAccountInterface(
+    rpc,
+    lpVault,
+    undefined,
+    CompressedTokenProgram.programId
+  );
+  const token0VaultInterface = await getAccountInterface(
+    rpc,
+    token0Vault,
+    undefined,
+    CompressedTokenProgram.programId
+  );
+  const token1VaultInterface = await getAccountInterface(
+    rpc,
+    token1Vault,
+    undefined,
+    CompressedTokenProgram.programId
+  );
 
-  if (
-    !poolMerkleContext &&
-    !observationMerkleContext &&
-    !lpVaultState &&
-    !token0VaultState &&
-    !token1VaultState
-  )
-    return;
+  console.log("poolStateInterface", poolStateInterface);
+  console.log("observationInterface", observationInterface);
+  console.log("lpVaultInterface", lpVaultInterface);
+  console.log("token0VaultInterface", token0VaultInterface);
+  console.log("token1VaultInterface", token1VaultInterface);
 
-  const proof = await rpc.getValidityProofV0([
+  // Use SDK helper to build decompress params
+  const decompressParams = await buildDecompressParams(program.programId, rpc, [
     {
-      hash: poolMerkleContext.hash,
-      tree: poolMerkleContext.treeInfo.tree,
-      queue: poolMerkleContext.treeInfo.queue,
+      address: poolAddress,
+      info: poolStateInterface,
+      accountType: "poolState",
     },
     {
-      hash: observationMerkleContext.hash,
-      tree: observationMerkleContext.treeInfo.tree,
-      queue: observationMerkleContext.treeInfo.queue,
+      address: observationAddress,
+      info: observationInterface,
+      accountType: "observationState",
     },
-    ...[
-      lpVaultMerkleContext
-        ? {
-            hash: lpVaultMerkleContext.hash,
-            tree: lpVaultMerkleContext.treeInfo.tree,
-            queue: lpVaultMerkleContext.treeInfo.queue,
-          }
-        : null,
-      token0VaultMerkleContext
-        ? {
-            hash: token0VaultMerkleContext.hash,
-            tree: token0VaultMerkleContext.treeInfo.tree,
-            queue: token0VaultMerkleContext.treeInfo.queue,
-          }
-        : null,
-      token1VaultMerkleContext
-        ? {
-            hash: token1VaultMerkleContext.hash,
-            tree: token1VaultMerkleContext.treeInfo.tree,
-            queue: token1VaultMerkleContext.treeInfo.queue,
-          }
-        : null,
-    ].filter(Boolean),
+    {
+      address: lpVault,
+      info: lpVaultInterface,
+      accountType: "cTokenData",
+      tokenVariant: "lpVault",
+    },
+    {
+      address: token0Vault,
+      info: token0VaultInterface,
+      accountType: "cTokenData",
+      tokenVariant: "token0Vault",
+    },
+    {
+      address: token1Vault,
+      info: token1VaultInterface,
+      accountType: "cTokenData",
+      tokenVariant: "token1Vault",
+    },
   ]);
 
-  const {
-    compressedAccounts,
-    systemAccountsOffset,
-    remainingAccounts,
-    proofOption,
-  } = await packDecompressAccountsIdempotent(
-    program.programId,
-    proof,
-    [
-      {
-        key: "poolState",
-        data: poolState,
-        treeInfo: poolMerkleContext.treeInfo,
-      },
-      {
-        key: "observationState",
-        data: observationState,
-        treeInfo: observationMerkleContext.treeInfo,
-      },
-      ...[
-        lpVaultMerkleContext
-          ? {
-              key: "cTokenData", // Use the enum variant
-              data: {
-                variant: { lpVault: {} }, // Anchor enum expects object variant
-                tokenData: lpVaultState,
-              },
-              treeInfo: lpVaultMerkleContext.treeInfo,
-            }
-          : null,
-        token0VaultMerkleContext
-          ? {
-              key: "cTokenData",
-              data: {
-                variant: { token0Vault: {} }, // Anchor enum expects object variant
-                tokenData: token0VaultState,
-              },
-              treeInfo: token0VaultMerkleContext.treeInfo,
-            }
-          : null,
-        token1VaultMerkleContext
-          ? {
-              key: "cTokenData",
-              data: {
-                variant: { token1Vault: {} }, // Anchor enum expects object variant
-                tokenData: token1VaultState,
-              },
-              treeInfo: token1VaultMerkleContext.treeInfo,
-            }
-          : null,
-      ].filter(Boolean),
-    ],
-    [
-      poolAddress,
-      observationAddress,
-      ...(lpVaultMerkleContext ? [lpVault] : []),
-      ...(token0VaultMerkleContext ? [token0Vault] : []),
-      ...(token1VaultMerkleContext ? [token1Vault] : []),
-    ]
+  // If nothing compressed, return null
+  if (!decompressParams) {
+    return null;
+  }
+  console.log(
+    "REFERENCE decompressParams.systemAccountsOffset",
+    decompressParams.systemAccountsOffset
+  );
+  console.log(
+    `[REFERENCE] compressedAccounts:`,
+    JSON.stringify(decompressParams.compressedAccounts, null, 2)
   );
 
   const [ctokenConfig] = deriveTokenProgramConfig();
 
   const decompressIx = await program.methods
     .decompressAccountsIdempotent(
-      // { 0: proof.compressedProof },
-      proofOption,
-      compressedAccounts,
-      systemAccountsOffset
+      decompressParams.proofOption,
+      decompressParams.compressedAccounts,
+      decompressParams.systemAccountsOffset
     )
     .accountsStrict({
       feePayer: owner.publicKey,
@@ -933,14 +873,14 @@ export async function decompressIdempotent(
       ctokenRentSponsor: CTOKEN_RENT_SPONSOR,
       ctokenProgram: CompressedTokenProgram.programId,
       ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
-      lpMint,
+      ctokenConfig,
+      ammConfig: configAddress,
       token0Mint: token0,
       token1Mint: token1,
+      lpMint,
       poolState: poolAddress,
-      ammConfig: configAddress,
-      ctokenConfig,
     })
-    .remainingAccounts(remainingAccounts)
+    .remainingAccounts(decompressParams.remainingAccounts)
     .instruction();
 
   return decompressIx;
@@ -1374,8 +1314,45 @@ export async function swap_base_input(
     createRpc()
   );
 
-  const ix = await program.methods
+  console.log(
+    "decompressIx compare:",
+    decompressIx.keys.map(
+      (k, idx) =>
+        "#" +
+        (idx + 1) +
+        " " +
+        k.pubkey.toString() +
+        "   writable:" +
+        k.isWritable +
+        "   signer:" +
+        k.isSigner
+    )
+  );
+
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1_200_000,
+  });
+
+  const tx = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
+    .preInstructions([computeBudgetIx])
+    .decompressIfNeeded({
+      feePayer: owner.publicKey,
+      config: deriveCompressionConfigAddress(program.programId)[0],
+      rentPayer: owner.publicKey,
+      ctokenRentSponsor: CTOKEN_RENT_SPONSOR,
+      ctokenProgram: CompressedTokenProgram.programId,
+      ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
+      ctokenConfig: deriveTokenProgramConfig()[0],
+      lpMint: lpMintAddress,
+      ammConfig: configAddress,
+      token0Mint: inputToken,
+      token1Mint: outputToken,
+      poolState: poolAddress,
+      observationState: observationAddress,
+      token0Vault: inputVault,
+      token1Vault: outputVault,
+    })
     .accountsStrict({
       payer: owner.publicKey,
       authority: auth,
@@ -1398,24 +1375,24 @@ export async function swap_base_input(
       compressedToken1PoolPda:
         CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
-    .instruction();
-  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
-    units: 1_200_000,
-  });
+    .transaction();
+
+  console.log(" len of ixs:", tx.instructions.length);
+
   const rpc = createRpc();
   const { blockhash } = await program.provider.connection.getLatestBlockhash();
   const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
     new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
   );
 
-  const tx = buildAndSignTx(
-    [computeBudgetIx, decompressIx, ix],
+  const versionedTx = buildAndSignTx(
+    tx.instructions,
     owner,
     blockhash,
     [],
     [lookupTableAccount]
   );
-  const txId = await sendAndConfirmTx(rpc, tx, confirmOptions);
+  const txId = await sendAndConfirmTx(rpc, versionedTx, confirmOptions);
   console.log("swap base_in signature:", txId);
   return txId;
 }

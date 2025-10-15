@@ -119,6 +119,7 @@ pub struct Initialize<'info> {
     /// CHECK:
     #[account(
         mut,
+        cctoken,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
             lp_mint.to_account_info().key.as_ref()
@@ -130,6 +131,7 @@ pub struct Initialize<'info> {
     /// CHECK: Token_0 vault for the pool, created by contract
     #[account(
         mut,
+        cctoken,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
             pool_state.to_account_info().key.as_ref(),
@@ -142,6 +144,7 @@ pub struct Initialize<'info> {
     /// CHECK: Token_1 vault for the pool, created by contract
     #[account(
         mut,
+        cctoken,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
             pool_state.to_account_info().key.as_ref(),
