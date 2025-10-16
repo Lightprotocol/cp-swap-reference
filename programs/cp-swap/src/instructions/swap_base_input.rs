@@ -42,6 +42,13 @@ pub struct Swap<'info> {
     /// The vault token account for input token
     #[account(
         mut,
+        cctoken(variant = Token0Vault | Token1Vault),
+        seeds = [
+            POOL_VAULT_SEED.as_bytes(),
+            pool_state.key().as_ref(),
+            input_token_mint.key().as_ref()
+        ],
+        bump,
         constraint = input_vault.key() == pool_state.token_0_vault || input_vault.key() == pool_state.token_1_vault
     )]
     pub input_vault: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -49,6 +56,13 @@ pub struct Swap<'info> {
     /// The vault token account for output token
     #[account(
         mut,
+        cctoken(variant = Token0Vault | Token1Vault),
+        seeds = [
+            POOL_VAULT_SEED.as_bytes(),
+            pool_state.key().as_ref(),
+            output_token_mint.key().as_ref()
+        ],
+        bump,
         constraint = output_vault.key() == pool_state.token_0_vault || output_vault.key() == pool_state.token_1_vault
     )]
     pub output_vault: Box<InterfaceAccount<'info, TokenAccount>>,

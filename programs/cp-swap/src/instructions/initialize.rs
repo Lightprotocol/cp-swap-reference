@@ -124,6 +124,7 @@ pub struct Initialize<'info> {
             POOL_VAULT_SEED.as_bytes(),
             lp_mint.to_account_info().key.as_ref()
         ],
+        authority = crate::AUTH_SEED,
         bump,
     )]
     pub lp_vault: UncheckedAccount<'info>,
@@ -137,6 +138,7 @@ pub struct Initialize<'info> {
             pool_state.to_account_info().key.as_ref(),
             token_0_mint.to_account_info().key.as_ref()
         ],
+        authority = crate::AUTH_SEED,
         bump,
     )]
     pub token_0_vault: UncheckedAccount<'info>,
@@ -150,6 +152,7 @@ pub struct Initialize<'info> {
             pool_state.to_account_info().key.as_ref(),
             token_1_mint.to_account_info().key.as_ref()
         ],
+        authority = crate::AUTH_SEED,
         bump,
     )]
     pub token_1_vault: UncheckedAccount<'info>,
