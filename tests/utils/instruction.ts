@@ -819,29 +819,45 @@ export async function decompressIdempotent(
       address: poolAddress,
       info: poolStateInterface,
       accountType: "poolState",
+      // Seeds: [ammConfig, token0Mint, token1Mint]
+      seeds: [configAddress.toBytes(), token0.toBytes(), token1.toBytes()],
+      authoritySeeds: [],
     },
     {
       address: observationAddress,
       info: observationInterface,
       accountType: "observationState",
+      // Seeds: [poolState]
+      seeds: [poolAddress.toBytes()],
+      authoritySeeds: [],
     },
     {
       address: lpVault,
       info: lpVaultInterface,
       accountType: "cTokenData",
       tokenVariant: "lpVault",
+      // Seeds: [lpMint]
+      seeds: [lpMint.toBytes()],
+      // Authority seeds (if any) are const-only; pass empty to produce [] indices
+      authoritySeeds: [],
     },
     {
       address: token0Vault,
       info: token0VaultInterface,
       accountType: "cTokenData",
       tokenVariant: "token0Vault",
+      // Seeds: [poolState, token0Mint]
+      seeds: [poolAddress.toBytes(), token0.toBytes()],
+      authoritySeeds: [],
     },
     {
       address: token1Vault,
       info: token1VaultInterface,
       accountType: "cTokenData",
       tokenVariant: "token1Vault",
+      // Seeds: [poolState, token1Mint]
+      seeds: [poolAddress.toBytes(), token1.toBytes()],
+      authoritySeeds: [],
     },
   ]);
 
@@ -856,6 +872,24 @@ export async function decompressIdempotent(
   console.log(
     `[REFERENCE] compressedAccounts:`,
     JSON.stringify(decompressParams.compressedAccounts, null, 2)
+  );
+  console.log(
+    "calculated seed accounts offset",
+    decompressParams.systemAccountsOffset +
+      decompressParams.compressedAccounts.length
+  );
+
+  console.log("amm config key", configAddress.toBase58());
+  console.log("amm config bytes", configAddress.toBytes());
+
+  console.log("token0 mint key", token0.toBase58());
+  console.log("token0 mint bytes", token0.toBytes());
+  console.log("token1 mint key", token1.toBase58());
+  console.log("token1 mint bytes", token1.toBytes());
+
+  console.log(
+    `[REFERENCE] remainingAccounts:`,
+    JSON.stringify(decompressParams.remainingAccounts, null, 2)
   );
 
   const [ctokenConfig] = deriveTokenProgramConfig();
@@ -874,11 +908,11 @@ export async function decompressIdempotent(
       ctokenProgram: CompressedTokenProgram.programId,
       ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
       ctokenConfig,
-      ammConfig: configAddress,
-      token0Mint: token0,
-      token1Mint: token1,
-      lpMint,
-      poolState: poolAddress,
+      // ammConfig: configAddress,
+      // token0Mint: token0,
+      // token1Mint: token1,
+      // lpMint,
+      // poolState: poolAddress,
     })
     .remainingAccounts(decompressParams.remainingAccounts)
     .instruction();
@@ -1344,14 +1378,14 @@ export async function swap_base_input(
       ctokenProgram: CompressedTokenProgram.programId,
       ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
       ctokenConfig: deriveTokenProgramConfig()[0],
-      lpMint: lpMintAddress,
-      ammConfig: configAddress,
-      token0Mint: inputToken,
-      token1Mint: outputToken,
-      poolState: poolAddress,
-      observationState: observationAddress,
-      token0Vault: inputVault,
-      token1Vault: outputVault,
+      // lpMint: lpMintAddress,
+      // ammConfig: configAddress,
+      // token0Mint: inputToken,
+      // token1Mint: outputToken,
+      // poolState: poolAddress,
+      // observationState: observationAddress,
+      // token0Vault: inputVault,
+      // token1Vault: outputVault,
     })
     .accountsStrict({
       payer: owner.publicKey,
@@ -1379,6 +1413,21 @@ export async function swap_base_input(
 
   console.log(" len of ixs:", tx.instructions.length);
 
+  console.log(
+    "account keys of used accounts:",
+    tx.instructions[1].keys.map(
+      (k, i) =>
+        "#" +
+        (i + 1) +
+        " " +
+        k.pubkey.toString() +
+        " writable:" +
+        k.isWritable +
+        " signer:" +
+        k.isSigner
+    )
+  );
+
   const rpc = createRpc();
   const { blockhash } = await program.provider.connection.getLatestBlockhash();
   const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
@@ -1386,6 +1435,7 @@ export async function swap_base_input(
   );
 
   const versionedTx = buildAndSignTx(
+    // [tx.instructions[0], decompressIx, ...tx.instructions.slice(1)],
     tx.instructions,
     owner,
     blockhash,
