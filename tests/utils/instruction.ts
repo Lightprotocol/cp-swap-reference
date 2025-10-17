@@ -1333,10 +1333,13 @@ export async function swap_base_input(
     units: 1_200_000,
   });
 
+  // With optional seed accounts: only provide seed accounts for the vaults/accounts you're actually decompressing
+  // For example, if lpVault is not compressed, you can omit lpMint
   const tx = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
     .preInstructions([computeBudgetIx])
     .decompressIfNeeded({
+      // Required system accounts
       feePayer: owner.publicKey,
       config: deriveCompressionConfigAddress(program.programId)[0],
       rentPayer: owner.publicKey,
@@ -1344,10 +1347,12 @@ export async function swap_base_input(
       ctokenProgram: CompressedTokenProgram.programId,
       ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
       ctokenConfig: deriveTokenProgramConfig()[0],
-      lpMint: lpMintAddress,
+
       ammConfig: configAddress,
       token0Mint: inputToken,
       token1Mint: outputToken,
+
+      // Compressible accounts - will be checked for compression state
       poolState: poolAddress,
       observationState: observationAddress,
       token0Vault: inputVault,
