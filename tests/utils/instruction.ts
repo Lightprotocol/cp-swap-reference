@@ -1333,26 +1333,28 @@ export async function swap_base_input(
     units: 1_200_000,
   });
 
-  // With optional seed accounts: only provide seed accounts for the vaults/accounts you're actually decompressing
-  // For example, if lpVault is not compressed, you can omit lpMint
+  console.log(
+    "compressible configAddress:",
+    deriveCompressionConfigAddress(program.programId)[0].toString()
+  );
+
+  // With auto-resolution: constants and defaults are automatically filled if not provided
+  // You can now omit: ctokenProgram, ctokenCpiAuthority (constants)
+  // and: config, ctokenRentSponsor, ctokenConfig (defaults)
   const tx = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
     .preInstructions([computeBudgetIx])
     .decompressIfNeeded({
-      // Required system accounts
       feePayer: owner.publicKey,
-      config: deriveCompressionConfigAddress(program.programId)[0],
       rentPayer: owner.publicKey,
-      ctokenRentSponsor: CTOKEN_RENT_SPONSOR,
-      ctokenProgram: CompressedTokenProgram.programId,
-      ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
-      ctokenConfig: deriveTokenProgramConfig()[0],
 
-      ammConfig: configAddress,
+      // Seed accounts for compressible accounts being decompressed.
+      // required if names do not match name in main instruction.
+      // ammConfig: configAddress,
       token0Mint: inputToken,
       token1Mint: outputToken,
 
-      // Compressible accounts - will be checked for compression state
+      // compressible accounts we want to decompress if needed
       poolState: poolAddress,
       observationState: observationAddress,
       token0Vault: inputVault,
