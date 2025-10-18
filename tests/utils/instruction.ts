@@ -1350,6 +1350,7 @@ export async function swap_base_input(
 
       // Seed accounts for compressible accounts being decompressed.
       // required if names do not match name in main instruction.
+      // ammconfig is part of main ixn threfore doesnt have to be provided here
       // ammConfig: configAddress,
       token0Mint: inputToken,
       token1Mint: outputToken,
