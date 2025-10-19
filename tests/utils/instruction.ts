@@ -807,11 +807,11 @@ export async function decompressIdempotent(
     CompressedTokenProgram.programId
   );
 
-  console.log("poolStateInterface", poolStateInterface);
-  console.log("observationInterface", observationInterface);
-  console.log("lpVaultInterface", lpVaultInterface);
-  console.log("token0VaultInterface", token0VaultInterface);
-  console.log("token1VaultInterface", token1VaultInterface);
+  // console.log("poolStateInterface", poolStateInterface);
+  // console.log("observationInterface", observationInterface);
+  // console.log("lpVaultInterface", lpVaultInterface);
+  // console.log("token0VaultInterface", token0VaultInterface);
+  // console.log("token1VaultInterface", token1VaultInterface);
 
   // Use SDK helper to build decompress params
   const decompressParams = await buildDecompressParams(program.programId, rpc, [
@@ -1344,23 +1344,7 @@ export async function swap_base_input(
   const tx = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
     .preInstructions([computeBudgetIx])
-    .decompressIfNeeded({
-      feePayer: owner.publicKey,
-      rentPayer: owner.publicKey,
-
-      // Seed accounts for compressible accounts being decompressed.
-      // required if names do not match name in main instruction.
-      // ammconfig is part of main ixn threfore doesnt have to be provided here
-      // ammConfig: configAddress,
-      token0Mint: inputToken,
-      token1Mint: outputToken,
-
-      // compressible accounts we want to decompress if needed
-      poolState: poolAddress,
-      observationState: observationAddress,
-      token0Vault: inputVault,
-      token1Vault: outputVault,
-    })
+    .decompressIfNeeded()
     .accountsStrict({
       payer: owner.publicKey,
       authority: auth,
