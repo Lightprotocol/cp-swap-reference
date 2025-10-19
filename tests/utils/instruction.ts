@@ -845,6 +845,9 @@ export async function decompressIdempotent(
     },
   ]);
 
+  console.log("decompressParams", decompressParams.remainingAccounts.length);
+  console.log("decompressParams", decompressParams.compressedAccounts[0]);
+
   // If nothing compressed, return null
   if (!decompressParams) {
     return null;
@@ -882,6 +885,65 @@ export async function decompressIdempotent(
     })
     .remainingAccounts(decompressParams.remainingAccounts)
     .instruction();
+
+  console.log("decompressIx ix data encodede len", decompressIx.data.length);
+  const decompressIxTest = await program.methods
+    .decompressAccountsIdempotent(
+      decompressParams.proofOption,
+      [
+        decompressParams.compressedAccounts[
+          decompressParams.compressedAccounts.length - 1
+        ],
+      ],
+      decompressParams.systemAccountsOffset
+    )
+    .accountsStrict({
+      feePayer: owner.publicKey,
+      config: deriveCompressionConfigAddress(program.programId)[0],
+      rentPayer: owner.publicKey,
+      ctokenRentSponsor: CTOKEN_RENT_SPONSOR,
+      ctokenProgram: CompressedTokenProgram.programId,
+      ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
+      ctokenConfig,
+      ammConfig: configAddress,
+      token0Mint: token0,
+      token1Mint: token1,
+      lpMint,
+      poolState: poolAddress,
+    })
+    .remainingAccounts(decompressParams.remainingAccounts)
+    .instruction();
+  console.log(
+    "decompressIxTest ix data encoded len (1 account)",
+    decompressIxTest.data.length
+  );
+
+  const decompressIxTest2 = await program.methods
+    .decompressAccountsIdempotent(
+      decompressParams.proofOption,
+      [],
+      decompressParams.systemAccountsOffset
+    )
+    .accountsStrict({
+      feePayer: owner.publicKey,
+      config: deriveCompressionConfigAddress(program.programId)[0],
+      rentPayer: owner.publicKey,
+      ctokenRentSponsor: CTOKEN_RENT_SPONSOR,
+      ctokenProgram: CompressedTokenProgram.programId,
+      ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
+      ctokenConfig,
+      ammConfig: configAddress,
+      token0Mint: token0,
+      token1Mint: token1,
+      lpMint,
+      poolState: poolAddress,
+    })
+    .remainingAccounts(decompressParams.remainingAccounts)
+    .instruction();
+  console.log(
+    "decompressIxTest2 ix data encoded len (0 accounts)",
+    decompressIxTest2.data.length
+  );
 
   return decompressIx;
 }
@@ -1338,9 +1400,6 @@ export async function swap_base_input(
     deriveCompressionConfigAddress(program.programId)[0].toString()
   );
 
-  // With auto-resolution: constants and defaults are automatically filled if not provided
-  // You can now omit: ctokenProgram, ctokenCpiAuthority (constants)
-  // and: config, ctokenRentSponsor, ctokenConfig (defaults)
   const tx = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
     .preInstructions([computeBudgetIx])
