@@ -63,6 +63,7 @@ pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
     LpVault = (is_token, POOL_VAULT_SEED, ctx.accounts.lp_mint, authority = AUTH_SEED),
     Token0Vault = (is_token, POOL_VAULT_SEED, ctx.accounts.pool_state, ctx.accounts.token_0_mint, authority = AUTH_SEED),
     Token1Vault = (is_token, POOL_VAULT_SEED, ctx.accounts.pool_state, ctx.accounts.token_1_mint, authority = AUTH_SEED),
+    ATA = (is_token, is_ata),
 )]
 #[program]
 pub mod raydium_cp_swap {

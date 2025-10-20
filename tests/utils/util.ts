@@ -25,6 +25,7 @@ import {
   createMint,
   createMintSPL,
   getAccountInterface,
+  getAtaInterface,
   getAtaProgramId,
   getOrCreateAssociatedTokenAccountInterface,
   mintToInterface,
@@ -298,16 +299,18 @@ export async function getUserAndPoolVaultAmount(
     getAtaProgramId(token1Program)
   );
 
-  const ownerToken0Account = await getAccountInterface(
+  const ownerToken0Account = await getAtaInterface(
     rpc,
-    ownerToken0AccountAddr,
+    owner,
+    token0Mint,
     "processed",
     token0Program
   );
 
-  const ownerToken1Account = await getAccountInterface(
+  const ownerToken1Account = await getAtaInterface(
     rpc,
-    ownerToken1AccountAddr,
+    owner,
+    token1Mint,
     "processed",
     token1Program
   );
@@ -345,9 +348,10 @@ export async function getUserAndPoolLpAmount(
     CTOKEN_PROGRAM_ID
   );
 
-  const userLpAccount = await getAccountInterface(
+  const userLpAccount = await getAtaInterface(
     rpc,
-    userLpTokenAddr,
+    owner,
+    lpMint,
     "processed",
     CTOKEN_PROGRAM_ID
   );

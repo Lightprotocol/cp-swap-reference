@@ -8,7 +8,7 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import {
-  getAccountInterface,
+  getAtaInterface,
   getAtaProgramId,
 } from "@lightprotocol/compressed-token";
 import { createRpc, CTOKEN_PROGRAM_ID } from "@lightprotocol/stateless.js";
@@ -41,16 +41,10 @@ describe("swap test", () => {
     );
     const inputToken = poolState.token0Mint;
     const inputTokenProgram = poolState.token0Program;
-    const inputTokenAccountAddr = getAssociatedTokenAddressSync(
-      inputToken,
-      owner.publicKey,
-      false,
-      inputTokenProgram,
-      getAtaProgramId(inputTokenProgram)
-    );
-    const { parsed: inputTokenAccountBefore } = await getAccountInterface(
+    const { parsed: inputTokenAccountBefore } = await getAtaInterface(
       rpc,
-      inputTokenAccountAddr,
+      owner.publicKey,
+      inputToken,
       "processed",
       inputTokenProgram
     );
@@ -68,9 +62,10 @@ describe("swap test", () => {
       new BN(0),
       confirmOptions
     );
-    const { parsed: inputTokenAccountAfter } = await getAccountInterface(
+    const { parsed: inputTokenAccountAfter } = await getAtaInterface(
       rpc,
-      inputTokenAccountAddr,
+      owner.publicKey,
+      inputToken,
       "processed",
       inputTokenProgram
     );
@@ -96,25 +91,12 @@ describe("swap test", () => {
     );
     const inputToken = poolState.token0Mint;
     const inputTokenProgram = poolState.token0Program;
-    const inputTokenAccountAddr = getAssociatedTokenAddressSync(
-      inputToken,
-      owner.publicKey,
-      false,
-      inputTokenProgram,
-      getAtaProgramId(inputTokenProgram)
-    );
     const outputToken = poolState.token1Mint;
     const outputTokenProgram = poolState.token1Program;
-    const outputTokenAccountAddr = getAssociatedTokenAddressSync(
-      outputToken,
-      owner.publicKey,
-      false,
-      outputTokenProgram,
-      getAtaProgramId(outputTokenProgram)
-    );
-    const { parsed: outputTokenAccountBefore } = await getAccountInterface(
+    const { parsed: outputTokenAccountBefore } = await getAtaInterface(
       rpc,
-      outputTokenAccountAddr,
+      owner.publicKey,
+      outputToken,
       "processed",
       outputTokenProgram
     );
@@ -132,9 +114,10 @@ describe("swap test", () => {
       new BN(10000000000000),
       confirmOptions
     );
-    const { parsed: outputTokenAccountAfter } = await getAccountInterface(
+    const { parsed: outputTokenAccountAfter } = await getAtaInterface(
       rpc,
-      outputTokenAccountAddr,
+      owner.publicKey,
+      outputToken,
       "processed",
       outputTokenProgram
     );
@@ -162,25 +145,12 @@ describe("swap test", () => {
 
     const inputToken = poolState.token0Mint;
     const inputTokenProgram = poolState.token0Program;
-    const inputTokenAccountAddr = getAssociatedTokenAddressSync(
-      inputToken,
-      owner.publicKey,
-      false,
-      inputTokenProgram,
-      getAtaProgramId(inputTokenProgram)
-    );
     const outputToken = poolState.token1Mint;
     const outputTokenProgram = poolState.token1Program;
-    const outputTokenAccountAddr = getAssociatedTokenAddressSync(
-      outputToken,
-      owner.publicKey,
-      false,
-      outputTokenProgram,
-      getAtaProgramId(outputTokenProgram)
-    );
-    const { parsed: outputTokenAccountBefore } = await getAccountInterface(
+    const { parsed: outputTokenAccountBefore } = await getAtaInterface(
       rpc,
-      outputTokenAccountAddr,
+      owner.publicKey,
+      outputToken,
       "processed",
       outputTokenProgram
     );
@@ -198,9 +168,10 @@ describe("swap test", () => {
       new BN(10000000000000),
       confirmOptions
     );
-    const { parsed: outputTokenAccountAfter } = await getAccountInterface(
+    const { parsed: outputTokenAccountAfter } = await getAtaInterface(
       rpc,
-      outputTokenAccountAddr,
+      owner.publicKey,
+      outputToken,
       "processed",
       outputTokenProgram
     );
