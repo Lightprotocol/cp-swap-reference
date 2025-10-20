@@ -4,12 +4,12 @@
 # indexer, cp-amm accounts, and a lookup table. Also deploys the
 # # cp-swap program.
 
-# ./../light-protocol/cli/test_bin/run test-validator --validator-args "--clone DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8 \
-#      --clone D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2 \
-#      --account 9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ ./scripts/lut.json \
-#      --url https://api.mainnet-beta.solana.com \
-#      --upgradeable-program CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C target/deploy/raydium_cp_swap.so ~/.config/solana/id.json \
-#      --log-messages-bytes-limit 4194304"
+./../light-protocol/cli/test_bin/run test-validator --validator-args "--clone DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8 \
+     --clone D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2 \
+     --account 9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ ./scripts/lut.json \
+     --url https://api.mainnet-beta.solana.com \
+     --upgradeable-program CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C target/deploy/raydium_cp_swap.so ~/.config/solana/id.json \
+     --log-messages-bytes-limit 4194304"
 
 # PHOTON_PID=$(pgrep -f photon)
 # PROVER_PID=$(pgrep -f prover)

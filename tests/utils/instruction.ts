@@ -807,12 +807,6 @@ export async function decompressIdempotent(
     CompressedTokenProgram.programId
   );
 
-  // console.log("poolStateInterface", poolStateInterface);
-  // console.log("observationInterface", observationInterface);
-  // console.log("lpVaultInterface", lpVaultInterface);
-  // console.log("token0VaultInterface", token0VaultInterface);
-  // console.log("token1VaultInterface", token1VaultInterface);
-
   // Use SDK helper to build decompress params
   const decompressParams = await buildDecompressParams(program.programId, rpc, [
     {
@@ -846,20 +840,11 @@ export async function decompressIdempotent(
   ]);
 
   console.log("decompressParams", decompressParams.remainingAccounts.length);
-  console.log("decompressParams", decompressParams.compressedAccounts[0]);
 
   // If nothing compressed, return null
   if (!decompressParams) {
     return null;
   }
-  console.log(
-    "REFERENCE decompressParams.systemAccountsOffset",
-    decompressParams.systemAccountsOffset
-  );
-  console.log(
-    `[REFERENCE] compressedAccounts:`,
-    JSON.stringify(decompressParams.compressedAccounts, null, 2)
-  );
 
   const [ctokenConfig] = deriveTokenProgramConfig();
 
@@ -885,65 +870,6 @@ export async function decompressIdempotent(
     })
     .remainingAccounts(decompressParams.remainingAccounts)
     .instruction();
-
-  console.log("decompressIx ix data encodede len", decompressIx.data.length);
-  const decompressIxTest = await program.methods
-    .decompressAccountsIdempotent(
-      decompressParams.proofOption,
-      [
-        decompressParams.compressedAccounts[
-          decompressParams.compressedAccounts.length - 1
-        ],
-      ],
-      decompressParams.systemAccountsOffset
-    )
-    .accountsStrict({
-      feePayer: owner.publicKey,
-      config: deriveCompressionConfigAddress(program.programId)[0],
-      rentPayer: owner.publicKey,
-      ctokenRentSponsor: CTOKEN_RENT_SPONSOR,
-      ctokenProgram: CompressedTokenProgram.programId,
-      ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
-      ctokenConfig,
-      ammConfig: configAddress,
-      token0Mint: token0,
-      token1Mint: token1,
-      lpMint,
-      poolState: poolAddress,
-    })
-    .remainingAccounts(decompressParams.remainingAccounts)
-    .instruction();
-  console.log(
-    "decompressIxTest ix data encoded len (1 account)",
-    decompressIxTest.data.length
-  );
-
-  const decompressIxTest2 = await program.methods
-    .decompressAccountsIdempotent(
-      decompressParams.proofOption,
-      [],
-      decompressParams.systemAccountsOffset
-    )
-    .accountsStrict({
-      feePayer: owner.publicKey,
-      config: deriveCompressionConfigAddress(program.programId)[0],
-      rentPayer: owner.publicKey,
-      ctokenRentSponsor: CTOKEN_RENT_SPONSOR,
-      ctokenProgram: CompressedTokenProgram.programId,
-      ctokenCpiAuthority: CompressedTokenProgram.deriveCpiAuthorityPda,
-      ctokenConfig,
-      ammConfig: configAddress,
-      token0Mint: token0,
-      token1Mint: token1,
-      lpMint,
-      poolState: poolAddress,
-    })
-    .remainingAccounts(decompressParams.remainingAccounts)
-    .instruction();
-  console.log(
-    "decompressIxTest2 ix data encoded len (0 accounts)",
-    decompressIxTest2.data.length
-  );
 
   return decompressIx;
 }
@@ -1146,6 +1072,7 @@ export async function deposit(
 
   const depositIx = await program.methods
     .deposit(lp_token_amount, maximum_token_0_amount, maximum_token_1_amount)
+    .decompressIfNeeded({ lpMint: lpMintAddress, ammConfig: configAddress })
     .accountsStrict({
       owner: owner.publicKey,
       authority: auth,
@@ -1168,7 +1095,7 @@ export async function deposit(
       compressedToken1PoolPda:
         CompressedTokenProgram.deriveTokenPoolPda(token1),
     })
-    .instruction();
+    .transaction();
 
   const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_200_000,
@@ -1179,7 +1106,7 @@ export async function deposit(
   );
 
   const depositTx = buildAndSignTx(
-    [computeBudgetIx, decompressIx, depositIx],
+    depositIx.instructions,
     owner,
     blockhash,
     [],
@@ -1256,6 +1183,7 @@ export async function withdraw(
 
   const withdrawIx = await program.methods
     .withdraw(lp_token_amount, minimum_token_0_amount, minimum_token_1_amount)
+    .decompressIfNeeded({ lpMint: lpMintAddress, ammConfig: configAddress })
     .accountsStrict({
       owner: owner.publicKey,
       authority: auth,
@@ -1279,7 +1207,7 @@ export async function withdraw(
         CompressedTokenProgram.deriveTokenPoolPda(token1),
       memoProgram: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
     })
-    .instruction();
+    .transaction();
 
   const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_200_000,
@@ -1290,7 +1218,7 @@ export async function withdraw(
     new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
   );
   const withdrawTx = buildAndSignTx(
-    [computeBudgetIx, withdrawIx],
+    withdrawIx.instructions,
     owner,
     blockhash,
     [],
@@ -1375,34 +1303,47 @@ export async function swap_base_input(
     outputToken,
     createRpc()
   );
+  // const rpcDecompress = createRpc();
+  // const { blockhash: blockhashDecompress } =
+  //   await program.provider.connection.getLatestBlockhash();
+  // const { value: lookupTableAccountDecompress } =
+  //   await rpcDecompress.getAddressLookupTable(
+  //     new PublicKey("9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ")
+  //   );
 
-  console.log(
-    "decompressIx compare:",
-    decompressIx.keys.map(
-      (k, idx) =>
-        "#" +
-        (idx + 1) +
-        " " +
-        k.pubkey.toString() +
-        "   writable:" +
-        k.isWritable +
-        "   signer:" +
-        k.isSigner
-    )
-  );
+  // const versionedTxDecompress = buildAndSignTx(
+  //   [
+  //     ComputeBudgetProgram.setComputeUnitLimit({ units: 1_200_000 }),
+  //     decompressIx,
+  //   ],
+  //   owner,
+  //   blockhashDecompress,
+  //   [],
+  //   [lookupTableAccountDecompress]
+  // );
+
+  // console.log(
+  //   "decompressIx compare:",
+  //   decompressIx.keys.map(
+  //     (k, idx) =>
+  //       "#" +
+  //       (idx + 1) +
+  //       " " +
+  //       k.pubkey.toString() +
+  //       "   writable:" +
+  //       k.isWritable +
+  //       "   signer:" +
+  //       k.isSigner
+  //   )
+  // );
 
   const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: 1_200_000,
   });
 
-  console.log(
-    "compressible configAddress:",
-    deriveCompressionConfigAddress(program.programId)[0].toString()
-  );
-
   const tx = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
-    .preInstructions([computeBudgetIx])
+    // .preInstructions([computeBudgetIx])
     .decompressIfNeeded()
     .accountsStrict({
       payer: owner.publicKey,
@@ -1430,6 +1371,14 @@ export async function swap_base_input(
 
   console.log(" len of ixs:", tx.instructions.length);
 
+  // /// TEST
+  // const txIdDecompress = await sendAndConfirmTx(
+  //   rpcDecompress,
+  //   versionedTxDecompress,
+  //   confirmOptions
+  // );
+  // console.log("swap base_in decompress signature:", txIdDecompress);
+
   const rpc = createRpc();
   const { blockhash } = await program.provider.connection.getLatestBlockhash();
   const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
@@ -1443,6 +1392,7 @@ export async function swap_base_input(
     [],
     [lookupTableAccount]
   );
+
   const txId = await sendAndConfirmTx(rpc, versionedTx, confirmOptions);
   console.log("swap base_in signature:", txId);
   return txId;
@@ -1525,6 +1475,7 @@ export async function swap_base_output(
 
   const ix = await program.methods
     .swapBaseOutput(max_amount_in, amount_out_less_fee)
+    .decompressIfNeeded()
     .accountsStrict({
       payer: owner.publicKey,
       authority: auth,
@@ -1547,11 +1498,8 @@ export async function swap_base_output(
       compressedToken1PoolPda:
         CompressedTokenProgram.deriveTokenPoolPda(outputToken),
     })
-    .instruction();
+    .transaction();
 
-  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
-    units: 1_200_000,
-  });
   const rpc = createRpc();
   const { blockhash } = await program.provider.connection.getLatestBlockhash();
   const { value: lookupTableAccount } = await rpc.getAddressLookupTable(
@@ -1559,7 +1507,7 @@ export async function swap_base_output(
   );
 
   const tx = buildAndSignTx(
-    [computeBudgetIx, decompressIx, ix],
+    ix.instructions,
     owner,
     blockhash,
     [],
