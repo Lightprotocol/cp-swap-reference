@@ -62,6 +62,7 @@ import {
   getAssociatedCTokenAddressAndBump,
   getAtaProgramId,
   buildDecompressParams,
+  getAtaInterface,
 } from "@lightprotocol/compressed-token";
 
 featureFlags.version = VERSION.V2;
@@ -652,26 +653,68 @@ export async function compressIdempotent(
       CompressedTokenProgram.programId
     );
 
-  const { accountInfo: token0VaultAccountInfo, parsed: token0VaultState } =
-    await getAccountInterface(
-      rpc,
-      token0Vault,
-      undefined,
-      CompressedTokenProgram.programId
-    );
-  const { accountInfo: token1VaultAccountInfo, parsed: token1VaultState } =
-    await getAccountInterface(
-      rpc,
-      token1Vault,
-      undefined,
-      CompressedTokenProgram.programId
-    );
+  const {
+    accountInfo: token0VaultAccountInfo,
+    parsed: token0VaultState,
+    merkleContext: token0VaultMerkleContext,
+  } = await getAccountInterface(
+    rpc,
+    token0Vault,
+    undefined,
+    CompressedTokenProgram.programId
+  );
+  const {
+    accountInfo: token1VaultAccountInfo,
+    parsed: token1VaultState,
+    merkleContext: token1VaultMerkleContext,
+  } = await getAccountInterface(
+    rpc,
+    token1Vault,
+    undefined,
+    CompressedTokenProgram.programId
+  );
+
+  const {
+    accountInfo: ownerLpTokenAccountInfo,
+    parsed: ownerLpTokenState,
+    merkleContext: ownerLpTokenMerkleContext,
+  } = await getAtaInterface(
+    rpc,
+    feePayer.publicKey,
+    lpVaultState.mint,
+    "processed",
+    CompressedTokenProgram.programId
+  );
+  const {
+    accountInfo: ownerToken0AccountInfo,
+    parsed: ownerToken0State,
+    merkleContext: ownerToken0MerkleContext,
+  } = await getAtaInterface(
+    rpc,
+    feePayer.publicKey,
+    token0VaultState.mint,
+    "processed",
+    CompressedTokenProgram.programId
+  );
+  const {
+    accountInfo: ownerToken1AccountInfo,
+    parsed: ownerToken1State,
+    merkleContext: ownerToken1MerkleContext,
+  } = await getAtaInterface(
+    rpc,
+    feePayer.publicKey,
+    token1VaultState.mint,
+    "processed"
+  );
 
   if (
     !poolMerkleContext &&
     !observationMerkleContext &&
-    !token0VaultState &&
-    !token1VaultState
+    !token0VaultMerkleContext &&
+    !token1VaultMerkleContext &&
+    !ownerLpTokenMerkleContext &&
+    !ownerToken0MerkleContext &&
+    !ownerToken1MerkleContext
   )
     return;
 
@@ -721,6 +764,22 @@ export async function compressIdempotent(
         accountId: token1Vault,
         accountInfo: token1VaultAccountInfo,
         parsed: token1VaultState,
+      },
+      // testing.
+      {
+        accountId: ownerLpTokenState.address,
+        accountInfo: ownerLpTokenAccountInfo,
+        parsed: ownerLpTokenState,
+      },
+      {
+        accountId: ownerToken0State.address,
+        accountInfo: ownerToken0AccountInfo,
+        parsed: ownerToken0State,
+      },
+      {
+        accountId: ownerToken1State.address,
+        accountInfo: ownerToken1AccountInfo,
+        parsed: ownerToken1State,
       },
     ],
     stateTreeInfo
@@ -807,6 +866,27 @@ export async function decompressIdempotent(
     CompressedTokenProgram.programId
   );
 
+  // user atas
+  const ownerLpTokenInterface = await getAtaInterface(
+    rpc,
+    owner.publicKey,
+    lpMint,
+    "processed",
+    CompressedTokenProgram.programId
+  );
+  const ownerToken0Interface = await getAtaInterface(
+    rpc,
+    owner.publicKey,
+    token0,
+    "processed"
+  );
+  const ownerToken1Interface = await getAtaInterface(
+    rpc,
+    owner.publicKey,
+    token1,
+    "processed"
+  );
+
   // Use SDK helper to build decompress params
   const decompressParams = await buildDecompressParams(program.programId, rpc, [
     {
@@ -837,11 +917,27 @@ export async function decompressIdempotent(
       accountType: "cTokenData",
       tokenVariant: "token1Vault",
     },
+    {
+      address: ownerLpTokenInterface.parsed.address,
+      info: ownerLpTokenInterface,
+      accountType: "cTokenData",
+      tokenVariant: "ata",
+    },
+    {
+      address: ownerToken0Interface.parsed.address,
+      info: ownerToken0Interface,
+      accountType: "cTokenData",
+      tokenVariant: "ata",
+    },
+    {
+      address: ownerToken1Interface.parsed.address,
+      info: ownerToken1Interface,
+      accountType: "cTokenData",
+      tokenVariant: "ata",
+    },
   ]);
 
   console.log("decompressParams", decompressParams.remainingAccounts.length);
-
-  // If nothing compressed, return null
   if (!decompressParams) {
     return null;
   }
@@ -1343,30 +1439,7 @@ export async function swap_base_input(
 
   const tx = await program.methods
     .swapBaseInput(amount_in, minimum_amount_out)
-    // .preInstructions([computeBudgetIx])
     .decompressIfNeeded()
-    .accountsStrict({
-      payer: owner.publicKey,
-      authority: auth,
-      ammConfig: configAddress,
-      poolState: poolAddress,
-      inputTokenAccount,
-      outputTokenAccount,
-      inputVault,
-      outputVault,
-      inputTokenProgram: inputTokenProgram,
-      outputTokenProgram: outputTokenProgram,
-      inputTokenMint: inputToken,
-      outputTokenMint: outputToken,
-      observationState: observationAddress,
-      compressedTokenProgram: CompressedTokenProgram.programId,
-      compressedTokenProgramCpiAuthority:
-        CompressedTokenProgram.deriveCpiAuthorityPda,
-      compressedToken0PoolPda:
-        CompressedTokenProgram.deriveTokenPoolPda(inputToken),
-      compressedToken1PoolPda:
-        CompressedTokenProgram.deriveTokenPoolPda(outputToken),
-    })
     .transaction();
 
   console.log(" len of ixs:", tx.instructions.length);

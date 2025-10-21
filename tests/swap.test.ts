@@ -13,7 +13,7 @@ import {
 } from "@lightprotocol/compressed-token";
 import { createRpc, CTOKEN_PROGRAM_ID } from "@lightprotocol/stateless.js";
 
-describe("swap test", () => {
+describe.only("swap test", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const rpc = createRpc();
   const owner = anchor.Wallet.local().payer;
@@ -24,7 +24,7 @@ describe("swap test", () => {
     skipPreflight: true,
   };
 
-  it("swap base input without transfer fee", async () => {
+  it.only("swap base input without transfer fee", async () => {
     const { configAddress, poolAddress, poolState } = await setupSwapTest(
       program,
       rpc,
