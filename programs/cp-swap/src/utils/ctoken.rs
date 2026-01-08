@@ -1,36 +1,31 @@
-use crate::{
-    instructions::InitializeCompressionParams, states::POOL_LP_MINT_SEED,
-    utils::LP_MINT_CREATION_INDEX,
-};
-use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
-use light_compressed_token_sdk::{
-    instructions::{
-        create_compressed_mint::instruction::derive_compressed_mint_from_spl_mint,
-        create_mint_action_cpi,
-        transfer2::{transfer_interface, transfer_interface_signed},
-        CreateMintInputs, MintActionInputs, MintActionType,
-    },
-    CompressedProof,
-};
-use light_ctoken_types::{
-    instructions::mint_action::CompressedMintWithContext,
-    instructions::mint_action::CpiContext as CompressedCpiContext,
-};
-use light_sdk::cpi::CpiAccountsSmall;
+use anchor_lang::prelude::*;
+use light_ctoken_sdk::ctoken::TransferInterfaceCpi;
 
 pub fn transfer_ctoken_from_user_to_pool_vault<'a>(
     authority: AccountInfo<'a>,
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
     amount: u64,
+    decimals: u8,
+    ctoken_program_authority: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
 
-    transfer_interface(
-        &from, &to_vault, &authority, amount, &authority, &authority, None, None, None, None,
-    )?;
+    TransferInterfaceCpi::new(
+        amount,
+        decimals,
+        from,
+        to_vault,
+        authority.clone(),
+        authority.clone(),
+        ctoken_program_authority,
+        system_program,
+    )
+    .invoke()
+    .map_err(|e| anchor_lang::error::Error::from(e))?;
     Ok(())
 }
 
@@ -39,24 +34,26 @@ pub fn transfer_ctoken_from_pool_vault_to_user<'a>(
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     amount: u64,
+    decimals: u8,
+    ctoken_program_authority: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    transfer_interface_signed(
-        &from_vault,
-        &to,
-        &authority,
+    TransferInterfaceCpi::new(
         amount,
-        &authority,
-        &authority,
-        None,
-        None,
-        None,
-        None,
-        signer_seeds,
-    )?;
+        decimals,
+        from_vault,
+        to,
+        authority.clone(),
+        authority.clone(),
+        ctoken_program_authority,
+        system_program,
+    )
+    .invoke_signed(signer_seeds)
+    .map_err(|e| anchor_lang::error::Error::from(e))?;
     Ok(())
 }
 
@@ -64,125 +61,17 @@ pub fn transfer_ctoken_from_pool_vault_to_user<'a>(
 pub fn get_bumps(
     token_0_mint: Pubkey,
     token_1_mint: Pubkey,
-    compressed_token_program: Pubkey,
+    light_token_program: Pubkey,
 ) -> (u8, u8) {
-    let compressed_token_0_pool_bump = Pubkey::find_program_address(
+    let spl_interface_0_bump = Pubkey::find_program_address(
         &[b"pool".as_ref(), token_0_mint.as_ref()],
-        &compressed_token_program,
+        &light_token_program,
     )
     .1;
-    let compressed_token_1_pool_bump = Pubkey::find_program_address(
+    let spl_interface_1_bump = Pubkey::find_program_address(
         &[b"pool".as_ref(), token_1_mint.as_ref()],
-        &compressed_token_program,
+        &light_token_program,
     )
     .1;
-    (compressed_token_0_pool_bump, compressed_token_1_pool_bump)
-}
-
-pub fn create_and_mint_lp<'a, 'b, 'info>(
-    creator: AccountInfo<'info>,
-    authority: AccountInfo<'info>,
-    lp_mint_key: &Pubkey,
-    lp_vault: AccountInfo<'info>,
-    creator_lp_token: AccountInfo<'info>,
-    lp_mint_signer: AccountInfo<'info>,
-    pool_state_key: &Pubkey,
-    compressed_token_program_cpi_authority: AccountInfo<'info>,
-    compressed_token_program: AccountInfo<'info>,
-    lp_mint_signer_bump: u8,
-    compression_params: &InitializeCompressionParams,
-    cpi_accounts: &CpiAccountsSmall<'b, 'info>,
-    user_lp_amount: u64,
-    vault_lp_amount: u64,
-    pool_auth_bump: u8,
-) -> Result<()> {
-    // Get tree accounts
-    let output_state_queue_idx: u8 = 0;
-    let address_tree_idx: u8 = 1;
-    let output_state_queue =
-        *cpi_accounts.tree_accounts().unwrap()[output_state_queue_idx as usize].key;
-    let address_tree_pubkey = *cpi_accounts.tree_accounts().unwrap()[address_tree_idx as usize].key;
-
-    let mint_compressed_address =
-        derive_compressed_mint_from_spl_mint(lp_mint_key, &address_tree_pubkey);
-
-    let compressed_mint_with_context = CompressedMintWithContext::new(
-        mint_compressed_address,
-        compression_params.lp_mint_address_tree_info.root_index,
-        9, // Our Lp mints always have 9 decimals.
-        Some(authority.key().into()),
-        Some(authority.key().into()),
-        lp_mint_key.into(),
-    );
-
-    // The cmint creation is implicit. Here we additionally
-    // mint to the creator and the pool vault.
-    let actions = vec![
-        MintActionType::MintToCToken {
-            account: creator_lp_token.key(),
-            amount: user_lp_amount,
-        },
-        MintActionType::MintToCToken {
-            account: lp_vault.key(),
-            amount: vault_lp_amount,
-        },
-    ];
-
-    let inputs = CreateMintInputs {
-        compressed_mint_inputs: compressed_mint_with_context,
-        mint_seed: lp_mint_signer.key(),
-        mint_bump: compression_params.lp_mint_bump,
-        authority: authority.key().into(),
-        payer: creator.key(),
-        proof: compression_params.proof.0.map(|p| CompressedProof::from(p)),
-        address_tree: address_tree_pubkey,
-        output_queue: output_state_queue,
-        actions,
-    };
-    let mint_action_instruction: anchor_lang::solana_program::instruction::Instruction =
-        create_mint_action_cpi(
-            MintActionInputs::new_create_mint(inputs),
-            Some(CompressedCpiContext::last_cpi_create_mint(
-                address_tree_idx,
-                output_state_queue_idx,
-                LP_MINT_CREATION_INDEX,
-            )),
-            Some(cpi_accounts.cpi_context().unwrap().key()),
-        )
-        .map_err(|e| ProgramError::from(e))?;
-
-    // Extend the account infos with the accounts needed for the cmint creation.
-    let mut account_infos = cpi_accounts.to_account_infos();
-    account_infos.extend([
-        compressed_token_program_cpi_authority,
-        compressed_token_program,
-        authority,
-        lp_mint_signer,
-        creator,
-        // accounts used by the additional mint actions:
-        lp_vault,
-        creator_lp_token,
-    ]);
-
-    // Invoke. We batch settle all compression related CPIs here, hence the
-    // signer_seeds for the PDAs.
-    invoke_signed(
-        &mint_action_instruction,
-        &account_infos,
-        &[
-            // The mint creation is checked before the PDA actions, so its
-            // signer_seeds come first.
-            &[
-                POOL_LP_MINT_SEED.as_bytes(),
-                pool_state_key.as_ref(),
-                &[lp_mint_signer_bump],
-            ],
-            // Since we also create 2 compressed PDAs in our instruction cia
-            // cpi_context, now we need to settle via the pda authority's
-            // signer_seeds.
-            &[crate::AUTH_SEED.as_bytes(), &[pool_auth_bump]],
-        ],
-    )?;
-
-    Ok(())
+    (spl_interface_0_bump, spl_interface_1_bump)
 }

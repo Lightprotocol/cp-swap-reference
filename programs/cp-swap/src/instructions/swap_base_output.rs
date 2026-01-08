@@ -1,7 +1,7 @@
 use super::swap_base_input::Swap;
 use crate::curve::{calculator::CurveCalculator, TradeDirection};
 use crate::error::ErrorCode;
-use crate::states::*;
+use crate::state::*;
 use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
@@ -167,10 +167,10 @@ pub fn swap_base_output(
     });
     require_gte!(constant_after, constant_before);
 
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
+    let (spl_interface_0_bump, spl_interface_1_bump) = get_bumps(
         ctx.accounts.input_token_mint.key(),
         ctx.accounts.output_token_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
+        ctx.accounts.light_token_program.key(),
     );
 
     transfer_from_user_to_pool_vault(
@@ -179,12 +179,12 @@ pub fn swap_base_output(
         ctx.accounts.input_vault.to_account_info(),
         Some(ctx.accounts.input_token_mint.to_account_info()),
         Some(ctx.accounts.input_token_program.to_account_info()),
-        Some(ctx.accounts.compressed_token_0_pool_pda.to_account_info()),
-        Some(compressed_token_0_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_0_pda.to_account_info()),
+        Some(spl_interface_0_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         input_transfer_amount,
+        ctx.accounts.input_token_mint.decimals,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -194,12 +194,12 @@ pub fn swap_base_output(
         ctx.accounts.output_token_account.to_account_info(),
         Some(ctx.accounts.output_token_mint.to_account_info()),
         Some(ctx.accounts.output_token_program.to_account_info()),
-        Some(ctx.accounts.compressed_token_1_pool_pda.to_account_info()),
-        Some(compressed_token_1_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_1_pda.to_account_info()),
+        Some(spl_interface_1_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         output_transfer_amount,
+        ctx.accounts.output_token_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
@@ -212,7 +212,7 @@ pub fn swap_base_output(
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_written_slot()?;
+    pool_state.compression_info_mut().bump_last_claimed_slot()?;
 
     Ok(())
 }

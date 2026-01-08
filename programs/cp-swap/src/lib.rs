@@ -1,16 +1,16 @@
 pub mod curve;
 pub mod error;
 pub mod instructions;
-pub mod states;
+pub mod state;
 pub mod utils;
 
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 pub use crate::error::ErrorCode;
 pub use crate::instructions::initialize::Initialize;
-pub use crate::states::*;
+pub use crate::state::*;
 use anchor_lang::prelude::*;
 use instructions::*;
-use light_sdk::derive_light_cpi_signer;
+use light_macros::derive_light_cpi_signer;
 use light_sdk_macros::add_compressible_instructions;
 use light_sdk_types::CpiSigner;
 
@@ -59,7 +59,7 @@ pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 /// auto-added to the program IDL for consumption by clients.
 #[add_compressible_instructions(
     PoolState = (POOL_SEED, ctx.accounts.amm_config, ctx.accounts.token_0_mint, ctx.accounts.token_1_mint),
-    ObservationState = (OBSERVATION_SEED, ctx.accounts.pool_state),
+    // ObservationState excluded - exceeds 800-byte compression limit
     LpVault = (is_token, POOL_VAULT_SEED, ctx.accounts.lp_mint, authority = AUTH_SEED),
     Token0Vault = (is_token, POOL_VAULT_SEED, ctx.accounts.pool_state, ctx.accounts.token_0_mint, authority = AUTH_SEED),
     Token1Vault = (is_token, POOL_VAULT_SEED, ctx.accounts.pool_state, ctx.accounts.token_1_mint, authority = AUTH_SEED),

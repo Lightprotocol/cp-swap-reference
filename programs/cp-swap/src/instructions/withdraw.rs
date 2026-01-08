@@ -2,7 +2,7 @@ use crate::curve::CurveCalculator;
 use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
 use crate::utils::ctoken::get_bumps;
-use crate::states::*;
+use crate::state::*;
 use crate::utils::token::*;
 use crate::utils::transfer_ctoken_from_user_to_pool_vault;
 use anchor_lang::prelude::*;
@@ -98,25 +98,26 @@ pub struct Withdraw<'info> {
     )]
     pub lp_vault: InterfaceAccount<'info, TokenAccount>,
 
+    /// System program for lamport transfers
+    pub system_program: Program<'info, System>,
+
     /// CHECK: checked by protocol.
-    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
+    pub light_token_program_cpi_authority: AccountInfo<'info>,
+
     /// CHECK: checked by protocol.
-    pub compressed_token_program: AccountInfo<'info>,
+    pub light_token_program: AccountInfo<'info>,
+
     /// CHECK: checked by protocol.
-    ///
-    /// Every mint must be registered in the compression protocol via a
-    /// compression_token_pool_pda.
     #[account(mut)]
-    pub compressed_token_0_pool_pda: AccountInfo<'info>,
+    pub spl_interface_0_pda: AccountInfo<'info>,
+
     /// CHECK: checked by protocol.
     #[account(mut)]
-    pub compressed_token_1_pool_pda: AccountInfo<'info>,
+    pub spl_interface_1_pda: AccountInfo<'info>,
 
     /// memo program
     /// CHECK:
-    #[account(
-        address = spl_memo::id()
-    )]
+    #[account(address = spl_memo::id())]
     pub memo_program: UncheckedAccount<'info>,
 }
 
@@ -199,19 +200,23 @@ pub fn withdraw(
         return Err(ErrorCode::ExceededSlippage.into());
     }
 
+    // LP tokens use 9 decimals
     transfer_ctoken_from_user_to_pool_vault(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.owner_lp_token.to_account_info(),
         ctx.accounts.lp_vault.to_account_info(),
         lp_token_amount,
+        9,
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
 
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
+    let (spl_interface_0_bump, spl_interface_1_bump) = get_bumps(
         ctx.accounts.vault_0_mint.key(),
         ctx.accounts.vault_1_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
+        ctx.accounts.light_token_program.key(),
     );
 
     transfer_from_pool_vault_to_user(
@@ -225,12 +230,12 @@ pub fn withdraw(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         }),
-        Some(ctx.accounts.compressed_token_0_pool_pda.to_account_info()),
-        Some(compressed_token_0_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_0_pda.to_account_info()),
+        Some(spl_interface_0_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         token_0_amount,
+        ctx.accounts.vault_0_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
@@ -245,18 +250,18 @@ pub fn withdraw(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         }),
-        Some(ctx.accounts.compressed_token_1_pool_pda.to_account_info()),
-        Some(compressed_token_1_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_1_pda.to_account_info()),
+        Some(spl_interface_1_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         token_1_amount,
+        ctx.accounts.vault_1_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_written_slot().unwrap();
+    pool_state.compression_info_mut().bump_last_claimed_slot().unwrap();
 
     Ok(())
 }

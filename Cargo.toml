@@ -1,10 +1,17 @@
 [workspace]
 resolver = "2"
-members = ["programs/*", "client"]
+members = ["programs/*"]
+# client temporarily excluded to avoid anchor feature unification
 
 # Force newer proc-macro2 version compatible with Rust 1.87
 [workspace.dependencies]
 proc-macro2 = "1.0.95"
+
+# Patch anchor to use c-token fork
+[patch.crates-io]
+anchor-lang = { path = "../anchor/lang" }
+anchor-spl = { path = "../anchor/spl" }
+
 
 [profile.release]
 overflow-checks = true

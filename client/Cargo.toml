@@ -47,10 +47,10 @@ futures = "0.3"
 # light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3", features = ["anchor"] }
 # light-token-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "csdk-0.3.3" }
 
-light-program-test = { path = "./../../light-protocol/sdk-libs/program-test", features = ["v2"] }
-light-client = { path = "./../../light-protocol/sdk-libs/client", features = ["v2"] }
-light-compressible-client = { path = "./../../light-protocol/sdk-libs/compressible-client", features = ["anchor"] }
-light-sdk = { path = "./../../light-protocol/sdk-libs/sdk", features = ["anchor", "anchor-discriminator-compat", "v2"] }
-light-compressed-account = { path = "./../../light-protocol/program-libs/compressed-account", features = ["anchor"] }
-light-token-client = { path = "./../../light-protocol/sdk-libs/token-client" }
+light-program-test = { path = "./../../light-protocol-2/sdk-libs/program-test", features = ["v2"] }
+light-client = { path = "./../../light-protocol-2/sdk-libs/client", features = ["v2"] }
+light-compressible-client = { path = "./../../light-protocol-2/sdk-libs/compressible-client" }
+light-sdk = { path = "./../../light-protocol-2/sdk-libs/sdk", features = ["v2"] }
+light-compressed-account = { path = "./../../light-protocol-2/program-libs/compressed-account", features = ["solana", "std"] }
+light-token-client = { path = "./../../light-protocol-2/sdk-libs/token-client" }
 

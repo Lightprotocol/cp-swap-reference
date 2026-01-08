@@ -4,10 +4,9 @@ use anchor_lang::prelude::*;
 
 use light_sdk::{
     compressible::{CompressionInfo, HasCompressionInfo},
-    sha::LightHasher,
-    CompressiblePack, LightDiscriminator,
+    LightDiscriminator,
 };
-use light_sdk_macros::Compressible;
+use light_sdk_macros::{Compressible, CompressiblePack, LightHasherSha};
 
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -35,7 +34,7 @@ pub struct Observation {
 /// eligible for compression. Eligible accounts can be compressed
 /// asynchronously.
 #[account]
-#[derive(LightHasher, LightDiscriminator, Compressible, InitSpace, Debug, CompressiblePack)]
+#[derive(LightHasherSha, LightDiscriminator, Compressible, InitSpace, Debug, CompressiblePack)]
 #[compress_as(observations = None)]
 pub struct ObservationState {
     /// Whether the ObservationState is initialized
@@ -132,7 +131,7 @@ impl ObservationState {
 
             // The account was written to, so we must update CompressionInfo.
             self.compression_info_mut()
-                .bump_last_written_slot()
+                .bump_last_claimed_slot()
                 .unwrap();
         }
     }

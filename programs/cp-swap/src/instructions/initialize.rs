@@ -1,6 +1,6 @@
 use crate::curve::CurveCalculator;
 use crate::error::ErrorCode;
-use crate::states::*;
+use crate::state::*;
 use crate::utils::*;
 use anchor_lang::{
     accounts::interface_account::InterfaceAccount,
@@ -13,12 +13,9 @@ use anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use light_compressed_token_sdk::instructions::create_associated_ctoken_account;
-use light_compressed_token_sdk::instructions::create_token_account::create_ctoken_account_signed;
-use light_sdk::{
-    compressible::CompressibleConfig,
-    instruction::{borsh_compat::ValidityProof, PackedAddressTreeInfo},
-};
+use light_ctoken_sdk::ctoken::{CompressibleParamsCpi, CreateCTokenAccountCpi, CTokenMintToCpi};
+use light_ctoken_sdk::ValidityProof;
+use light_sdk::instruction::PackedAddressTreeInfo;
 use spl_token_2022;
 use std::ops::Deref;
 
@@ -42,11 +39,12 @@ pub struct Initialize<'info> {
     )]
     pub authority: UncheckedAccount<'info>,
 
-    /// CHECK: Initialize an account to store the pool state
+    /// Initialize a rent-free account to store the pool state
+    /// CHECK: 
     #[account(
         init,
-        cpda::authority = authority,
-        cpda::address_tree_info = compression_params.pool_address_tree_info,
+        lpda::authority = authority,
+        lpda::address_tree_info = light_params.pool_address_tree_info,
         seeds = [
             POOL_SEED.as_bytes(),
             amm_config.to_account_info().key.as_ref(),
@@ -62,18 +60,14 @@ pub struct Initialize<'info> {
     /// Token_0 mint, the key must smaller than token_1 mint.
     #[account(
         constraint = token_0_mint.key() < token_1_mint.key(),
-        mint::token_program = token_0_program,
     )]
     pub token_0_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Token_1 mint, the key must grater then token_0 mint.
-    #[account(
-        mint::token_program = token_1_program,
-    )]
     pub token_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Signer pda used to derive lp_mint and its compressed address.
-    /// CHECK: checked by protocol.
+    /// Signer pda used to derive lp_mint and address.
+    /// CHECK: checked by protocol
     #[account(
         seeds = [
             POOL_LP_MINT_SEED.as_bytes(),
@@ -83,19 +77,10 @@ pub struct Initialize<'info> {
     )]
     pub lp_mint_signer: UncheckedAccount<'info>,
 
-    /// Compressed mint for LP tokens
-    /// CHECK: checked in instruction.
-    #[account(
-        mint::authority = authority,
-        mint::decimals = 9,
-        mint::payer = creator,
-        mint::mint_signer = lp_mint_signer,
-        mint::address_tree_info = compression_params.lp_mint_address_tree_info,
-        metadata::name = compression_params.name,
-        metadata::symbol = compression_params.symbol,
-        metadata::uri = compression_params.uri,
-    )]
-    pub lp_mint: CMint<'info>,
+    /// Light mint for LP tokens (compressed mint created via SDK)
+    /// CHECK: Created via Light SDK CreateCMint, validated by Light protocol
+    #[account(mut)]
+    pub lp_mint: UncheckedAccount<'info>,
     /// payer token0 account
     #[account(
         mut,
@@ -193,22 +178,22 @@ pub struct Initialize<'info> {
     pub compression_config: AccountInfo<'info>,
     /// CHECK: checked in instruction.
     #[account(mut)]
-    pub rent_recipient: AccountInfo<'info>,
+    pub rent_sponsor: AccountInfo<'info>,
     /// CHECK: checked by protocol.
-    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
+    pub light_token_program_cpi_authority: AccountInfo<'info>,
     /// CHECK: checked by protocol.
-    pub compressed_token_program: AccountInfo<'info>,
+    pub light_token_program: AccountInfo<'info>,
     /// CHECK: checked by protocol.
-    pub ctoken_config_account: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    #[account(mut)]
-    pub ctoken_rent_recipient: AccountInfo<'info>,
+    pub light_token_config_account: AccountInfo<'info>,
     /// CHECK: checked by protocol.
     #[account(mut)]
-    pub compressed_token_0_pool_pda: AccountInfo<'info>,
+    pub light_token_rent_sponsor: AccountInfo<'info>,
     /// CHECK: checked by protocol.
     #[account(mut)]
-    pub compressed_token_1_pool_pda: AccountInfo<'info>,
+    pub spl_interface_0_pda: AccountInfo<'info>,
+    /// CHECK: checked by protocol.
+    #[account(mut)]
+    pub spl_interface_1_pda: AccountInfo<'info>,
 }
 
 // This instruction:
@@ -241,46 +226,46 @@ pub fn initialize<'info>(
         open_time = block_timestamp + 1;
     }
 
-    create_ctoken_account_signed(
-        crate::ID,
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.token_0_vault.to_account_info(),
-        ctx.accounts.token_0_mint.to_account_info(),
-        *ctx.accounts.authority.to_account_info().key,
-        &[
-            POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.pool_state.to_account_info().key.as_ref(),
-            ctx.accounts.token_0_mint.to_account_info().key.as_ref(),
-            &[ctx.bumps.token_0_vault][..],
-        ],
-        ctx.accounts.ctoken_rent_recipient.to_account_info(),
-        ctx.accounts.ctoken_config_account.to_account_info(),
-        Some(1),
-        None,
-    )?;
+    CreateCTokenAccountCpi {
+        payer: ctx.accounts.creator.to_account_info(),
+        account: ctx.accounts.token_0_vault.to_account_info(),
+        mint: ctx.accounts.token_0_mint.to_account_info(),
+        owner: *ctx.accounts.authority.to_account_info().key,
+        compressible: CompressibleParamsCpi::new(
+            ctx.accounts.light_token_config_account.to_account_info(),
+            ctx.accounts.light_token_rent_sponsor.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+        ),
+    }
+    .invoke_signed(&[&[
+        POOL_VAULT_SEED.as_bytes(),
+        ctx.accounts.pool_state.to_account_info().key.as_ref(),
+        ctx.accounts.token_0_mint.to_account_info().key.as_ref(),
+        &[ctx.bumps.token_0_vault],
+    ]])?;
 
-    create_ctoken_account_signed(
-        crate::ID,
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.token_1_vault.to_account_info(),
-        ctx.accounts.token_1_mint.to_account_info(),
-        *ctx.accounts.authority.to_account_info().key,
-        &[
-            POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.pool_state.to_account_info().key.as_ref(),
-            ctx.accounts.token_1_mint.to_account_info().key.as_ref(),
-            &[ctx.bumps.token_1_vault][..],
-        ],
-        ctx.accounts.ctoken_rent_recipient.to_account_info(),
-        ctx.accounts.ctoken_config_account.to_account_info(),
-        Some(1),
-        None,
-    )?;
+    CreateCTokenAccountCpi {
+        payer: ctx.accounts.creator.to_account_info(),
+        account: ctx.accounts.token_1_vault.to_account_info(),
+        mint: ctx.accounts.token_1_mint.to_account_info(),
+        owner: *ctx.accounts.authority.to_account_info().key,
+        compressible: CompressibleParamsCpi::new(
+            ctx.accounts.light_token_config_account.to_account_info(),
+            ctx.accounts.light_token_rent_sponsor.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+        ),
+    }
+    .invoke_signed(&[&[
+        POOL_VAULT_SEED.as_bytes(),
+        ctx.accounts.pool_state.to_account_info().key.as_ref(),
+        ctx.accounts.token_1_mint.to_account_info().key.as_ref(),
+        &[ctx.bumps.token_1_vault],
+    ]])?;
 
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
+    let (spl_interface_0_bump, spl_interface_1_bump) = get_bumps(
         ctx.accounts.token_0_mint.key(),
         ctx.accounts.token_1_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
+        ctx.accounts.light_token_program.key(),
     );
 
     let pool_state = &mut ctx.accounts.pool_state;
@@ -295,12 +280,12 @@ pub fn initialize<'info>(
         ctx.accounts.token_0_vault.to_account_info(),
         Some(ctx.accounts.token_0_mint.to_account_info()),
         Some(ctx.accounts.token_0_program.to_account_info()),
-        Some(ctx.accounts.compressed_token_0_pool_pda.to_account_info()),
-        Some(compressed_token_0_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_0_pda.to_account_info()),
+        Some(spl_interface_0_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         init_amount_0,
+        ctx.accounts.token_0_mint.decimals,
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -309,12 +294,12 @@ pub fn initialize<'info>(
         ctx.accounts.token_1_vault.to_account_info(),
         Some(ctx.accounts.token_1_mint.to_account_info()),
         Some(ctx.accounts.token_1_program.to_account_info()),
-        Some(ctx.accounts.compressed_token_1_pool_pda.to_account_info()),
-        Some(compressed_token_1_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_1_pda.to_account_info()),
+        Some(spl_interface_1_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         init_amount_1,
+        ctx.accounts.token_1_mint.decimals,
     )?;
 
     let token_0_vault =
@@ -396,43 +381,44 @@ pub fn initialize<'info>(
 
     // ZK Compression Step 4: Create ctoken accounts. These match regular
     // SPL token accounts but are compressible.
-    create_ctoken_account_signed(
-        crate::ID,
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.lp_vault.to_account_info(),
-        ctx.accounts.lp_mint.to_account_info(),
-        *ctx.accounts.authority.to_account_info().key,
-        &[
-            POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.lp_mint.to_account_info().key.as_ref(),
-            &[ctx.bumps.lp_vault][..],
-        ],
-        ctx.accounts.ctoken_rent_recipient.to_account_info(),
-        ctx.accounts.ctoken_config_account.to_account_info(),
-        Some(1),
-        None,
-    )?;
-    create_associated_ctoken_account(
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.creator_lp_token.to_account_info(),
-        ctx.accounts.system_program.to_account_info(),
-        ctx.accounts.ctoken_config_account.to_account_info(),
-        ctx.accounts.ctoken_rent_recipient.to_account_info(),
-        ctx.accounts.creator.to_account_info(),
-        *ctx.accounts.lp_mint.to_account_info().key,
-        compression_params.creator_lp_token_bump,
-        Some(1),
-        None,
-    )?;
+    CreateCTokenAccountCpi {
+        payer: ctx.accounts.creator.to_account_info(),
+        account: ctx.accounts.lp_vault.to_account_info(),
+        mint: ctx.accounts.lp_mint.to_account_info(),
+        owner: *ctx.accounts.authority.to_account_info().key,
+        compressible: CompressibleParamsCpi::new(
+            ctx.accounts.light_token_config_account.to_account_info(),
+            ctx.accounts.light_token_rent_sponsor.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+        ),
+    }
+    .invoke_signed(&[&[
+        POOL_VAULT_SEED.as_bytes(),
+        ctx.accounts.lp_mint.to_account_info().key.as_ref(),
+        &[ctx.bumps.lp_vault],
+    ]])?;
 
-    ctx.accounts.lp_mint.mint_to(
-        &ctx.accounts.creator_lp_token.to_account_info(),
-        user_lp_amount,
-    )?;
+    // Mint LP tokens to creator
+    CTokenMintToCpi {
+        cmint: ctx.accounts.lp_mint.to_account_info(),
+        destination: ctx.accounts.creator_lp_token.to_account_info(),
+        amount: user_lp_amount,
+        authority: ctx.accounts.authority.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
+        max_top_up: None,
+    }
+    .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]])?;
 
-    ctx.accounts
-        .lp_mint
-        .mint_to(&ctx.accounts.lp_vault.to_account_info(), vault_lp_amount)?;
+    // Mint LP tokens to vault
+    CTokenMintToCpi {
+        cmint: ctx.accounts.lp_mint.to_account_info(),
+        destination: ctx.accounts.lp_vault.to_account_info(),
+        amount: vault_lp_amount,
+        authority: ctx.accounts.authority.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
+        max_top_up: None,
+    }
+    .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]])?;
 
     Ok(())
 }

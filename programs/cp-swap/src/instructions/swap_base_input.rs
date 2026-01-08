@@ -1,7 +1,7 @@
 use crate::curve::calculator::CurveCalculator;
 use crate::curve::TradeDirection;
 use crate::error::ErrorCode;
-use crate::states::*;
+use crate::state::*;
 use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
@@ -72,23 +72,27 @@ pub struct Swap<'info> {
         mint::token_program = output_token_program.key(),
     )]
     pub output_token_mint: Box<InterfaceAccount<'info, Mint>>,
+
     /// The program account for the most recent oracle observation
     #[account(mut, address = pool_state.observation_key)]
     pub observation_state: Account<'info, ObservationState>,
 
+    /// System program for lamport transfers
+    pub system_program: Program<'info, System>,
+
     /// CHECK: checked by protocol.
-    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
+    pub light_token_program_cpi_authority: AccountInfo<'info>,
+
     /// CHECK: checked by protocol.
-    pub compressed_token_program: AccountInfo<'info>,
+    pub light_token_program: AccountInfo<'info>,
+
     /// CHECK: checked by protocol.
-    ///
-    /// Every mint must be registered in the compression protocol via a
-    /// compression_token_pool_pda.
     #[account(mut)]
-    pub compressed_token_0_pool_pda: AccountInfo<'info>,
+    pub spl_interface_0_pda: AccountInfo<'info>,
+
     /// CHECK: checked by protocol.
     #[account(mut)]
-    pub compressed_token_1_pool_pda: AccountInfo<'info>,
+    pub spl_interface_1_pda: AccountInfo<'info>,
 }
 
 pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
@@ -243,23 +247,24 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     });
     require_gte!(constant_after, constant_before);
 
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
+    let (spl_interface_0_bump, spl_interface_1_bump) = get_bumps(
         ctx.accounts.input_token_mint.key(),
         ctx.accounts.output_token_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
+        ctx.accounts.light_token_program.key(),
     );
+
     transfer_from_user_to_pool_vault(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.input_token_account.to_account_info(),
         ctx.accounts.input_vault.to_account_info(),
         Some(ctx.accounts.input_token_mint.to_account_info()),
         Some(ctx.accounts.input_token_program.to_account_info()),
-        Some(ctx.accounts.compressed_token_0_pool_pda.to_account_info()),
-        Some(compressed_token_0_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_0_pda.to_account_info()),
+        Some(spl_interface_0_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         input_transfer_amount,
+        ctx.accounts.input_token_mint.decimals,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -269,12 +274,12 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.output_token_account.to_account_info(),
         Some(ctx.accounts.output_token_mint.to_account_info()),
         Some(ctx.accounts.output_token_program.to_account_info()),
-        Some(ctx.accounts.compressed_token_1_pool_pda.to_account_info()),
-        Some(compressed_token_1_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_1_pda.to_account_info()),
+        Some(spl_interface_1_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         output_transfer_amount,
+        ctx.accounts.output_token_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
 
@@ -287,7 +292,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_written_slot()?;
+    pool_state.compression_info_mut().bump_last_claimed_slot()?;
 
     Ok(())
 }

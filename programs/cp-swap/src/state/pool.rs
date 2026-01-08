@@ -1,10 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
-use light_sdk::{
-    compressible::CompressionInfo, sha::LightHasher, CompressiblePack, LightDiscriminator,
-};
-
-use light_sdk_macros::Compressible;
+use light_sdk::{compressible::CompressionInfo, LightDiscriminator};
+use light_sdk_macros::{Compressible, CompressiblePack, LightHasherSha};
 use std::ops::{BitAnd, BitOr, BitXor};
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "pool";
@@ -34,7 +31,7 @@ pub enum PoolStatusBitFlag {
 #[account]
 #[repr(C)]
 #[derive(
-    Debug, LightHasher, LightDiscriminator, Default, InitSpace, Compressible, CompressiblePack,
+    Debug, LightHasherSha, LightDiscriminator, Default, InitSpace, Compressible, CompressiblePack,
 )]
 pub struct PoolState {
     /// Which config the pool belongs

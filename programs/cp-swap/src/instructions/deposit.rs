@@ -1,7 +1,7 @@
 use crate::curve::CurveCalculator;
 use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
-use crate::states::*;
+use crate::state::*;
 use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
 use crate::utils::transfer_ctoken_from_pool_vault_to_user;
@@ -28,7 +28,7 @@ pub struct Deposit<'info> {
     pub pool_state: Account<'info, PoolState>,
 
     /// Owner lp token account
-    #[account(mut,  token::authority = owner)]
+    #[account(mut, token::authority = owner)]
     pub owner_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The payer's token account for token_0
@@ -94,20 +94,22 @@ pub struct Deposit<'info> {
     )]
     pub lp_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// CHECK: checked by protocol.
-    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    pub compressed_token_program: AccountInfo<'info>,
+    /// System program for lamport transfers
+    pub system_program: Program<'info, System>,
 
     /// CHECK: checked by protocol.
-    ///
-    /// Every mint must be registered in the compression protocol via a
-    /// compression_token_pool_pda.
-    #[account(mut)]
-    pub compressed_token_0_pool_pda: AccountInfo<'info>,
+    pub light_token_program_cpi_authority: AccountInfo<'info>,
+
+    /// CHECK: checked by protocol.
+    pub light_token_program: AccountInfo<'info>,
+
     /// CHECK: checked by protocol.
     #[account(mut)]
-    pub compressed_token_1_pool_pda: AccountInfo<'info>,
+    pub spl_interface_0_pda: AccountInfo<'info>,
+
+    /// CHECK: checked by protocol.
+    #[account(mut)]
+    pub spl_interface_1_pda: AccountInfo<'info>,
 }
 
 pub fn deposit(
@@ -174,10 +176,10 @@ pub fn deposit(
     {
         return Err(ErrorCode::ExceededSlippage.into());
     }
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
+    let (spl_interface_0_bump, spl_interface_1_bump) = get_bumps(
         ctx.accounts.vault_0_mint.key(),
         ctx.accounts.vault_1_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
+        ctx.accounts.light_token_program.key(),
     );
 
     transfer_from_user_to_pool_vault(
@@ -192,12 +194,12 @@ pub fn deposit(
                 ctx.accounts.token_program_2022.to_account_info()
             },
         ),
-        Some(ctx.accounts.compressed_token_0_pool_pda.to_account_info()),
-        Some(compressed_token_0_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_0_pda.to_account_info()),
+        Some(spl_interface_0_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         transfer_token_0_amount,
+        ctx.accounts.vault_0_mint.decimals,
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -212,27 +214,31 @@ pub fn deposit(
                 ctx.accounts.token_program_2022.to_account_info()
             },
         ),
-        Some(ctx.accounts.compressed_token_1_pool_pda.to_account_info()),
-        Some(compressed_token_1_pool_bump),
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
+        Some(ctx.accounts.spl_interface_1_pda.to_account_info()),
+        Some(spl_interface_1_bump),
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         transfer_token_1_amount,
+        ctx.accounts.vault_1_mint.decimals,
     )?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
 
+    // LP tokens use 9 decimals
     transfer_ctoken_from_pool_vault_to_user(
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.lp_vault.to_account_info(),
         ctx.accounts.owner_lp_token.to_account_info(),
         lp_token_amount,
+        9,
+        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_written_slot()?;
+    pool_state.compression_info_mut().bump_last_claimed_slot()?;
 
     Ok(())
 }

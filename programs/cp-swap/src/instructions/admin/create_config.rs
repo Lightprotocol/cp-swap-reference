@@ -1,5 +1,5 @@
 use crate::error::ErrorCode;
-use crate::states::*;
+use crate::state::*;
 use anchor_lang::prelude::*;
 use std::ops::DerefMut;
 

@@ -1,6 +1,6 @@
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 use crate::error::ErrorCode;
-use crate::states::*;
+use crate::state::*;
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]

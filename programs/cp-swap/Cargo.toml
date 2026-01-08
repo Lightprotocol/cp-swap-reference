@@ -24,7 +24,7 @@ test-sbf = []
 
 [dependencies]
 # anchor-lang = { version = "=0.31.1", features = ["init-if-needed", "idl-build"] }
-anchor-lang = { path = "./../../../anchor/lang", features = ["init-if-needed", "compressed-mint"] }
+anchor-lang = { path = "./../../../anchor/lang", features = ["init-if-needed", "c-token"] }
 #anchor-spl = { version = "=0.31.1", git = "https://github.com/lightprotocol/anchor", rev = "d8a2b3d9", features = ["memo", "metadata", "idl-build"] }
 anchor-spl = { path = "./../../../anchor/spl", features = ["memo", "metadata"] }
 spl-token-2022 = { version = "7.0.0", features = ["no-entrypoint"] }
@@ -34,15 +34,21 @@ solana-security-txt = "1.1.1"
 bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 
-light-sdk = { path = "./../../../light-protocol/sdk-libs/sdk", features = ["anchor", "anchor-discriminator-compat", "v2"] }
-light-sdk-types = { path = "./../../../light-protocol/sdk-libs/sdk-types", features = ["v2"] }
-light-hasher = { path = "./../../../light-protocol/program-libs/hasher", features = ["solana"] }
-light-macros = { path = "./../../../light-protocol/program-libs/macros", features = ["solana"] }
-light-sdk-macros = { path = "./../../../light-protocol/sdk-libs/macros", features = ["anchor-discriminator-compat"] }
-light-compressed-account = { path = "./../../../light-protocol/program-libs/compressed-account", features = ["anchor"] }
-light-compressed-token-sdk = { path = "./../../../light-protocol/sdk-libs/compressed-token-sdk", features = ["anchor"] }
-light-ctoken-types = { path = "./../../../light-protocol/program-libs/ctoken-types", features = ["anchor"] }
-light-compressible = { path = "./../../../light-protocol/program-libs/compressible" }
+light-sdk = { path = "./../../../light-protocol-2/sdk-libs/sdk", features = ["anchor", "v2", "cpi-context"] }
+light-sdk-types = { path = "./../../../light-protocol-2/sdk-libs/sdk-types", features = ["anchor", "v2", "cpi-context"] }
+light-hasher = { path = "./../../../light-protocol-2/program-libs/hasher", features = ["solana"] }
+light-macros = { path = "./../../../light-protocol-2/program-libs/macros", features = ["solana"] }
+light-sdk-macros = { path = "./../../../light-protocol-2/sdk-libs/macros" }
+light-compressed-account = { path = "./../../../light-protocol-2/program-libs/compressed-account", features = ["solana", "std"] }
+light-ctoken-sdk = { path = "./../../../light-protocol-2/sdk-libs/ctoken-sdk", features = ["anchor", "compressible"] }
+light-ctoken-types = { path = "./../../../light-protocol-2/sdk-libs/ctoken-types" }
+light-ctoken-interface = { path = "./../../../light-protocol-2/program-libs/ctoken-interface" }
+light-compressible = { path = "./../../../light-protocol-2/program-libs/compressible" }
+solana-pubkey = "2.2"
+solana-program-error = "2.2"
+solana-account-info = "2.2"
+solana-cpi = "2.2"
+solana-msg = "2.2"
 
 
 [dev-dependencies]
@@ -50,9 +56,9 @@ quickcheck = "1.0.3"
 proptest = "1.0"
 rand = "0.9.0"
 
-light-program-test = { path = "./../../../light-protocol/sdk-libs/program-test", features = ["v2"] }
-light-client = { path = "./../../../light-protocol/sdk-libs/client", features = ["v2"] }
-light-compressible-client = { path = "./../../../light-protocol/sdk-libs/compressible-client", features = ["anchor"] }
+light-program-test = { path = "./../../../light-protocol-2/sdk-libs/program-test", features = ["v2"] }
+light-client = { path = "./../../../light-protocol-2/sdk-libs/client", features = ["v2"] }
+light-compressible-client = { path = "./../../../light-protocol-2/sdk-libs/compressible-client", features = ["anchor"] }
 
 
 [profile.release]

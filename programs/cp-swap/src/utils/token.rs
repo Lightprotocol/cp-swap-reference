@@ -1,9 +1,7 @@
 use crate::error::ErrorCode;
 use anchor_lang::prelude::*;
 use anchor_spl::{token::Token, token_interface::Mint};
-use light_compressed_token_sdk::instructions::transfer2::{
-    transfer_interface, transfer_interface_signed,
-};
+use light_ctoken_sdk::ctoken::TransferInterfaceCpi;
 use spl_token_2022::{
     self,
     extension::{
@@ -26,26 +24,39 @@ pub fn transfer_from_user_to_pool_vault<'a, 'b>(
     to_vault: AccountInfo<'a>,
     mint: Option<AccountInfo<'a>>,
     spl_token_program: Option<AccountInfo<'a>>,
-    compressed_token_pool_pda: Option<AccountInfo<'a>>,
-    compressed_token_pool_pda_bump: Option<u8>,
-    compressed_token_program_authority: AccountInfo<'a>,
+    spl_interface_pda: Option<AccountInfo<'a>>,
+    spl_interface_pda_bump: Option<u8>,
+    light_token_program_authority: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
     amount: u64,
+    decimals: u8,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    transfer_interface(
-        &from,
-        &to_vault,
-        &authority,
+    let mut transfer = TransferInterfaceCpi::new(
         amount,
-        &authority,
-        &compressed_token_program_authority,
-        mint.as_ref(),
-        spl_token_program.as_ref(),
-        compressed_token_pool_pda.as_ref(),
-        compressed_token_pool_pda_bump,
-    )?;
+        decimals,
+        from,
+        to_vault,
+        authority.clone(),
+        authority.clone(),
+        light_token_program_authority,
+        system_program,
+    );
+    if mint.is_some() || spl_token_program.is_some() || spl_interface_pda.is_some() {
+        transfer = transfer
+            .with_spl_interface(
+                mint,
+                spl_token_program,
+                spl_interface_pda,
+                spl_interface_pda_bump,
+            )
+            .map_err(|e| anchor_lang::error::Error::from(e))?;
+    }
+    transfer
+        .invoke()
+        .map_err(|e| anchor_lang::error::Error::from(e))?;
     Ok(())
 }
 
@@ -56,28 +67,40 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     to: AccountInfo<'a>,
     mint: Option<AccountInfo<'a>>,
     spl_token_program: Option<AccountInfo<'a>>,
-    compressed_token_pool_pda: Option<AccountInfo<'a>>,
-    compressed_token_pool_pda_bump: Option<u8>,
-    compressed_token_program_authority: AccountInfo<'a>,
+    spl_interface_pda: Option<AccountInfo<'a>>,
+    spl_interface_pda_bump: Option<u8>,
+    light_token_program_authority: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
     amount: u64,
+    decimals: u8,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    transfer_interface_signed(
-        &from_vault,
-        &to,
-        &authority,
+    let mut transfer = TransferInterfaceCpi::new(
         amount,
-        &payer,
-        &compressed_token_program_authority,
-        mint.as_ref(),
-        spl_token_program.as_ref(),
-        compressed_token_pool_pda.as_ref(),
-        compressed_token_pool_pda_bump,
-        signer_seeds,
-    )?;
+        decimals,
+        from_vault,
+        to,
+        authority,
+        payer,
+        light_token_program_authority,
+        system_program,
+    );
+    if mint.is_some() || spl_token_program.is_some() || spl_interface_pda.is_some() {
+        transfer = transfer
+            .with_spl_interface(
+                mint,
+                spl_token_program,
+                spl_interface_pda,
+                spl_interface_pda_bump,
+            )
+            .map_err(|e| anchor_lang::error::Error::from(e))?;
+    }
+    transfer
+        .invoke_signed(signer_seeds)
+        .map_err(|e| anchor_lang::error::Error::from(e))?;
     Ok(())
 }
 
