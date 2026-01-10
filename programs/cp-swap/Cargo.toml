@@ -24,7 +24,7 @@ test-sbf = []
 
 [dependencies]
 # anchor-lang = { version = "=0.31.1", features = ["init-if-needed", "idl-build"] }
-anchor-lang = { path = "./../../../anchor/lang", features = ["init-if-needed", "c-token"] }
+anchor-lang = { path = "./../../../anchor/lang", features = ["init-if-needed"] }
 #anchor-spl = { version = "=0.31.1", git = "https://github.com/lightprotocol/anchor", rev = "d8a2b3d9", features = ["memo", "metadata", "idl-build"] }
 anchor-spl = { path = "./../../../anchor/spl", features = ["memo", "metadata"] }
 spl-token-2022 = { version = "7.0.0", features = ["no-entrypoint"] }

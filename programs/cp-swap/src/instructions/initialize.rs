@@ -13,14 +13,15 @@ use anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use light_ctoken_sdk::ctoken::{CompressibleParamsCpi, CreateCTokenAccountCpi, CTokenMintToCpi};
+use light_ctoken_sdk::ctoken::{CTokenMintToCpi, CompressibleParamsCpi, CreateCTokenAccountCpi};
 use light_ctoken_sdk::ValidityProof;
 use light_sdk::instruction::PackedAddressTreeInfo;
+use light_sdk_macros::{light_instruction, LightFinalize};
 use spl_token_2022;
 use std::ops::Deref;
 
-#[derive(Accounts)]
-#[instruction(init_amount_0: u64, init_amount_1: u64, open_time: u64, compression_params: InitializeCompressionParams)]
+#[derive(Accounts, LightFinalize)]
+#[instruction(compression_params: InitializeCompressionParams)]
 pub struct Initialize<'info> {
     /// Address paying to create the pool. Can be anyone
     #[account(mut)]
@@ -39,12 +40,9 @@ pub struct Initialize<'info> {
     )]
     pub authority: UncheckedAccount<'info>,
 
-    /// Initialize a rent-free account to store the pool state
-    /// CHECK: 
+    /// Initialize a rent-free account to store the pool state (compressible)
     #[account(
         init,
-        lpda::authority = authority,
-        lpda::address_tree_info = light_params.pool_address_tree_info,
         seeds = [
             POOL_SEED.as_bytes(),
             amm_config.to_account_info().key.as_ref(),
@@ -54,6 +52,10 @@ pub struct Initialize<'info> {
         bump,
         payer = creator,
         space = 8 + PoolState::INIT_SPACE
+    )]
+    #[compressible(
+        address_tree_info = compression_params.pool_address_tree_info,
+        output_tree = compression_params.output_state_tree_index
     )]
     pub pool_state: Box<Account<'info, PoolState>>,
 
@@ -77,9 +79,16 @@ pub struct Initialize<'info> {
     )]
     pub lp_mint_signer: UncheckedAccount<'info>,
 
-    /// Light mint for LP tokens (compressed mint created via SDK)
-    /// CHECK: Created via Light SDK CreateCMint, validated by Light protocol
+    /// Light mint for LP tokens (created via #[light_mint] at instruction START)
+    /// CHECK: Created via light_pre_init before instruction body runs
     #[account(mut)]
+    #[light_mint(
+        mint_signer = lp_mint_signer,
+        authority = authority,
+        decimals = 9,
+        address_tree_info = compression_params.lp_mint_address_tree_info,
+        signer_seeds = &[POOL_LP_MINT_SEED.as_bytes(), self.pool_state.to_account_info().key.as_ref(), &[compression_params.lp_mint_bump]]
+    )]
     pub lp_mint: UncheckedAccount<'info>,
     /// payer token0 account
     #[account(
@@ -101,10 +110,9 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub creator_lp_token: UncheckedAccount<'info>,
 
-    /// CHECK:
+    /// CHECK: LP vault - created via CTokenAccountCpi
     #[account(
         mut,
-        cctoken,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
             lp_mint.to_account_info().key.as_ref()
@@ -113,10 +121,9 @@ pub struct Initialize<'info> {
     )]
     pub lp_vault: UncheckedAccount<'info>,
 
-    /// CHECK: Token_0 vault for the pool, created by contract
+    /// CHECK: Token_0 vault for the pool, created via CTokenAccountCpi
     #[account(
         mut,
-        cctoken,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
             pool_state.to_account_info().key.as_ref(),
@@ -126,10 +133,9 @@ pub struct Initialize<'info> {
     )]
     pub token_0_vault: UncheckedAccount<'info>,
 
-    /// CHECK: Token_1 vault for the pool, created by contract
+    /// CHECK: Token_1 vault for the pool, created via CTokenAccountCpi
     #[account(
         mut,
-        cctoken,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
             pool_state.to_account_info().key.as_ref(),
@@ -146,11 +152,9 @@ pub struct Initialize<'info> {
     )]
     pub create_pool_fee: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// an account to store oracle observations
+    /// an account to store oracle observations (compressible)
     #[account(
         init,
-        cpda::authority = authority,
-        cpda::address_tree_info = compression_params.observation_address_tree_info,
         seeds = [
             OBSERVATION_SEED.as_bytes(),
             pool_state.to_account_info().key.as_ref(),
@@ -158,6 +162,10 @@ pub struct Initialize<'info> {
         bump,
         payer = creator,
         space = 8 + ObservationState::INIT_SPACE
+    )]
+    #[compressible(
+        address_tree_info = compression_params.observation_address_tree_info,
+        output_tree = compression_params.output_state_tree_index
     )]
     pub observation_state: Box<Account<'info, ObservationState>>,
 
@@ -203,7 +211,8 @@ pub struct Initialize<'info> {
 // 3. Initializes PoolState and ObservationState as compressible.
 // 4. Creates compressed token mint for LP tokens.
 // 5. Distributes initial liquidity to user and vault.
-// 6. Compresses PoolState and ObservationState.
+// 6. Compresses PoolState via light_finalize (auto-called at end).
+#[light_instruction(compression_params)]
 pub fn initialize<'info>(
     ctx: Context<'_, '_, '_, 'info, Initialize<'info>>,
     init_amount_0: u64,
@@ -225,6 +234,9 @@ pub fn initialize<'info>(
     if open_time <= block_timestamp {
         open_time = block_timestamp + 1;
     }
+
+    // LP mint is created automatically by light_pre_init() before this runs
+    // (via #[light_mint] attribute on lp_mint field)
 
     CreateCTokenAccountCpi {
         payer: ctx.accounts.creator.to_account_info(),
@@ -282,7 +294,9 @@ pub fn initialize<'info>(
         Some(ctx.accounts.token_0_program.to_account_info()),
         Some(ctx.accounts.spl_interface_0_pda.to_account_info()),
         Some(spl_interface_0_bump),
-        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts
+            .light_token_program_cpi_authority
+            .to_account_info(),
         ctx.accounts.system_program.to_account_info(),
         init_amount_0,
         ctx.accounts.token_0_mint.decimals,
@@ -296,7 +310,9 @@ pub fn initialize<'info>(
         Some(ctx.accounts.token_1_program.to_account_info()),
         Some(ctx.accounts.spl_interface_1_pda.to_account_info()),
         Some(spl_interface_1_bump),
-        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts
+            .light_token_program_cpi_authority
+            .to_account_info(),
         ctx.accounts.system_program.to_account_info(),
         init_amount_1,
         ctx.accounts.token_1_mint.decimals,
