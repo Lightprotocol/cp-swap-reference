@@ -4,10 +4,10 @@ use crate::error::ErrorCode;
 use crate::state::*;
 use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
-use crate::utils::transfer_ctoken_from_pool_vault_to_user;
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
 use anchor_spl::token_interface::{Mint, Token2022, TokenAccount};
+use light_ctoken_sdk::ctoken::CTokenMintToCpi;
 use light_sdk::compressible::HasCompressionInfo;
 
 #[derive(Accounts)]
@@ -81,18 +81,13 @@ pub struct Deposit<'info> {
     )]
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Lp token vault
+    /// LP mint (compressed mint)
+    /// CHECK: validated against pool_state.lp_mint
     #[account(
         mut,
-        seeds = [
-            POOL_VAULT_SEED.as_bytes(),
-            pool_state.lp_mint.as_ref()
-        ],
-        bump,
-        token::mint = lp_vault.mint,
-        token::authority = authority
+        constraint = lp_mint.key() == pool_state.lp_mint @ ErrorCode::IncorrectLpMint
     )]
-    pub lp_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub lp_mint: UncheckedAccount<'info>,
 
     /// System program for lamport transfers
     pub system_program: Program<'info, System>,
@@ -196,7 +191,9 @@ pub fn deposit(
         ),
         Some(ctx.accounts.spl_interface_0_pda.to_account_info()),
         Some(spl_interface_0_bump),
-        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts
+            .light_token_program_cpi_authority
+            .to_account_info(),
         ctx.accounts.system_program.to_account_info(),
         transfer_token_0_amount,
         ctx.accounts.vault_0_mint.decimals,
@@ -216,7 +213,9 @@ pub fn deposit(
         ),
         Some(ctx.accounts.spl_interface_1_pda.to_account_info()),
         Some(spl_interface_1_bump),
-        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
+        ctx.accounts
+            .light_token_program_cpi_authority
+            .to_account_info(),
         ctx.accounts.system_program.to_account_info(),
         transfer_token_1_amount,
         ctx.accounts.vault_1_mint.decimals,
@@ -224,17 +223,17 @@ pub fn deposit(
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
 
-    // LP tokens use 9 decimals
-    transfer_ctoken_from_pool_vault_to_user(
-        ctx.accounts.authority.to_account_info(),
-        ctx.accounts.lp_vault.to_account_info(),
-        ctx.accounts.owner_lp_token.to_account_info(),
-        lp_token_amount,
-        9,
-        ctx.accounts.light_token_program_cpi_authority.to_account_info(),
-        ctx.accounts.system_program.to_account_info(),
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
-    )?;
+    // Mint LP tokens directly to user
+    CTokenMintToCpi {
+        cmint: ctx.accounts.lp_mint.to_account_info(),
+        destination: ctx.accounts.owner_lp_token.to_account_info(),
+        amount: lp_token_amount,
+        authority: ctx.accounts.authority.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
+        max_top_up: None,
+    }
+    .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]])?;
+
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.

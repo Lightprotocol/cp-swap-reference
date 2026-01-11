@@ -20,6 +20,8 @@ use light_sdk_macros::{light_instruction, LightFinalize};
 use spl_token_2022;
 use std::ops::Deref;
 
+pub const LOCK_LP_AMOUNT: u64 = 100;
+
 #[derive(Accounts, LightFinalize)]
 #[instruction(compression_params: InitializeCompressionParams)]
 pub struct Initialize<'info> {
@@ -51,7 +53,7 @@ pub struct Initialize<'info> {
         ],
         bump,
         payer = creator,
-        space = 8 + PoolState::INIT_SPACE
+        space = 8 + PoolState::INIT_SPACE,
     )]
     #[compressible(
         address_tree_info = compression_params.pool_address_tree_info,
@@ -62,10 +64,14 @@ pub struct Initialize<'info> {
     /// Token_0 mint, the key must smaller than token_1 mint.
     #[account(
         constraint = token_0_mint.key() < token_1_mint.key(),
+        mint::token_program = token_0_program,
     )]
     pub token_0_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Token_1 mint, the key must grater then token_0 mint.
+    #[account(
+        mint::token_program = token_1_program,
+    )]
     pub token_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Signer pda used to derive lp_mint and address.
@@ -106,20 +112,10 @@ pub struct Initialize<'info> {
     )]
     pub creator_token_1: Box<InterfaceAccount<'info, TokenAccount>>,
 
+    // TODO: check why not interfaceAccount.
     /// CHECK:
     #[account(mut)]
     pub creator_lp_token: UncheckedAccount<'info>,
-
-    /// CHECK: LP vault - created via CTokenAccountCpi
-    #[account(
-        mut,
-        seeds = [
-            POOL_VAULT_SEED.as_bytes(),
-            lp_mint.to_account_info().key.as_ref()
-        ],
-        bump,
-    )]
-    pub lp_vault: UncheckedAccount<'info>,
 
     /// CHECK: Token_0 vault for the pool, created via CTokenAccountCpi
     #[account(
@@ -234,9 +230,6 @@ pub fn initialize<'info>(
     if open_time <= block_timestamp {
         open_time = block_timestamp + 1;
     }
-
-    // LP mint is created automatically by light_pre_init() before this runs
-    // (via #[light_mint] attribute on lp_mint field)
 
     CreateCTokenAccountCpi {
         payer: ctx.accounts.creator.to_account_info(),
@@ -369,18 +362,14 @@ pub fn initialize<'info>(
         .unwrap()
         .integer_sqrt()
         .as_u64();
-    let lock_lp_amount = 100;
 
     let user_lp_amount = liquidity
-        .checked_sub(lock_lp_amount)
-        .ok_or(ErrorCode::InitLpAmountTooLess)?;
-    let vault_lp_amount = u64::MAX
-        .checked_sub(user_lp_amount)
+        .checked_sub(LOCK_LP_AMOUNT)
         .ok_or(ErrorCode::InitLpAmountTooLess)?;
 
     pool_state.initialize(
         ctx.bumps.authority,
-        liquidity,
+        user_lp_amount,
         open_time,
         ctx.accounts.creator.key(),
         ctx.accounts.amm_config.key(),
@@ -390,46 +379,15 @@ pub fn initialize<'info>(
         &ctx.accounts.token_1_mint,
         ctx.accounts.token_0_program.key(),
         ctx.accounts.token_1_program.key(),
-        &ctx.accounts.lp_vault,
         &ctx.accounts.lp_mint.to_account_info(),
         observation_state_key,
     );
-
-    // ZK Compression Step 4: Create ctoken accounts. These match regular
-    // SPL token accounts but are compressible.
-    CreateCTokenAccountCpi {
-        payer: ctx.accounts.creator.to_account_info(),
-        account: ctx.accounts.lp_vault.to_account_info(),
-        mint: ctx.accounts.lp_mint.to_account_info(),
-        owner: *ctx.accounts.authority.to_account_info().key,
-        compressible: CompressibleParamsCpi::new(
-            ctx.accounts.light_token_config_account.to_account_info(),
-            ctx.accounts.light_token_rent_sponsor.to_account_info(),
-            ctx.accounts.system_program.to_account_info(),
-        ),
-    }
-    .invoke_signed(&[&[
-        POOL_VAULT_SEED.as_bytes(),
-        ctx.accounts.lp_mint.to_account_info().key.as_ref(),
-        &[ctx.bumps.lp_vault],
-    ]])?;
 
     // Mint LP tokens to creator
     CTokenMintToCpi {
         cmint: ctx.accounts.lp_mint.to_account_info(),
         destination: ctx.accounts.creator_lp_token.to_account_info(),
         amount: user_lp_amount,
-        authority: ctx.accounts.authority.to_account_info(),
-        system_program: ctx.accounts.system_program.to_account_info(),
-        max_top_up: None,
-    }
-    .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]])?;
-
-    // Mint LP tokens to vault
-    CTokenMintToCpi {
-        cmint: ctx.accounts.lp_mint.to_account_info(),
-        destination: ctx.accounts.lp_vault.to_account_info(),
-        amount: vault_lp_amount,
         authority: ctx.accounts.authority.to_account_info(),
         system_program: ctx.accounts.system_program.to_account_info(),
         max_top_up: None,

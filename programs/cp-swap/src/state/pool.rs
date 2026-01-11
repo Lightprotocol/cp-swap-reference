@@ -46,8 +46,6 @@ pub struct PoolState {
     /// Pool tokens are issued when A or B tokens are deposited.
     /// Pool tokens can be withdrawn back to the original A or B token.
     pub lp_mint: Pubkey,
-    /// Holds all LP tokens. Compressible.
-    pub lp_vault: Pubkey,
     /// Mint information for token A
     pub token_0_mint: Pubkey,
     /// Mint information for token B
@@ -90,8 +88,8 @@ pub struct PoolState {
     /// when compressed.
     #[skip]
     pub compression_info: Option<CompressionInfo>,
-    /// padding for future updates
-    pub padding: [u64; 1],
+    /// padding for future updates (includes space for removed lp_vault: 32 bytes = 4 u64s)
+    pub padding: [u64; 5],
 }
 
 impl PoolState {
@@ -108,7 +106,6 @@ impl PoolState {
         token_1_mint: &InterfaceAccount<Mint>,
         token_0_program: Pubkey,
         token_1_program: Pubkey,
-        lp_vault: &AccountInfo,
         lp_mint: &AccountInfo,
         observation_key: Pubkey,
     ) {
@@ -117,7 +114,6 @@ impl PoolState {
         self.token_0_vault = token_0_vault;
         self.token_1_vault = token_1_vault;
         self.lp_mint = lp_mint.key();
-        self.lp_vault = lp_vault.key();
         self.token_0_mint = token_0_mint.key();
         self.token_1_mint = token_1_mint.key();
         self.token_0_program = token_0_program;
@@ -134,7 +130,7 @@ impl PoolState {
         self.fund_fees_token_1 = 0;
         self.open_time = open_time;
         self.recent_epoch = Clock::get().unwrap().epoch;
-        self.padding = [0u64; 1];
+        self.padding = [0u64; 5];
     }
 
     pub fn set_status(&mut self, status: u8) {
