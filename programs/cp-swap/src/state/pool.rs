@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use light_sdk::{compressible::CompressionInfo, LightDiscriminator};
-use light_sdk_macros::{Compressible, CompressiblePack, LightHasherSha};
+use light_sdk_macros::LightCompressible;
 use std::ops::{BitAnd, BitOr, BitXor};
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "pool";
@@ -22,17 +22,18 @@ pub enum PoolStatusBitFlag {
     Disable,
 }
 
-/// Tip: The 'Compressible' macro derives compress/decompress methods for the
-/// account. CompressionInfo tracks the last_written_slot. Whenever a
+/// Tip: The 'LightCompressible' macro derives compress/decompress methods for
+/// the account. CompressionInfo tracks the last_written_slot. Whenever a
 /// compressible account is written to, last_written_slot must be updated. If
 /// last_written_slot >= threshold (compression_delay), the account becomes
 /// eligible for compression. Eligible accounts can be compressed
 /// asynchronously.
+///
+/// LightCompressible = LightHasherSha + LightDiscriminator + Compressible + CompressiblePack
+/// The compression_info field is automatically skipped during hashing.
 #[account]
 #[repr(C)]
-#[derive(
-    Debug, LightHasherSha, LightDiscriminator, Default, InitSpace, Compressible, CompressiblePack,
-)]
+#[derive(Debug, Default, InitSpace, LightCompressible)]
 pub struct PoolState {
     /// Which config the pool belongs
     pub amm_config: Pubkey,
@@ -84,9 +85,8 @@ pub struct PoolState {
     pub open_time: u64,
     /// recent epoch
     pub recent_epoch: u64,
-    /// #[skip] is required. Is Some when the account is decompressed and None
-    /// when compressed.
-    #[skip]
+    /// Is Some when the account is decompressed and None when compressed.
+    /// Automatically skipped during hashing by LightCompressible.
     pub compression_info: Option<CompressionInfo>,
     /// padding for future updates (includes space for removed lp_vault: 32 bytes = 4 u64s)
     pub padding: [u64; 5],

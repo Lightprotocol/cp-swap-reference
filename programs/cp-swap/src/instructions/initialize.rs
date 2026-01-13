@@ -22,7 +22,7 @@ use std::ops::Deref;
 
 pub const LOCK_LP_AMOUNT: u64 = 100;
 
-#[derive(Accounts, LightFinalize)]
+#[derive(Accounts, LightFinalize, Compressible)]
 #[instruction(compression_params: InitializeCompressionParams)]
 pub struct Initialize<'info> {
     /// Address paying to create the pool. Can be anyone
@@ -112,7 +112,7 @@ pub struct Initialize<'info> {
     )]
     pub creator_token_1: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    // TODO: check why not interfaceAccount.
+
     /// CHECK:
     #[account(mut)]
     pub creator_lp_token: UncheckedAccount<'info>,

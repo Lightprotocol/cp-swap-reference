@@ -6,7 +6,7 @@ use light_sdk::{
     compressible::{CompressionInfo, HasCompressionInfo},
     LightDiscriminator,
 };
-use light_sdk_macros::{Compressible, CompressiblePack, LightHasherSha};
+use light_sdk_macros::LightCompressible;
 
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -27,14 +27,17 @@ pub struct Observation {
     /// the cumulative of token1 price during the duration time, Q32.32, the remaining 64 bit for overflow
     pub cumulative_token_1_price_x32: u128,
 }
-/// Tip: The 'Compressible' macro derives compress/decompress methods for the
-/// account. CompressionInfo tracks the last_written_slot. Whenever a
+/// Tip: The 'LightCompressible' macro derives compress/decompress methods for
+/// the account. CompressionInfo tracks the last_written_slot. Whenever a
 /// compressible account is written to, last_written_slot must be updated. If
 /// last_written_slot >= threshold (compression_delay), the account becomes
 /// eligible for compression. Eligible accounts can be compressed
 /// asynchronously.
+///
+/// LightCompressible = LightHasherSha + LightDiscriminator + Compressible + CompressiblePack
+/// The compression_info field is automatically skipped during hashing.
 #[account]
-#[derive(LightHasherSha, LightDiscriminator, Compressible, InitSpace, Debug, CompressiblePack)]
+#[derive(InitSpace, Debug, LightCompressible)]
 #[compress_as(observations = None)]
 pub struct ObservationState {
     /// Whether the ObservationState is initialized
@@ -44,9 +47,7 @@ pub struct ObservationState {
     pub pool_id: Pubkey,
     /// observation array
     pub observations: Option<[Observation; OBSERVATION_NUM]>,
-    /// #[skip] is required. Is Some when the account is decompressed and None
-    /// when compressed.
-    #[skip]
+    /// Is Some when the account is decompressed and None when compressed.
     pub compression_info: Option<CompressionInfo>,
     /// padding for feature update
     pub padding: [u64; 4],

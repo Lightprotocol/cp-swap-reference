@@ -49,7 +49,6 @@ pub mod create_pool_fee_receiver {
     pub const ID: Pubkey = pubkey!("DNXgeM9EiiaAbaWvwjHj9fQQLAX5ZsfHyvmYUNRAdNC8");
 }
 
-use light_sdk::LightDiscriminator;
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
 /// ZK Compression: Auto-generates compress/decompress instructions for the
@@ -62,7 +61,6 @@ pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
     // ObservationState excluded - exceeds 800-byte compression limit
     Token0Vault = (is_token, POOL_VAULT_SEED, ctx.accounts.pool_state, ctx.accounts.token_0_mint, authority = AUTH_SEED),
     Token1Vault = (is_token, POOL_VAULT_SEED, ctx.accounts.pool_state, ctx.accounts.token_1_mint, authority = AUTH_SEED),
-    ATA = (is_token, is_ata),
 )]
 #[program]
 pub mod raydium_cp_swap {
