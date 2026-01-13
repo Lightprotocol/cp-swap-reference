@@ -7,7 +7,7 @@ members = ["programs/*"]
 [workspace.dependencies]
 proc-macro2 = "1.0.95"
 
-# Patch anchor to use c-token fork
+# Patch anchor to use local fork
 [patch.crates-io]
 anchor-lang = { path = "../anchor/lang" }
 anchor-spl = { path = "../anchor/spl" }
