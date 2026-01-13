@@ -16,7 +16,6 @@ use anchor_spl::{
 use light_ctoken_sdk::ctoken::{CTokenMintToCpi, CompressibleParamsCpi, CreateCTokenAccountCpi};
 use light_ctoken_sdk::ValidityProof;
 use light_sdk::instruction::PackedAddressTreeInfo;
-use light_sdk_macros::Compressible;
 use light_sdk_macros::{light_instruction, LightFinalize};
 use spl_token_2022;
 use std::ops::Deref;
