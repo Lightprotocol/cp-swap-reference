@@ -10,7 +10,7 @@ test-sbf = ["raydium-cp-swap/test-sbf"]
 [dependencies]
 anchor-client = { version = "=0.31.1", features = ["async"] }
 anchor-lang = { version = "=0.31.1" }
-anchor-spl = { version = "=0.31.1", git = "https://github.com/lightprotocol/anchor", rev = "d8a2b3d9", features = ["memo", "metadata", "idl-build"] }
+anchor-spl = { version = "=0.31.1", git = "https://github.com/lightprotocol/anchor", rev = "d8a2b3d9", features = ["memo", "idl-build"] }
 
 raydium-cp-swap = { path = "../programs/cp-swap", features = [
     "no-entrypoint",
@@ -40,11 +40,11 @@ bytemuck = { version = "1.23.0", features = ["derive"] }
 tokio = { version = "1.0", features = ["full"] }
 futures = "0.3"
 
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["v2"] }
-light-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["v2"] }
-light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["anchor"] }
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["anchor", "anchor-discriminator", "v2"] }
-light-compressed-account = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["anchor"] }
-light-token-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4" }
+light-program-test = { path = "../../light-protocol-2/sdk-libs/program-test", features = ["v2"] }
+light-client = { path = "../../light-protocol-2/sdk-libs/client", features = ["v2"] }
+light-compressible-client = { path = "../../light-protocol-2/sdk-libs/compressible-client", features = ["anchor"] }
+light-sdk = { path = "../../light-protocol-2/sdk-libs/sdk", features = ["anchor", "anchor-discriminator", "v2"] }
+light-compressed-account = { path = "../../light-protocol-2/program-libs/compressed-account", features = ["anchor"] }
+light-token-client = { path = "../../light-protocol-2/sdk-libs/token-client" }
 
 

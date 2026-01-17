@@ -1,6 +1,5 @@
 use crate::error::ErrorCode;
 use crate::states::*;
-use crate::utils::ctoken::get_bumps;
 use crate::utils::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
@@ -70,17 +69,6 @@ pub struct CollectProtocolFee<'info> {
 
     /// The SPL program 2022 to perform token transfers
     pub token_program_2022: Program<'info, Token2022>,
-
-    /// CHECK: checked by protocol.
-    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    pub compressed_token_program: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    #[account(mut)]
-    pub compressed_token_0_pool_pda: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    #[account(mut)]
-    pub compressed_token_1_pool_pda: AccountInfo<'info>,
 }
 
 pub fn collect_protocol_fee(
@@ -110,14 +98,7 @@ pub fn collect_protocol_fee(
         pool_state.recent_epoch = Clock::get()?.epoch;
     }
 
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
-        ctx.accounts.vault_0_mint.key(),
-        ctx.accounts.vault_1_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
-    );
-
     transfer_from_pool_vault_to_user(
-        ctx.accounts.owner.to_account_info(),
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.recipient_token_0_account.to_account_info(),
@@ -127,17 +108,11 @@ pub fn collect_protocol_fee(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         amount_0,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;
 
     transfer_from_pool_vault_to_user(
-        ctx.accounts.owner.to_account_info(),
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.recipient_token_1_account.to_account_info(),
@@ -147,11 +122,6 @@ pub fn collect_protocol_fee(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         amount_1,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
     )?;

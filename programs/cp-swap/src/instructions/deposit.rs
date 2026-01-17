@@ -2,7 +2,6 @@ use crate::curve::CurveCalculator;
 use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
 use crate::states::*;
-use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
 use crate::utils::transfer_ctoken_from_pool_vault_to_user;
 use anchor_lang::prelude::*;
@@ -91,21 +90,6 @@ pub struct Deposit<'info> {
         token::authority = authority
     )]
     pub lp_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-
-    /// CHECK: checked by protocol.
-    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    pub compressed_token_program: AccountInfo<'info>,
-
-    /// CHECK: checked by protocol.
-    ///
-    /// Every mint must be registered in the compression protocol via a
-    /// compression_token_pool_pda.
-    #[account(mut)]
-    pub compressed_token_0_pool_pda: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    #[account(mut)]
-    pub compressed_token_1_pool_pda: AccountInfo<'info>,
 }
 
 pub fn deposit(
@@ -172,11 +156,6 @@ pub fn deposit(
     {
         return Err(ErrorCode::ExceededSlippage.into());
     }
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
-        ctx.accounts.vault_0_mint.key(),
-        ctx.accounts.vault_1_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
-    );
 
     transfer_from_user_to_pool_vault(
         ctx.accounts.owner.to_account_info(),
@@ -188,11 +167,6 @@ pub fn deposit(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         transfer_token_0_amount,
     )?;
 
@@ -206,11 +180,6 @@ pub fn deposit(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         transfer_token_1_amount,
     )?;
 
@@ -226,7 +195,7 @@ pub fn deposit(
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_written_slot()?;
+    pool_state.compression_info_mut().bump_last_claimed_slot()?;
 
     Ok(())
 }

@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use light_sdk::compressible::CompressionInfo;
+use light_sdk::LightDiscriminator;
 use light_sdk_macros::RentFreeAccount;
 use std::ops::{BitAnd, BitOr, BitXor};
 

@@ -1,6 +1,4 @@
 use anchor_lang::prelude::*;
-use light_sdk::compressible::{CompressionInfo, HasCompressionInfo};
-use light_sdk_macros::RentFreeAccount;
 
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -16,15 +14,13 @@ pub struct Observation {
     pub cumulative_token_1_price_x32: u128,
 }
 
-#[derive(Default, Debug, InitSpace, RentFreeAccount)]
-#[compress_as(observations = None)]
+#[derive(Default, Debug, InitSpace)]
 #[account]
 pub struct ObservationState {
-    pub compression_info: Option<CompressionInfo>,
     pub initialized: bool,
     pub observation_index: u16,
     pub pool_id: Pubkey,
-    pub observations: Option<[Observation; OBSERVATION_NUM]>,
+    pub observations: [Observation; OBSERVATION_NUM],
     pub padding: [u64; 4],
 }
 
@@ -38,17 +34,12 @@ impl ObservationState {
         let observation_index = self.observation_index;
 
         if !self.initialized {
-            let observations = self
-                .observations
-                .get_or_insert_with(|| [Observation::default(); OBSERVATION_NUM]);
             self.initialized = true;
-            observations[observation_index as usize].block_timestamp = block_timestamp;
-            observations[observation_index as usize].cumulative_token_0_price_x32 = 0;
-            observations[observation_index as usize].cumulative_token_1_price_x32 = 0;
-            self.compression_info = Some(CompressionInfo::new_decompressed().unwrap());
+            self.observations[observation_index as usize].block_timestamp = block_timestamp;
+            self.observations[observation_index as usize].cumulative_token_0_price_x32 = 0;
+            self.observations[observation_index as usize].cumulative_token_1_price_x32 = 0;
         } else {
-            let observations = &mut self.observations.as_mut().unwrap();
-            let last_observation = observations[observation_index as usize];
+            let last_observation = self.observations[observation_index as usize];
             let delta_time = block_timestamp.saturating_sub(last_observation.block_timestamp);
             if delta_time < OBSERVATION_UPDATE_DURATION_DEFAULT {
                 return;
@@ -60,19 +51,16 @@ impl ObservationState {
             } else {
                 observation_index + 1
             };
-            observations[next_observation_index as usize].block_timestamp = block_timestamp;
-            observations[next_observation_index as usize].cumulative_token_0_price_x32 =
+            self.observations[next_observation_index as usize].block_timestamp = block_timestamp;
+            self.observations[next_observation_index as usize].cumulative_token_0_price_x32 =
                 last_observation
                     .cumulative_token_0_price_x32
                     .wrapping_add(delta_token_0_price_x32);
-            observations[next_observation_index as usize].cumulative_token_1_price_x32 =
+            self.observations[next_observation_index as usize].cumulative_token_1_price_x32 =
                 last_observation
                     .cumulative_token_1_price_x32
                     .wrapping_add(delta_token_1_price_x32);
             self.observation_index = next_observation_index;
-            self.compression_info_mut()
-                .bump_last_written_slot()
-                .unwrap();
         }
     }
 }

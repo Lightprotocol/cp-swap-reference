@@ -24,7 +24,7 @@ test-sbf = []
 
 [dependencies]
 anchor-lang = { version = "=0.31.1", features = ["init-if-needed", "idl-build"] }
-anchor-spl = { version = "=0.31.1", git = "https://github.com/lightprotocol/anchor", rev = "d8a2b3d9", features = ["memo", "metadata", "idl-build"] }
+anchor-spl = { version = "=0.31.1", git = "https://github.com/lightprotocol/anchor", rev = "d8a2b3d9", features = ["memo", "idl-build"] }
 spl-token-2022 = { version = "7.0.0", features = ["no-entrypoint"] }
 spl-math = { version = "0.3", features = ["no-entrypoint"] }
 uint = "0.10.0"
@@ -32,13 +32,20 @@ solana-security-txt = "1.1.1"
 bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 
-light-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["anchor", "anchor-discriminator", "v2"] }
-light-sdk-types = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["v2"] }
-light-hasher = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["solana"] }
-light-macros = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["solana"] }
-light-sdk-macros = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["anchor-discriminator"] }
-light-compressible = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["anchor"] }
-light-token-sdk = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["anchor"] }
+light-sdk = { path = "../../../light-protocol-2/sdk-libs/sdk", features = ["anchor", "anchor-discriminator", "v2", "idl-build", "cpi-context"] }
+light-sdk-types = { path = "../../../light-protocol-2/sdk-libs/sdk-types", features = ["v2", "cpi-context"] }
+light-hasher = { path = "../../../light-protocol-2/program-libs/hasher", features = ["solana"] }
+light-macros = { path = "../../../light-protocol-2/program-libs/macros", features = ["solana"] }
+light-sdk-macros = { path = "../../../light-protocol-2/sdk-libs/macros" }
+light-compressible = { path = "../../../light-protocol-2/program-libs/compressible", features = ["anchor"] }
+light-token-sdk = { path = "../../../light-protocol-2/sdk-libs/token-sdk", features = ["anchor", "compressible"] }
+light-token-interface = { path = "../../../light-protocol-2/program-libs/token-interface", features = ["anchor"] }
+light-token-types = { path = "../../../light-protocol-2/sdk-libs/token-types", features = ["anchor"] }
+light-compressed-account = { path = "../../../light-protocol-2/program-libs/compressed-account", features = ["anchor"] }
+solana-account-info = "2.2"
+solana-program = "2.2"
+solana-pubkey = "2.2"
+solana-program-error = "2.2"
 
 
 [dev-dependencies]
@@ -46,9 +53,9 @@ quickcheck = "1.0.3"
 proptest = "1.0"
 rand = "0.9.0"
 
-light-program-test = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["v2"] }
-light-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["v2"] }
-light-compressible-client = { git = "https://github.com/lightprotocol/light-protocol", tag = "rentfree-sdk-0.3.4", features = ["anchor"] }
+light-program-test = { path = "../../../light-protocol-2/sdk-libs/program-test", features = ["v2"] }
+light-client = { path = "../../../light-protocol-2/sdk-libs/client", features = ["v2"] }
+light-compressible-client = { path = "../../../light-protocol-2/sdk-libs/compressible-client", features = ["anchor"] }
 
 
 [profile.release]

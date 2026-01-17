@@ -5,12 +5,15 @@ pub mod states;
 pub mod utils;
 
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
-pub use crate::instructions::initialize::Initialize;
+pub use crate::instructions::initialize::{Initialize, InitializeParams};
 pub use crate::states::{ObservationState, PoolState};
 use anchor_lang::prelude::*;
 use instructions::*;
 use light_sdk::{derive_light_cpi_signer, derive_light_rent_sponsor_pda};
-use light_sdk_macros::rentfree_program;
+// NOTE: #[rentfree_program] disabled - conflicts with function delegation pattern.
+// The macro wraps functions and borrows ctx/params after they're moved.
+// TODO: Either inline function bodies or fix macro to handle delegation.
+// use light_sdk_macros::rentfree_program;
 use light_sdk_types::CpiSigner;
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -58,7 +61,7 @@ pub mod create_pool_fee_receiver {
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
-#[rentfree_program]
+// #[rentfree_program]  // TODO: Re-enable when macro supports function delegation
 #[program]
 pub mod raydium_cp_swap {
     #![allow(clippy::too_many_arguments)]
@@ -113,12 +116,9 @@ pub mod raydium_cp_swap {
 
     pub fn initialize<'info>(
         ctx: Context<'_, '_, '_, 'info, Initialize<'info>>,
-        init_amount_0: u64,
-        init_amount_1: u64,
-        open_time: u64,
         params: InitializeParams,
     ) -> Result<()> {
-        instructions::initialize(ctx, init_amount_0, init_amount_1, open_time, params)
+        instructions::initialize(ctx, params)
     }
 
     pub fn deposit(

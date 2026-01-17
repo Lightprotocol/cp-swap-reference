@@ -25,8 +25,11 @@ use std::ops::Deref;
 
 pub const LP_MINT_SIGNER_SEED: &[u8] = b"pool_lp_mint";
 
-#[derive(AnchorSerialize, AnchorDeserialize)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct InitializeParams {
+    pub init_amount_0: u64,
+    pub init_amount_1: u64,
+    pub open_time: u64,
     pub create_accounts_proof: CreateAccountsProof,
     pub lp_mint_signer_bump: u8,
     pub lp_vault_bump: u8,
@@ -34,7 +37,7 @@ pub struct InitializeParams {
 }
 
 #[derive(Accounts, RentFree)]
-#[instruction(init_amount_0: u64, init_amount_1: u64, open_time: u64, params: InitializeParams)]
+#[instruction(params: InitializeParams)]
 pub struct Initialize<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
@@ -142,7 +145,6 @@ pub struct Initialize<'info> {
         payer = creator,
         space = 8 + ObservationState::INIT_SPACE
     )]
-    #[rentfree]
     pub observation_state: Box<Account<'info, ObservationState>>,
 
     #[account(mut, address = crate::create_pool_fee_receiver::ID)]
@@ -164,15 +166,18 @@ pub struct Initialize<'info> {
     pub ctoken_rent_sponsor: AccountInfo<'info>,
 
     pub light_token_program: AccountInfo<'info>,
+
+    /// CHECK: CToken CPI authority.
+    pub ctoken_cpi_authority: AccountInfo<'info>,
 }
 
 pub fn initialize<'info>(
     ctx: Context<'_, '_, '_, 'info, Initialize<'info>>,
-    init_amount_0: u64,
-    init_amount_1: u64,
-    mut open_time: u64,
     params: InitializeParams,
 ) -> Result<()> {
+    let init_amount_0 = params.init_amount_0;
+    let init_amount_1 = params.init_amount_1;
+    let mut open_time = params.open_time;
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
         && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
     {
