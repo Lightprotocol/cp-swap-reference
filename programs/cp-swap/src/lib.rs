@@ -9,8 +9,8 @@ pub use crate::instructions::initialize::Initialize;
 pub use crate::states::{ObservationState, PoolState};
 use anchor_lang::prelude::*;
 use instructions::*;
-use light_sdk::derive_light_cpi_signer;
-use light_sdk_macros::add_compressible_instructions;
+use light_sdk::{derive_light_cpi_signer, derive_light_rent_sponsor_pda};
+use light_sdk_macros::rentfree_program;
 use light_sdk_types::CpiSigner;
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -32,6 +32,14 @@ declare_id!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 pub const LIGHT_CPI_SIGNER: CpiSigner =
     derive_light_cpi_signer!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 
+pub const PROGRAM_RENT_SPONSOR_DATA: ([u8; 32], u8) =
+    derive_light_rent_sponsor_pda!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", 1);
+
+#[inline]
+pub fn program_rent_sponsor() -> Pubkey {
+    Pubkey::from(PROGRAM_RENT_SPONSOR_DATA.0)
+}
+
 pub mod admin {
     use super::{pubkey, Pubkey};
     #[cfg(feature = "devnet")]
@@ -50,26 +58,13 @@ pub mod create_pool_fee_receiver {
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
-/// ZK Compression: Auto-generates compress/decompress instructions for the
-/// specified accounts. Derives compress_pool_state, compress_observation_state,
-/// decompress_accounts_idempotent, initialize_compression_config, and
-/// update_compression_config, as well as all relevant structs. Everything is
-/// auto-added to the program IDL for consumption by clients.
-#[add_compressible_instructions(PoolState, ObservationState)]
+#[rentfree_program]
 #[program]
 pub mod raydium_cp_swap {
+    #![allow(clippy::too_many_arguments)]
 
     use super::*;
 
-    // The configuration of AMM protocol, include trade fee and protocol fee
-    /// # Arguments
-    ///
-    /// * `ctx`- The accounts needed by instruction.
-    /// * `index` - The index of amm config, there may be multiple config.
-    /// * `trade_fee_rate` - Trade fee rate, can be changed.
-    /// * `protocol_fee_rate` - The rate of protocol fee within trade fee.
-    /// * `fund_fee_rate` - The rate of fund fee within trade fee.
-    ///
     pub fn create_amm_config(
         ctx: Context<CreateAmmConfig>,
         index: u16,
@@ -92,42 +87,14 @@ pub mod raydium_cp_swap {
         )
     }
 
-    /// Updates the owner of the amm config
-    /// Must be called by the current owner or admin
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx`- The context of accounts
-    /// * `trade_fee_rate`- The new trade fee rate of amm config, be set when `param` is 0
-    /// * `protocol_fee_rate`- The new protocol fee rate of amm config, be set when `param` is 1
-    /// * `fund_fee_rate`- The new fund fee rate of amm config, be set when `param` is 2
-    /// * `new_owner`- The config's new owner, be set when `param` is 3
-    /// * `new_fund_owner`- The config's new fund owner, be set when `param` is 4
-    /// * `param`- The value can be 0 | 1 | 2 | 3 | 4, otherwise will report a error
-    ///
     pub fn update_amm_config(ctx: Context<UpdateAmmConfig>, param: u8, value: u64) -> Result<()> {
         instructions::update_amm_config(ctx, param, value)
     }
 
-    /// Update pool status for given value
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx`- The context of accounts
-    /// * `status` - The value of status
-    ///
     pub fn update_pool_status(ctx: Context<UpdatePoolStatus>, status: u8) -> Result<()> {
         instructions::update_pool_status(ctx, status)
     }
 
-    /// Collect the protocol fee accrued to the pool
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - The context of accounts
-    /// * `amount_0_requested` - The maximum amount of token_0 to send, can be 0 to collect fees in only token_1
-    /// * `amount_1_requested` - The maximum amount of token_1 to send, can be 0 to collect fees in only token_0
-    ///
     pub fn collect_protocol_fee(
         ctx: Context<CollectProtocolFee>,
         amount_0_requested: u64,
@@ -136,14 +103,6 @@ pub mod raydium_cp_swap {
         instructions::collect_protocol_fee(ctx, amount_0_requested, amount_1_requested)
     }
 
-    /// Collect the fund fee accrued to the pool
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - The context of accounts
-    /// * `amount_0_requested` - The maximum amount of token_0 to send, can be 0 to collect fees in only token_1
-    /// * `amount_1_requested` - The maximum amount of token_1 to send, can be 0 to collect fees in only token_0
-    ///
     pub fn collect_fund_fee(
         ctx: Context<CollectFundFee>,
         amount_0_requested: u64,
@@ -152,40 +111,16 @@ pub mod raydium_cp_swap {
         instructions::collect_fund_fee(ctx, amount_0_requested, amount_1_requested)
     }
 
-    /// Creates a pool for the given token pair and the initial price
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx`- The context of accounts
-    /// * `init_amount_0` - the initial amount_0 to deposit
-    /// * `init_amount_1` - the initial amount_1 to deposit
-    /// * `open_time` - the timestamp allowed for swap
-    ///
     pub fn initialize<'info>(
         ctx: Context<'_, '_, '_, 'info, Initialize<'info>>,
         init_amount_0: u64,
         init_amount_1: u64,
         open_time: u64,
-        compression_params: InitializeCompressionParams,
+        params: InitializeParams,
     ) -> Result<()> {
-        instructions::initialize(
-            ctx,
-            init_amount_0,
-            init_amount_1,
-            open_time,
-            compression_params,
-        )
+        instructions::initialize(ctx, init_amount_0, init_amount_1, open_time, params)
     }
 
-    /// Deposit lp token to the pool
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx`- The context of accounts
-    /// * `lp_token_amount` - Pool token amount to transfer. token_a and token_b amount are set by the current exchange rate and size of the pool
-    /// * `maximum_token_0_amount` -  Maximum token 0 amount to deposit, prevents excessive slippage
-    /// * `maximum_token_1_amount` - Maximum token 1 amount to deposit, prevents excessive slippage
-    ///
     pub fn deposit(
         ctx: Context<Deposit>,
         lp_token_amount: u64,
@@ -200,15 +135,6 @@ pub mod raydium_cp_swap {
         )
     }
 
-    /// Withdraw lp for token0 and token1
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx`- The context of accounts
-    /// * `lp_token_amount` - Amount of pool tokens to burn. User receives an output of token a and b based on the percentage of the pool tokens that are returned.
-    /// * `minimum_token_0_amount` -  Minimum amount of token 0 to receive, prevents excessive slippage
-    /// * `minimum_token_1_amount` -  Minimum amount of token 1 to receive, prevents excessive slippage
-    ///
     pub fn withdraw(
         ctx: Context<Withdraw>,
         lp_token_amount: u64,
@@ -223,14 +149,6 @@ pub mod raydium_cp_swap {
         )
     }
 
-    /// Swap the tokens in the pool base input amount
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx`- The context of accounts
-    /// * `amount_in` -  input amount to transfer, output to DESTINATION is based on the exchange rate
-    /// * `minimum_amount_out` -  Minimum amount of output token, prevents excessive slippage
-    ///
     pub fn swap_base_input(
         ctx: Context<Swap>,
         amount_in: u64,
@@ -239,14 +157,6 @@ pub mod raydium_cp_swap {
         instructions::swap_base_input(ctx, amount_in, minimum_amount_out)
     }
 
-    /// Swap the tokens in the pool base output amount
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx`- The context of accounts
-    /// * `max_amount_in` -  input amount prevents excessive slippage
-    /// * `amount_out` -  amount of output token
-    ///
     pub fn swap_base_output(ctx: Context<Swap>, max_amount_in: u64, amount_out: u64) -> Result<()> {
         instructions::swap_base_output(ctx, max_amount_in, amount_out)
     }

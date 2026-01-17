@@ -3,10 +3,9 @@ use anchor_lang::{prelude::*, system_program};
 use anchor_spl::{
     token::{Token, TokenAccount},
     token_2022,
-    token_interface::{initialize_account3, InitializeAccount3, Mint},
-};
-use light_compressed_token_sdk::instructions::transfer2::{
-    transfer_ctoken_to_spl_signed, transfer_spl_to_ctoken,
+    token_interface::{
+        initialize_account3, transfer_checked, InitializeAccount3, Mint, TransferChecked,
+    },
 };
 use spl_token_2022::{
     self,
@@ -24,68 +23,72 @@ const MINT_WHITELIST: [&'static str; 4] = [
     "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
 ];
 
-pub fn transfer_from_user_to_pool_vault<'a, 'b>(
+pub fn transfer_from_user_to_pool_vault<'a>(
     authority: AccountInfo<'a>,
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    spl_token_program: AccountInfo<'a>,
-    compressed_token_pool_pda: AccountInfo<'a>,
-    compressed_token_pool_pda_bump: u8,
-    compressed_token_program_authority: AccountInfo<'a>,
+    token_program: AccountInfo<'a>,
     amount: u64,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    transfer_spl_to_ctoken(
-        authority.clone(),
-        authority,
-        from,
-        to_vault,
-        mint,
-        spl_token_program,
-        compressed_token_pool_pda,
-        compressed_token_pool_pda_bump,
-        compressed_token_program_authority,
+
+    let mint_data = mint.try_borrow_data()?;
+    let mint_state = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
+    let decimals = mint_state.base.decimals;
+    drop(mint_data);
+
+    transfer_checked(
+        CpiContext::new(
+            token_program,
+            TransferChecked {
+                from,
+                mint,
+                to: to_vault,
+                authority,
+            },
+        ),
         amount,
-    )?;
-    Ok(())
+        decimals,
+    )
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
-    payer: AccountInfo<'a>,
     authority: AccountInfo<'a>,
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    spl_token_program: AccountInfo<'a>,
-    compressed_token_pool_pda: AccountInfo<'a>,
-    compressed_token_pool_pda_bump: u8,
-    compressed_token_program_authority: AccountInfo<'a>,
+    token_program: AccountInfo<'a>,
     amount: u64,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    transfer_ctoken_to_spl_signed(
-        payer,
-        authority,
-        from_vault,
-        to,
-        mint,
-        spl_token_program,
-        compressed_token_pool_pda,
-        compressed_token_pool_pda_bump,
-        compressed_token_program_authority,
+
+    let mint_data = mint.try_borrow_data()?;
+    let mint_state = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
+    let decimals = mint_state.base.decimals;
+    drop(mint_data);
+
+    transfer_checked(
+        CpiContext::new_with_signer(
+            token_program,
+            TransferChecked {
+                from: from_vault,
+                mint,
+                to,
+                authority,
+            },
+            signer_seeds,
+        ),
         amount,
-        signer_seeds,
-    )?;
-    Ok(())
+        decimals,
+    )
 }
 
-/// Calculate the fee for output amount
 pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
         return Ok(0);
@@ -120,7 +123,6 @@ pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -
     Ok(fee)
 }
 
-/// Calculate the fee for input amount
 pub fn get_transfer_fee(mint_info: &AccountInfo, pre_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
         return Ok(0);

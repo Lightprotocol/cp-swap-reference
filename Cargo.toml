@@ -2,7 +2,6 @@
 resolver = "2"
 members = ["programs/*", "client"]
 
-# Force newer proc-macro2 version compatible with Rust 1.87
 [workspace.dependencies]
 proc-macro2 = "1.0.95"
 
