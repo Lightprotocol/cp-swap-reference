@@ -6,7 +6,6 @@ use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-use light_sdk::compressible::HasCompressionInfo;
 
 #[derive(Accounts)]
 pub struct Swap<'info> {
@@ -252,9 +251,6 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         token_1_price_x64,
     );
     pool_state.recent_epoch = Clock::get()?.epoch;
-
-    // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_claimed_slot()?;
 
     Ok(())
 }

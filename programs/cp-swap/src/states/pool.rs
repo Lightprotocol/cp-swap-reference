@@ -33,7 +33,6 @@ pub struct PoolState {
     pub token_0_vault: Pubkey,
     pub token_1_vault: Pubkey,
     pub lp_mint: Pubkey,
-    pub lp_vault: Pubkey,
     pub token_0_mint: Pubkey,
     pub token_1_mint: Pubkey,
     pub token_0_program: Pubkey,
@@ -66,7 +65,6 @@ impl PoolState {
         token_1_vault: Pubkey,
         token_0_mint: &InterfaceAccount<Mint>,
         token_1_mint: &InterfaceAccount<Mint>,
-        lp_vault: &AccountInfo,
         lp_mint: &AccountInfo,
         observation_key: Pubkey,
     ) {
@@ -75,7 +73,6 @@ impl PoolState {
         self.token_0_vault = token_0_vault;
         self.token_1_vault = token_1_vault;
         self.lp_mint = lp_mint.key();
-        self.lp_vault = lp_vault.key();
         self.token_0_mint = token_0_mint.key();
         self.token_1_mint = token_1_mint.key();
         self.token_0_program = *token_0_mint.to_account_info().owner;

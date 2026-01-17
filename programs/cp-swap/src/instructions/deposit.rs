@@ -3,11 +3,10 @@ use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
-use crate::utils::transfer_ctoken_from_pool_vault_to_user;
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
 use anchor_spl::token_interface::{Mint, Token2022, TokenAccount};
-use light_sdk::compressible::HasCompressionInfo;
+use light_token_sdk::token::MintToCpi;
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -78,18 +77,14 @@ pub struct Deposit<'info> {
     )]
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Lp token vault
+    /// Lp mint
     #[account(
         mut,
-        seeds = [
-            POOL_VAULT_SEED.as_bytes(),
-            pool_state.lp_mint.as_ref()
-        ],
-        bump,
-        token::mint = lp_vault.mint,
-        token::authority = authority
+        address = pool_state.lp_mint
     )]
-    pub lp_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub lp_mint: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 pub fn deposit(
@@ -185,17 +180,16 @@ pub fn deposit(
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
 
-    transfer_ctoken_from_pool_vault_to_user(
-        ctx.accounts.authority.to_account_info(),
-        ctx.accounts.lp_vault.to_account_info(),
-        ctx.accounts.owner_lp_token.to_account_info(),
-        lp_token_amount,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
-    )?;
+    MintToCpi {
+        mint: ctx.accounts.lp_mint.to_account_info(),
+        destination: ctx.accounts.owner_lp_token.to_account_info(),
+        amount: lp_token_amount,
+        authority: ctx.accounts.authority.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
+        max_top_up: None,
+    }
+    .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]])?;
     pool_state.recent_epoch = Clock::get()?.epoch;
-
-    // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_claimed_slot()?;
 
     Ok(())
 }

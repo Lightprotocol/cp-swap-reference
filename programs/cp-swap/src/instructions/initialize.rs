@@ -32,7 +32,6 @@ pub struct InitializeParams {
     pub open_time: u64,
     pub create_accounts_proof: CreateAccountsProof,
     pub lp_mint_signer_bump: u8,
-    pub lp_vault_bump: u8,
     pub creator_lp_token_bump: u8,
 }
 
@@ -108,14 +107,6 @@ pub struct Initialize<'info> {
 
     #[account(
         mut,
-        seeds = [POOL_VAULT_SEED.as_bytes(), lp_mint.key().as_ref()],
-        bump,
-    )]
-    #[rentfree_token(authority = [crate::AUTH_SEED.as_bytes()])]
-    pub lp_vault: UncheckedAccount<'info>,
-
-    #[account(
-        mut,
         seeds = [
             POOL_VAULT_SEED.as_bytes(),
             pool_state.key().as_ref(),
@@ -145,6 +136,7 @@ pub struct Initialize<'info> {
         payer = creator,
         space = 8 + ObservationState::INIT_SPACE
     )]
+    #[rentfree]
     pub observation_state: Box<Account<'info, ObservationState>>,
 
     #[account(mut, address = crate::create_pool_fee_receiver::ID)]
@@ -311,9 +303,6 @@ pub fn initialize<'info>(
     let user_lp_amount = liquidity
         .checked_sub(lock_lp_amount)
         .ok_or(ErrorCode::InitLpAmountTooLess)?;
-    let vault_lp_amount = u64::MAX
-        .checked_sub(user_lp_amount)
-        .ok_or(ErrorCode::InitLpAmountTooLess)?;
 
     let pool_state = &mut ctx.accounts.pool_state;
     let observation_state = &mut ctx.accounts.observation_state;
@@ -330,31 +319,9 @@ pub fn initialize<'info>(
         ctx.accounts.token_1_vault.key(),
         &ctx.accounts.token_0_mint,
         &ctx.accounts.token_1_mint,
-        &ctx.accounts.lp_vault,
         &ctx.accounts.lp_mint,
         observation_state_key,
     );
-
-    let lp_mint_key = ctx.accounts.lp_mint.key();
-
-    // Create LP vault
-    CreateTokenAccountCpi {
-        payer: ctx.accounts.creator.to_account_info(),
-        account: ctx.accounts.lp_vault.to_account_info(),
-        mint: ctx.accounts.lp_mint.to_account_info(),
-        owner: ctx.accounts.authority.key(),
-    }
-    .rent_free(
-        ctx.accounts.ctoken_compressible_config.to_account_info(),
-        ctx.accounts.ctoken_rent_sponsor.to_account_info(),
-        ctx.accounts.system_program.to_account_info(),
-        &crate::ID,
-    )
-    .invoke_signed(&[
-        POOL_VAULT_SEED.as_bytes(),
-        lp_mint_key.as_ref(),
-        &[params.lp_vault_bump],
-    ])?;
 
     // Create creator LP token ATA
     CreateTokenAtaCpi {
@@ -371,17 +338,6 @@ pub fn initialize<'info>(
         ctx.accounts.system_program.to_account_info(),
     )
     .invoke()?;
-
-    // Mint LP tokens to vault
-    MintToCpi {
-        mint: ctx.accounts.lp_mint.to_account_info(),
-        destination: ctx.accounts.lp_vault.to_account_info(),
-        amount: vault_lp_amount,
-        authority: ctx.accounts.authority.to_account_info(),
-        system_program: ctx.accounts.system_program.to_account_info(),
-        max_top_up: None,
-    }
-    .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]])?;
 
     // Mint LP tokens to creator
     MintToCpi {

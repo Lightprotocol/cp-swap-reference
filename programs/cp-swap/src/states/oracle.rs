@@ -1,10 +1,11 @@
 use anchor_lang::prelude::*;
+use light_sdk_macros::RentFreeAccount;
 
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const OBSERVATION_SEED: &str = "observation";
-pub const OBSERVATION_NUM: usize = 20;
+pub const OBSERVATION_NUM: usize = 2;
 pub const OBSERVATION_UPDATE_DURATION_DEFAULT: u64 = 15;
 
 #[derive(Default, Clone, Copy, AnchorSerialize, AnchorDeserialize, InitSpace, Debug)]
@@ -14,9 +15,10 @@ pub struct Observation {
     pub cumulative_token_1_price_x32: u128,
 }
 
-#[derive(Default, Debug, InitSpace)]
+#[derive(Default, Debug, InitSpace, RentFreeAccount)]
 #[account]
 pub struct ObservationState {
+    pub compression_info: Option<CompressionInfo>,
     pub initialized: bool,
     pub observation_index: u16,
     pub pool_id: Pubkey,

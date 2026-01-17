@@ -3,14 +3,13 @@ use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
-use crate::utils::transfer_ctoken_from_user_to_pool_vault;
 use anchor_lang::prelude::*;
 use anchor_spl::{
     memo::spl_memo,
     token::Token,
     token_interface::{Mint, Token2022, TokenAccount},
 };
-use light_sdk::compressible::HasCompressionInfo;
+use light_token_sdk::token::BurnCpi;
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
@@ -82,18 +81,12 @@ pub struct Withdraw<'info> {
     )]
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Program lp token vault
+    /// Lp mint
     #[account(
         mut,
-        seeds = [
-            POOL_VAULT_SEED.as_bytes(),
-            pool_state.lp_mint.as_ref()
-        ],
-        bump,
-        token::mint = lp_vault.mint,
-        token::authority = authority
+        address = pool_state.lp_mint
     )]
-    pub lp_vault: InterfaceAccount<'info, TokenAccount>,
+    pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// memo program
     /// CHECK:
@@ -110,7 +103,6 @@ pub fn withdraw(
     minimum_token_1_amount: u64,
 ) -> Result<()> {
     require_gt!(lp_token_amount, 0);
-    require_gt!(ctx.accounts.lp_vault.amount, 0);
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw) {
@@ -182,12 +174,14 @@ pub fn withdraw(
         return Err(ErrorCode::ExceededSlippage.into());
     }
 
-    transfer_ctoken_from_user_to_pool_vault(
-        ctx.accounts.owner.to_account_info(),
-        ctx.accounts.owner_lp_token.to_account_info(),
-        ctx.accounts.lp_vault.to_account_info(),
-        lp_token_amount,
-    )?;
+    BurnCpi {
+        source: ctx.accounts.owner_lp_token.to_account_info(),
+        mint: ctx.accounts.lp_mint.to_account_info(),
+        amount: lp_token_amount,
+        authority: ctx.accounts.owner.to_account_info(),
+        max_top_up: None,
+    }
+    .invoke()?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
 
@@ -219,9 +213,6 @@ pub fn withdraw(
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
     )?;
     pool_state.recent_epoch = Clock::get()?.epoch;
-
-    // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_claimed_slot().unwrap();
 
     Ok(())
 }
