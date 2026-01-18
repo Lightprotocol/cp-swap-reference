@@ -71,6 +71,14 @@ pub struct Swap<'info> {
     /// The program account for the most recent oracle observation
     #[account(mut, address = pool_state.observation_key)]
     pub observation_state: Account<'info, ObservationState>,
+
+    /// Light Token program for CPI
+    pub light_token_program: Interface<'info, TokenInterface>,
+
+    pub system_program: Program<'info, System>,
+
+    /// CHECK: CToken CPI authority.
+    pub ctoken_cpi_authority: AccountInfo<'info>,
 }
 
 pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
@@ -232,6 +240,9 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.input_token_mint.to_account_info(),
         ctx.accounts.input_token_program.to_account_info(),
         input_transfer_amount,
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -242,6 +253,9 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.output_token_program.to_account_info(),
         output_transfer_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     // update the previous price to the observation

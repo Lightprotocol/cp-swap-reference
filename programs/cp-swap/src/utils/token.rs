@@ -3,10 +3,10 @@ use anchor_lang::{prelude::*, system_program};
 use anchor_spl::{
     token::{Token, TokenAccount},
     token_2022,
-    token_interface::{
-        initialize_account3, transfer_checked, InitializeAccount3, Mint, TransferChecked,
-    },
+    token_interface::{initialize_account3, InitializeAccount3, Mint},
 };
+use light_sdk_types::LIGHT_TOKEN_PROGRAM_ID;
+use light_token_sdk::token::TransferInterfaceCpi;
 use spl_token_2022::{
     self,
     extension::{
@@ -15,6 +15,33 @@ use spl_token_2022::{
     },
 };
 use std::collections::HashSet;
+
+/// SPL Token mint size (first 82 bytes are SPL-compatible for light tokens)
+const SPL_MINT_SIZE: usize = 82;
+/// Account type byte position (byte 165)
+const ACCOUNT_TYPE_OFFSET: usize = 165;
+/// Account type discriminator for Mint
+const ACCOUNT_TYPE_MINT: u8 = 1;
+
+/// Extract decimals from mint data, supporting both SPL and Light token mints.
+/// For extended mints (>82 bytes), validates byte 165 == 1 (Mint type).
+fn get_mint_decimals(mint_data: &[u8]) -> Result<u8> {
+    // For extended mints, verify account type is Mint (byte 165 == 1)
+    if mint_data.len() > ACCOUNT_TYPE_OFFSET {
+        if mint_data[ACCOUNT_TYPE_OFFSET] != ACCOUNT_TYPE_MINT {
+            return err!(ErrorCode::InvalidAccountData);
+        }
+    }
+
+    // Use first 82 bytes for SPL compatibility
+    let mint_slice = if mint_data.len() > SPL_MINT_SIZE {
+        &mint_data[..SPL_MINT_SIZE]
+    } else {
+        mint_data
+    };
+    let mint_state = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(mint_slice)?;
+    Ok(mint_state.base.decimals)
+}
 
 const MINT_WHITELIST: [&'static str; 4] = [
     "HVbpJAQGNpkgBaYBZQBR1t7yFdvaYVp2vCQQfKKEN4tM",
@@ -28,31 +55,34 @@ pub fn transfer_from_user_to_pool_vault<'a>(
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
+    _token_program: AccountInfo<'a>,
     amount: u64,
+    payer: AccountInfo<'a>,
+    ctoken_cpi_authority: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
 
     let mint_data = mint.try_borrow_data()?;
-    let mint_state = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
-    let decimals = mint_state.base.decimals;
+    let decimals = get_mint_decimals(&mint_data)?;
     drop(mint_data);
 
-    transfer_checked(
-        CpiContext::new(
-            token_program,
-            TransferChecked {
-                from,
-                mint,
-                to: to_vault,
-                authority,
-            },
-        ),
+    TransferInterfaceCpi::new(
         amount,
         decimals,
+        from,
+        to_vault,
+        authority,
+        payer,
+        ctoken_cpi_authority,
+        system_program,
     )
+    .invoke()
+    .map_err(|e| anchor_lang::prelude::ProgramError::from(e))?;
+
+    Ok(())
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
@@ -60,37 +90,43 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
+    _token_program: AccountInfo<'a>,
     amount: u64,
     signer_seeds: &[&[&[u8]]],
+    payer: AccountInfo<'a>,
+    ctoken_cpi_authority: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
 
     let mint_data = mint.try_borrow_data()?;
-    let mint_state = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
-    let decimals = mint_state.base.decimals;
+    let decimals = get_mint_decimals(&mint_data)?;
     drop(mint_data);
 
-    transfer_checked(
-        CpiContext::new_with_signer(
-            token_program,
-            TransferChecked {
-                from: from_vault,
-                mint,
-                to,
-                authority,
-            },
-            signer_seeds,
-        ),
+    TransferInterfaceCpi::new(
         amount,
         decimals,
+        from_vault,
+        to,
+        authority,
+        payer,
+        ctoken_cpi_authority,
+        system_program,
     )
+    .invoke_signed(signer_seeds)
+    .map_err(|e| anchor_lang::prelude::ProgramError::from(e))?;
+
+    Ok(())
 }
 
 pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
+        return Ok(0);
+    }
+    // Light token mints don't have transfer fees
+    if *mint_info.owner == Pubkey::from(LIGHT_TOKEN_PROGRAM_ID) {
         return Ok(0);
     }
     if post_fee_amount == 0 {
@@ -127,6 +163,10 @@ pub fn get_transfer_fee(mint_info: &AccountInfo, pre_fee_amount: u64) -> Result<
     if *mint_info.owner == Token::id() {
         return Ok(0);
     }
+    // Light token mints don't have transfer fees
+    if *mint_info.owner == Pubkey::from(LIGHT_TOKEN_PROGRAM_ID) {
+        return Ok(0);
+    }
     let mint_data = mint_info.try_borrow_data()?;
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
 
@@ -143,6 +183,10 @@ pub fn get_transfer_fee(mint_info: &AccountInfo, pre_fee_amount: u64) -> Result<
 pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> {
     let mint_info = mint_account.to_account_info();
     if *mint_info.owner == Token::id() {
+        return Ok(true);
+    }
+    // Support light token mints
+    if *mint_info.owner == Pubkey::from(LIGHT_TOKEN_PROGRAM_ID) {
         return Ok(true);
     }
     let mint_whitelist: HashSet<&str> = MINT_WHITELIST.into_iter().collect();

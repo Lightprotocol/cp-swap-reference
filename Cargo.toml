@@ -13,3 +13,8 @@ codegen-units = 1
 opt-level = 3
 incremental = false
 codegen-units = 1
+
+[patch.crates-io]
+# Required patches from light-protocol for test compatibility
+solana-program-runtime = { git = "https://github.com/Lightprotocol/agave", rev = "3a9e4e0a4411df4d9961aaa7c9f190d3fa15bc21" }
+solana-bpf-loader-program = { git = "https://github.com/Lightprotocol/agave", rev = "3a9e4e0a4411df4d9961aaa7c9f190d3fa15bc21" }

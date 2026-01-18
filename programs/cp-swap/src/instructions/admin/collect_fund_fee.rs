@@ -68,6 +68,11 @@ pub struct CollectFundFee<'info> {
 
     /// The SPL program 2022 to perform token transfers
     pub token_program_2022: Program<'info, Token2022>,
+
+    pub system_program: Program<'info, System>,
+
+    /// CHECK: CToken CPI authority.
+    pub ctoken_cpi_authority: AccountInfo<'info>,
 }
 
 pub fn collect_fund_fee(
@@ -101,6 +106,9 @@ pub fn collect_fund_fee(
         },
         amount_0,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -115,6 +123,9 @@ pub fn collect_fund_fee(
         },
         amount_1,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     Ok(())

@@ -172,6 +172,9 @@ pub fn swap_base_output(
         ctx.accounts.input_token_mint.to_account_info(),
         ctx.accounts.input_token_program.to_account_info(),
         input_transfer_amount,
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -182,6 +185,9 @@ pub fn swap_base_output(
         ctx.accounts.output_token_program.to_account_info(),
         output_transfer_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     // update the previous price to the observation

@@ -15,13 +15,13 @@ use anchor_spl::{
 };
 use light_compressible::CreateAccountsProof;
 use light_sdk_macros::RentFree;
-use light_token_sdk::token::{
-    CreateTokenAccountCpi, CreateTokenAtaCpi, MintToCpi, COMPRESSIBLE_CONFIG_V1,
-    RENT_SPONSOR as CTOKEN_RENT_SPONSOR,
+use light_token_sdk::{
+    token::{
+        CreateTokenAccountCpi, CreateTokenAtaCpi, MintToCpi, COMPRESSIBLE_CONFIG_V1,
+        RENT_SPONSOR as CTOKEN_RENT_SPONSOR,
+    },
+    utils::get_token_account_balance,
 };
-
-use spl_token_2022;
-use std::ops::Deref;
 
 pub const LP_MINT_SIGNER_SEED: &[u8] = b"pool_lp_mint";
 
@@ -33,6 +33,7 @@ pub struct InitializeParams {
     pub create_accounts_proof: CreateAccountsProof,
     pub lp_mint_signer_bump: u8,
     pub creator_lp_token_bump: u8,
+    pub authority_bump: u8,
 }
 
 #[derive(Accounts, RentFree)]
@@ -44,6 +45,7 @@ pub struct Initialize<'info> {
     pub amm_config: Box<Account<'info, AmmConfig>>,
 
     #[account(
+        mut,
         seeds = [crate::AUTH_SEED.as_bytes()],
         bump,
     )]
@@ -84,7 +86,8 @@ pub struct Initialize<'info> {
         mint_signer = lp_mint_signer,
         authority = authority,
         decimals = 9,
-        signer_seeds = &[LP_MINT_SIGNER_SEED, self.pool_state.to_account_info().key.as_ref(), &[params.lp_mint_signer_bump]]
+        mint_seeds = &[LP_MINT_SIGNER_SEED, self.pool_state.to_account_info().key.as_ref(), &[params.lp_mint_signer_bump]],
+        authority_seeds = &[crate::AUTH_SEED.as_bytes(), &[params.authority_bump]]
     )]
     pub lp_mint: UncheckedAccount<'info>,
 
@@ -181,7 +184,8 @@ pub fn initialize<'info>(
     }
 
     let block_timestamp = clock::Clock::get()?.unix_timestamp as u64;
-    if open_time <= block_timestamp {
+    // open_time=0 means immediately open (no bump)
+    if open_time != 0 && open_time <= block_timestamp {
         open_time = block_timestamp + 1;
     }
 
@@ -235,6 +239,9 @@ pub fn initialize<'info>(
         ctx.accounts.token_0_mint.to_account_info(),
         ctx.accounts.token_0_program.to_account_info(),
         init_amount_0,
+        ctx.accounts.creator.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -244,28 +251,20 @@ pub fn initialize<'info>(
         ctx.accounts.token_1_mint.to_account_info(),
         ctx.accounts.token_1_program.to_account_info(),
         init_amount_1,
+        ctx.accounts.creator.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
-    let token_0_vault =
-        spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
-            ctx.accounts
-                .token_0_vault
-                .to_account_info()
-                .try_borrow_data()?
-                .deref(),
-        )?
-        .base;
-    let token_1_vault =
-        spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
-            ctx.accounts
-                .token_1_vault
-                .to_account_info()
-                .try_borrow_data()?
-                .deref(),
-        )?
-        .base;
+    // Get vault balances - supports both light token and spl token accounts
+    let token_0_vault_balance =
+        get_token_account_balance(&ctx.accounts.token_0_vault.to_account_info())
+            .map_err(|_| ErrorCode::InvalidAccountData)?;
+    let token_1_vault_balance =
+        get_token_account_balance(&ctx.accounts.token_1_vault.to_account_info())
+            .map_err(|_| ErrorCode::InvalidAccountData)?;
 
-    CurveCalculator::validate_supply(token_0_vault.amount, token_1_vault.amount)?;
+    CurveCalculator::validate_supply(token_0_vault_balance, token_1_vault_balance)?;
 
     // Charge the fee to create a pool
     if ctx.accounts.amm_config.create_pool_fee != 0 {
@@ -293,8 +292,8 @@ pub fn initialize<'info>(
         )?;
     }
 
-    let liquidity = U128::from(token_0_vault.amount)
-        .checked_mul(token_1_vault.amount.into())
+    let liquidity = U128::from(token_0_vault_balance)
+        .checked_mul(token_1_vault_balance.into())
         .unwrap()
         .integer_sqrt()
         .as_u64();

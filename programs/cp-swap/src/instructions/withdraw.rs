@@ -7,7 +7,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::{
     memo::spl_memo,
     token::Token,
-    token_interface::{Mint, Token2022, TokenAccount},
+    token_interface::{Mint, Token2022, TokenAccount, TokenInterface},
 };
 use light_token_sdk::token::BurnCpi;
 
@@ -94,6 +94,14 @@ pub struct Withdraw<'info> {
         address = spl_memo::id()
     )]
     pub memo_program: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
+
+    /// CHECK: CToken CPI authority.
+    pub ctoken_cpi_authority: AccountInfo<'info>,
+
+    /// Light Token program for CPI
+    pub light_token_program: Interface<'info, TokenInterface>,
 }
 
 pub fn withdraw(
@@ -197,6 +205,9 @@ pub fn withdraw(
         },
         token_0_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -211,6 +222,9 @@ pub fn withdraw(
         },
         token_1_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
     pool_state.recent_epoch = Clock::get()?.epoch;
 

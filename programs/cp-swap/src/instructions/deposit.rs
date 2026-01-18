@@ -5,8 +5,10 @@ use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
-use anchor_spl::token_interface::{Mint, Token2022, TokenAccount};
+use anchor_spl::token_interface::Token2022;
 use light_token_sdk::token::MintToCpi;
+use light_token_sdk::utils::get_token_account_balance;
+use anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -15,6 +17,7 @@ pub struct Deposit<'info> {
 
     /// CHECK: pool vault and lp mint authority
     #[account(
+        mut,
         seeds = [
             crate::AUTH_SEED.as_bytes(),
         ],
@@ -65,6 +68,9 @@ pub struct Deposit<'info> {
     /// Token program 2022
     pub token_program_2022: Program<'info, Token2022>,
 
+    /// CHECK: Light Token program for CPI.
+    pub light_token_program: Interface<'info, TokenInterface>,
+
     /// The mint of token_0 vault
     #[account(
         address = token_0_vault.mint
@@ -82,9 +88,12 @@ pub struct Deposit<'info> {
         mut,
         address = pool_state.lp_mint
     )]
-    pub lp_mint: UncheckedAccount<'info>,
+    pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
     pub system_program: Program<'info, System>,
+
+    /// CHECK: CToken CPI authority.
+    pub ctoken_cpi_authority: AccountInfo<'info>,
 }
 
 pub fn deposit(
@@ -99,9 +108,15 @@ pub fn deposit(
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit) {
         return err!(ErrorCode::NotApproved);
     }
+    let token_0_vault_balance =
+        get_token_account_balance(&ctx.accounts.token_0_vault.to_account_info())
+            .map_err(|_| ErrorCode::InvalidAccountData)?;
+    let token_1_vault_balance =
+        get_token_account_balance(&ctx.accounts.token_1_vault.to_account_info())
+            .map_err(|_| ErrorCode::InvalidAccountData)?;
     let (total_token_0_amount, total_token_1_amount) = pool_state.vault_amount_without_fee(
-        ctx.accounts.token_0_vault.amount,
-        ctx.accounts.token_1_vault.amount,
+        token_0_vault_balance,
+        token_1_vault_balance,
     );
     let results = CurveCalculator::lp_tokens_to_trading_tokens(
         u128::from(lp_token_amount),
@@ -163,6 +178,9 @@ pub fn deposit(
             ctx.accounts.token_program_2022.to_account_info()
         },
         transfer_token_0_amount,
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -176,6 +194,9 @@ pub fn deposit(
             ctx.accounts.token_program_2022.to_account_info()
         },
         transfer_token_1_amount,
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();

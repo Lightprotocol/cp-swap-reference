@@ -39,4 +39,6 @@ pub enum ErrorCode {
     InvalidRentRecipient,
     #[msg("Invalid LP mint address derivation")]
     InvalidLpMintAddress,
+    #[msg("Invalid account data")]
+    InvalidAccountData,
 }

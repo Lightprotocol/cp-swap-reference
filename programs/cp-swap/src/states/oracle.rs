@@ -1,4 +1,6 @@
 use anchor_lang::prelude::*;
+use light_sdk::compressible::CompressionInfo;
+use light_sdk::LightDiscriminator;
 use light_sdk_macros::RentFreeAccount;
 
 #[cfg(test)]

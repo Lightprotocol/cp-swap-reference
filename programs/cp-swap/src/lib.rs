@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 pub mod curve;
 pub mod error;
 pub mod instructions;
@@ -6,14 +8,15 @@ pub mod utils;
 
 use crate::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 pub use crate::instructions::initialize::{Initialize, InitializeParams};
-pub use crate::states::{ObservationState, PoolState};
+pub use crate::states::{
+    ObservationState, PackedObservationState, PackedPoolState, PoolState, OBSERVATION_SEED,
+    POOL_SEED, POOL_VAULT_SEED,
+};
 use anchor_lang::prelude::*;
 use instructions::*;
 use light_sdk::{derive_light_cpi_signer, derive_light_rent_sponsor_pda};
-// NOTE: #[rentfree_program] disabled - conflicts with function delegation pattern.
-// The macro wraps functions and borrows ctx/params after they're moved.
-// TODO: Either inline function bodies or fix macro to handle delegation.
-// use light_sdk_macros::rentfree_program;
+
+use light_sdk_macros::rentfree_program;
 use light_sdk_types::CpiSigner;
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -47,8 +50,11 @@ pub mod admin {
     use super::{pubkey, Pubkey};
     #[cfg(feature = "devnet")]
     pub const ID: Pubkey = pubkey!("adMCyoCgfkg7bQiJ9aBJ59H3BXLY3r5LNLfPpQfMzBe");
-    #[cfg(not(feature = "devnet"))]
-    pub const ID: Pubkey = pubkey!("GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ");
+    #[cfg(all(not(feature = "devnet"), not(feature = "test-sbf")))]
+    pub const ID: Pubkey = pubkey!("AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9");
+    // Test admin - pubkey derived from Keypair::from_seed(&[1u8; 32])
+    #[cfg(feature = "test-sbf")]
+    pub const ID: Pubkey = pubkey!("AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9");
 }
 
 pub mod create_pool_fee_receiver {
@@ -61,7 +67,7 @@ pub mod create_pool_fee_receiver {
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
-// #[rentfree_program]  // TODO: Re-enable when macro supports function delegation
+#[rentfree_program]
 #[program]
 pub mod raydium_cp_swap {
     #![allow(clippy::too_many_arguments)]
