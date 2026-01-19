@@ -2,7 +2,7 @@
 /// Tests pool initialization with light-program-test framework.
 
 use anchor_lang::{InstructionData, ToAccountMetas};
-use light_compressible_client::{
+use light_client::interface::{
     get_create_accounts_proof, CreateAccountsProofInput, CreateAccountsProofResult,
     InitializeRentFreeConfig,
 };
