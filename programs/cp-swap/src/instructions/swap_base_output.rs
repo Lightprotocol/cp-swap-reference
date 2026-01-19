@@ -2,11 +2,9 @@ use super::swap_base_input::Swap;
 use crate::curve::{calculator::CurveCalculator, TradeDirection};
 use crate::error::ErrorCode;
 use crate::states::*;
-use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
-use light_sdk::compressible::HasCompressionInfo;
 
 pub fn swap_base_output(
     ctx: Context<Swap>,
@@ -167,40 +165,29 @@ pub fn swap_base_output(
     });
     require_gte!(constant_after, constant_before);
 
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
-        ctx.accounts.input_token_mint.key(),
-        ctx.accounts.output_token_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
-    );
-
     transfer_from_user_to_pool_vault(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.input_token_account.to_account_info(),
         ctx.accounts.input_vault.to_account_info(),
         ctx.accounts.input_token_mint.to_account_info(),
         ctx.accounts.input_token_program.to_account_info(),
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         input_transfer_amount,
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_pool_vault_to_user(
-        ctx.accounts.payer.to_account_info(),
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.output_vault.to_account_info(),
         ctx.accounts.output_token_account.to_account_info(),
         ctx.accounts.output_token_mint.to_account_info(),
         ctx.accounts.output_token_program.to_account_info(),
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         output_transfer_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     // update the previous price to the observation
@@ -210,9 +197,6 @@ pub fn swap_base_output(
         token_1_price_x64,
     );
     pool_state.recent_epoch = Clock::get()?.epoch;
-
-    // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_written_slot()?;
 
     Ok(())
 }

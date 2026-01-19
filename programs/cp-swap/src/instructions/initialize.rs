@@ -13,37 +13,44 @@ use anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use light_sdk::cpi::CpiAccountsSmall;
-use light_sdk::{
-    compressible::CompressibleConfig,
-    instruction::{borsh_compat::ValidityProof, PackedAddressTreeInfo},
+use light_compressible::CreateAccountsProof;
+use light_sdk_macros::LightAccounts;
+use light_token_sdk::{
+    token::{
+        CreateTokenAccountCpi, CreateTokenAtaCpi, MintToCpi, COMPRESSIBLE_CONFIG_V1,
+        RENT_SPONSOR as LIGHT_TOKEN_RENT_SPONSOR,
+    },
+    utils::get_token_account_balance,
 };
-use light_sdk_types::CpiAccountsConfig;
 
-use crate::LIGHT_CPI_SIGNER;
-use spl_token_2022;
-use std::ops::Deref;
+pub const LP_MINT_SIGNER_SEED: &[u8] = b"pool_lp_mint";
 
-#[derive(Accounts)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct InitializeParams {
+    pub init_amount_0: u64,
+    pub init_amount_1: u64,
+    pub open_time: u64,
+    pub create_accounts_proof: CreateAccountsProof,
+    pub lp_mint_signer_bump: u8,
+    pub creator_lp_token_bump: u8,
+    pub authority_bump: u8,
+}
+
+#[derive(Accounts, LightAccounts)]
+#[instruction(params: InitializeParams)]
 pub struct Initialize<'info> {
-    /// Address paying to create the pool. Can be anyone
     #[account(mut)]
     pub creator: Signer<'info>,
 
-    /// Which config the pool belongs to.
     pub amm_config: Box<Account<'info, AmmConfig>>,
 
-    /// CHECK:
-    /// pool vault and lp mint authority
     #[account(
-        seeds = [
-            crate::AUTH_SEED.as_bytes(),
-        ],
+        mut,
+        seeds = [crate::AUTH_SEED.as_bytes()],
         bump,
     )]
     pub authority: UncheckedAccount<'info>,
 
-    /// CHECK: Initialize an account to store the pool state
     #[account(
         init,
         seeds = [
@@ -54,38 +61,36 @@ pub struct Initialize<'info> {
         ],
         bump,
         payer = creator,
-        space = PoolState::INIT_SPACE
+        space = 8 + PoolState::INIT_SPACE
     )]
+    #[light_account(init)]
     pub pool_state: Box<Account<'info, PoolState>>,
 
-    /// Token_0 mint, the key must smaller than token_1 mint.
     #[account(
         constraint = token_0_mint.key() < token_1_mint.key(),
         mint::token_program = token_0_program,
     )]
     pub token_0_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Token_1 mint, the key must grater then token_0 mint.
-    #[account(
-        mint::token_program = token_1_program,
-    )]
+    #[account(mint::token_program = token_1_program)]
     pub token_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Signer pda used to derive lp_mint and its compressed address.
-    /// CHECK: checked by protocol.
     #[account(
-        seeds = [
-            POOL_LP_MINT_SEED.as_bytes(),
-            pool_state.key().as_ref(),
-            ],
+        seeds = [LP_MINT_SIGNER_SEED, pool_state.key().as_ref()],
         bump,
     )]
     pub lp_mint_signer: UncheckedAccount<'info>,
 
-    /// CHECK: checked via mint_signer.
+    #[account(mut)]
+    #[light_account(init, mint,
+        mint_signer = lp_mint_signer,
+        authority = authority,
+        decimals = 9,
+        mint_seeds = &[LP_MINT_SIGNER_SEED, self.pool_state.to_account_info().key.as_ref(), &[params.lp_mint_signer_bump]],
+        authority_seeds = &[crate::AUTH_SEED.as_bytes(), &[params.authority_bump]]
+    )]
     pub lp_mint: UncheckedAccount<'info>,
 
-    /// payer token0 account
     #[account(
         mut,
         token::mint = token_0_mint,
@@ -93,7 +98,6 @@ pub struct Initialize<'info> {
     )]
     pub creator_token_0: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// creator token1 account
     #[account(
         mut,
         token::mint = token_1_mint,
@@ -101,22 +105,9 @@ pub struct Initialize<'info> {
     )]
     pub creator_token_1: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// CHECK:
     #[account(mut)]
     pub creator_lp_token: UncheckedAccount<'info>,
 
-    /// CHECK:
-    #[account(
-        mut,
-        seeds = [
-            POOL_VAULT_SEED.as_bytes(),
-            lp_mint.key().as_ref()
-        ],
-        bump,
-    )]
-    pub lp_vault: UncheckedAccount<'info>,
-
-    /// CHECK: Token_0 vault for the pool, created by contract
     #[account(
         mut,
         seeds = [
@@ -126,9 +117,9 @@ pub struct Initialize<'info> {
         ],
         bump,
     )]
+    #[light_account(token, authority = [crate::AUTH_SEED.as_bytes()])]
     pub token_0_vault: UncheckedAccount<'info>,
 
-    /// CHECK: Token_1 vault for the pool, created by contract
     #[account(
         mut,
         seeds = [
@@ -138,73 +129,50 @@ pub struct Initialize<'info> {
         ],
         bump,
     )]
+    #[light_account(token, authority = [crate::AUTH_SEED.as_bytes()])]
     pub token_1_vault: UncheckedAccount<'info>,
 
-    /// create pool fee account
-    #[account(
-        mut,
-        address= crate::create_pool_fee_receiver::ID,
-    )]
-    pub create_pool_fee: Box<InterfaceAccount<'info, TokenAccount>>,
-
-    /// an account to store oracle observations
     #[account(
         init,
-        seeds = [
-            OBSERVATION_SEED.as_bytes(),
-            pool_state.key().as_ref(),
-        ],
+        seeds = [OBSERVATION_SEED.as_bytes(), pool_state.key().as_ref()],
         bump,
         payer = creator,
-        space = ObservationState::INIT_SPACE
+        space = 8 + ObservationState::INIT_SPACE
     )]
+    #[light_account(init)]
     pub observation_state: Box<Account<'info, ObservationState>>,
 
-    /// Program to create mint account and mint tokens
+    #[account(mut, address = crate::create_pool_fee_receiver::ID)]
+    pub create_pool_fee: Box<InterfaceAccount<'info, TokenAccount>>,
+
     pub token_program: Program<'info, Token>,
-    /// Spl token program or token program 2022
     pub token_0_program: Interface<'info, TokenInterface>,
-    /// Spl token program or token program 2022
     pub token_1_program: Interface<'info, TokenInterface>,
-    /// Program to create an ATA for receiving position NFT
     pub associated_token_program: Program<'info, AssociatedToken>,
-    /// To create a new program account
     pub system_program: Program<'info, System>,
-    /// Sysvar for program account
     pub rent: Sysvar<'info, Rent>,
 
-    /// CHECK: checked via load_checked.
     pub compression_config: AccountInfo<'info>,
-    /// CHECK: checked in instruction.
-    #[account(mut)]
-    pub rent_recipient: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    pub compressed_token_program: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    #[account(mut)]
-    pub compressed_token_0_pool_pda: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    #[account(mut)]
-    pub compressed_token_1_pool_pda: AccountInfo<'info>,
+
+    #[account(address = COMPRESSIBLE_CONFIG_V1)]
+    pub light_token_compressible_config: AccountInfo<'info>,
+
+    #[account(mut, address = LIGHT_TOKEN_RENT_SPONSOR)]
+    pub light_token_rent_sponsor: AccountInfo<'info>,
+
+    pub light_token_program: AccountInfo<'info>,
+
+    /// CHECK: light-token CPI authority.
+    pub light_token_cpi_authority: AccountInfo<'info>,
 }
 
-// This instruction:
-// 0. Runs checks and loads compression config.
-// 1. Creates token vault accounts for pool tokens as compressible.
-// 2. Creates user token accounts as compressible.
-// 3. Initializes PoolState and ObservationState as compressible.
-// 4. Creates compressed token mint for LP tokens.
-// 5. Distributes initial liquidity to user and vault.
-// 6. Compresses PoolState and ObservationState.
 pub fn initialize<'info>(
     ctx: Context<'_, '_, '_, 'info, Initialize<'info>>,
-    init_amount_0: u64,
-    init_amount_1: u64,
-    mut open_time: u64,
-    compression_params: InitializeCompressionParams,
+    params: InitializeParams,
 ) -> Result<()> {
+    let init_amount_0 = params.init_amount_0;
+    let init_amount_1 = params.init_amount_1;
+    let mut open_time = params.open_time;
     if !(is_supported_mint(&ctx.accounts.token_0_mint).unwrap()
         && is_supported_mint(&ctx.accounts.token_1_mint).unwrap())
     {
@@ -215,79 +183,65 @@ pub fn initialize<'info>(
         return err!(ErrorCode::NotApproved);
     }
 
-    // ZK Compression Step 1: Load compression config and check rent recipient
-    let compression_config =
-        CompressibleConfig::load_checked(&ctx.accounts.compression_config, &crate::ID)?;
-    let rent_recipient = &ctx.accounts.rent_recipient;
-    if rent_recipient.key() != compression_config.rent_recipient {
-        return err!(ErrorCode::InvalidRentRecipient);
-    }
-
     let block_timestamp = clock::Clock::get()?.unix_timestamp as u64;
-    if open_time <= block_timestamp {
+    // open_time=0 means immediately open (no bump)
+    if open_time != 0 && open_time <= block_timestamp {
         open_time = block_timestamp + 1;
     }
 
-    create_compressible_token_account(
-        &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.token_0_vault.to_account_info(),
-        &ctx.accounts.token_0_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.compressed_token_program.to_account_info(),
-        &[
-            POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.pool_state.key().as_ref(),
-            ctx.accounts.token_0_mint.key().as_ref(),
-            &[ctx.bumps.token_0_vault][..],
-        ],
-        &ctx.accounts.rent.to_account_info(),
-        &ctx.accounts.rent_recipient.to_account_info(),
-        compression_config.compression_delay as u64,
-    )?;
+    let pool_state_key = ctx.accounts.pool_state.key();
 
-    create_compressible_token_account(
-        &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.token_1_vault.to_account_info(),
-        &ctx.accounts.token_1_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.compressed_token_program.to_account_info(),
-        &[
-            POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.pool_state.key().as_ref(),
-            ctx.accounts.token_1_mint.key().as_ref(),
-            &[ctx.bumps.token_1_vault][..],
-        ],
-        &ctx.accounts.rent_recipient.to_account_info(),
-        &ctx.accounts.rent_recipient.to_account_info(),
-        compression_config.compression_delay as u64,
-    )?;
+    // Create token_0 vault
+    CreateTokenAccountCpi {
+        payer: ctx.accounts.creator.to_account_info(),
+        account: ctx.accounts.token_0_vault.to_account_info(),
+        mint: ctx.accounts.token_0_mint.to_account_info(),
+        owner: ctx.accounts.authority.key(),
+    }
+    .rent_free(
+        ctx.accounts.light_token_compressible_config.to_account_info(),
+        ctx.accounts.light_token_rent_sponsor.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
+        &crate::ID,
+    )
+    .invoke_signed(&[
+        POOL_VAULT_SEED.as_bytes(),
+        pool_state_key.as_ref(),
+        ctx.accounts.token_0_mint.key().as_ref(),
+        &[ctx.bumps.token_0_vault],
+    ])?;
 
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
-        ctx.accounts.token_0_mint.key(),
-        ctx.accounts.token_1_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
-    );
+    // Create token_1 vault
+    CreateTokenAccountCpi {
+        payer: ctx.accounts.creator.to_account_info(),
+        account: ctx.accounts.token_1_vault.to_account_info(),
+        mint: ctx.accounts.token_1_mint.to_account_info(),
+        owner: ctx.accounts.authority.key(),
+    }
+    .rent_free(
+        ctx.accounts.light_token_compressible_config.to_account_info(),
+        ctx.accounts.light_token_rent_sponsor.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
+        &crate::ID,
+    )
+    .invoke_signed(&[
+        POOL_VAULT_SEED.as_bytes(),
+        pool_state_key.as_ref(),
+        ctx.accounts.token_1_mint.key().as_ref(),
+        &[ctx.bumps.token_1_vault],
+    ])?;
 
-    let pool_state = &mut ctx.accounts.pool_state;
-    let pool_state_key = pool_state.key();
-    let observation_state = &mut ctx.accounts.observation_state;
-    let observation_state_key = observation_state.key();
-    observation_state.pool_id = pool_state_key;
-
+    // Transfer tokens from creator to vaults
     transfer_from_user_to_pool_vault(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.creator_token_0.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.token_0_mint.to_account_info(),
         ctx.accounts.token_0_program.to_account_info(),
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         init_amount_0,
+        ctx.accounts.creator.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -296,34 +250,21 @@ pub fn initialize<'info>(
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_mint.to_account_info(),
         ctx.accounts.token_1_program.to_account_info(),
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         init_amount_1,
+        ctx.accounts.creator.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
-    let token_0_vault =
-        spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
-            ctx.accounts
-                .token_0_vault
-                .to_account_info()
-                .try_borrow_data()?
-                .deref(),
-        )?
-        .base;
-    let token_1_vault =
-        spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(
-            ctx.accounts
-                .token_1_vault
-                .to_account_info()
-                .try_borrow_data()?
-                .deref(),
-        )?
-        .base;
+    // Get vault balances - supports both light token and spl token accounts
+    let token_0_vault_balance =
+        get_token_account_balance(&ctx.accounts.token_0_vault.to_account_info())
+            .map_err(|_| ErrorCode::InvalidAccountData)?;
+    let token_1_vault_balance =
+        get_token_account_balance(&ctx.accounts.token_1_vault.to_account_info())
+            .map_err(|_| ErrorCode::InvalidAccountData)?;
 
-    CurveCalculator::validate_supply(token_0_vault.amount, token_1_vault.amount)?;
+    CurveCalculator::validate_supply(token_0_vault_balance, token_1_vault_balance)?;
 
     // Charge the fee to create a pool
     if ctx.accounts.amm_config.create_pool_fee != 0 {
@@ -350,8 +291,9 @@ pub fn initialize<'info>(
             ],
         )?;
     }
-    let liquidity = U128::from(token_0_vault.amount)
-        .checked_mul(token_1_vault.amount.into())
+
+    let liquidity = U128::from(token_0_vault_balance)
+        .checked_mul(token_1_vault_balance.into())
         .unwrap()
         .integer_sqrt()
         .as_u64();
@@ -360,9 +302,11 @@ pub fn initialize<'info>(
     let user_lp_amount = liquidity
         .checked_sub(lock_lp_amount)
         .ok_or(ErrorCode::InitLpAmountTooLess)?;
-    let vault_lp_amount = u64::MAX
-        .checked_sub(user_lp_amount)
-        .ok_or(ErrorCode::InitLpAmountTooLess)?;
+
+    let pool_state = &mut ctx.accounts.pool_state;
+    let observation_state = &mut ctx.accounts.observation_state;
+    let observation_state_key = observation_state.key();
+    observation_state.pool_id = pool_state_key;
 
     pool_state.initialize(
         ctx.bumps.authority,
@@ -374,110 +318,36 @@ pub fn initialize<'info>(
         ctx.accounts.token_1_vault.key(),
         &ctx.accounts.token_0_mint,
         &ctx.accounts.token_1_mint,
-        &ctx.accounts.lp_vault,
         &ctx.accounts.lp_mint,
         observation_state_key,
     );
-    let pool_auth_bump = pool_state.auth_bump;
 
-    // ZK Compression Step 2: Setup CPI accounts. We compress PDAs **and**
-    // create a cMint (lp_mint), so we need to use 'with_cpi_context'.
-    let cpi_accounts = CpiAccountsSmall::new_with_config(
-        &ctx.accounts.creator,
-        ctx.remaining_accounts,
-        CpiAccountsConfig::new_with_cpi_context(LIGHT_CPI_SIGNER),
-    );
+    // Create creator LP token ATA
+    CreateTokenAtaCpi {
+        payer: ctx.accounts.creator.to_account_info(),
+        owner: ctx.accounts.creator.to_account_info(),
+        mint: ctx.accounts.lp_mint.to_account_info(),
+        ata: ctx.accounts.creator_lp_token.to_account_info(),
+        bump: params.creator_lp_token_bump,
+    }
+    .idempotent()
+    .rent_free(
+        ctx.accounts.light_token_compressible_config.to_account_info(),
+        ctx.accounts.light_token_rent_sponsor.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
+    )
+    .invoke()?;
 
-    // ZK Compression Step 3: Compress the PDAs.
-    compress_pool_and_observation_pdas(
-        &cpi_accounts,
-        &pool_state,
-        &observation_state,
-        &compression_params,
-        &rent_recipient,
-        &compression_config.address_space,
-    )?;
-
-    // ZK Compression Step 4: Create ctoken accounts. These match regular
-    // SPL token accounts but are compressible.
-    create_compressible_token_account(
-        &ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.lp_vault.to_account_info(),
-        &ctx.accounts.lp_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.compressed_token_program.to_account_info(),
-        &[
-            POOL_VAULT_SEED.as_bytes(),
-            ctx.accounts.lp_mint.key().as_ref(),
-            &[ctx.bumps.lp_vault][..],
-        ],
-        &ctx.accounts.rent.to_account_info(),
-        &ctx.accounts.rent_recipient.to_account_info(),
-        compression_config.compression_delay as u64,
-    )?;
-    create_compressible_associated_token_account(
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.creator.to_account_info(),
-        &ctx.accounts.creator_lp_token.to_account_info(),
-        &ctx.accounts.lp_mint.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &ctx.accounts.rent.to_account_info(),
-        &ctx.accounts.rent_recipient.to_account_info(),
-        compression_config.compression_delay as u64,
-        compression_params.creator_lp_token_bump,
-    )?;
-
-    // ZK Compression Step 5: We create the lp cMint and distribute the lp tokens
-    // to the lp_vault and user based on the regular LP math.
-    create_and_mint_lp(
-        ctx.accounts.creator.to_account_info(),
-        ctx.accounts.authority.to_account_info(),
-        &ctx.accounts.lp_mint.key(),
-        ctx.accounts.lp_vault.to_account_info(),
-        ctx.accounts.creator_lp_token.to_account_info(),
-        ctx.accounts.lp_mint_signer.to_account_info(),
-        &pool_state_key,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
-        ctx.accounts.compressed_token_program.to_account_info(),
-        ctx.bumps.lp_mint_signer,
-        &compression_params,
-        &cpi_accounts,
-        user_lp_amount,
-        vault_lp_amount,
-        pool_auth_bump,
-    )?;
-
-    // ZK Compression Step 6: Clean up compressed onchain PDAs. Always do this
-    // at the end of your instruction. Only PoolState and ObservationState are
-    // being compressed right away. All other accounts only initialized as
-    // compressible - for async compression once they're inactive. PoolState and
-    // ObservationState are compressed atomically for demo purposes. You can
-    // choose whether to compress_at_init or only after they've become inactive.
-    // If you compress_at_init, you pay 0 upfront rent, but the first
-    // transaction to use the account must include a
-    // decompress_accounts_idempotent instruction in their transaction which
-    // fronts then rent. Only the first touch will actually decompress the
-    // account; swap n+1 will still succeed.
-    pool_state.close(rent_recipient.clone())?;
-    observation_state.close(rent_recipient.clone())?;
+    // Mint LP tokens to creator
+    MintToCpi {
+        mint: ctx.accounts.lp_mint.to_account_info(),
+        destination: ctx.accounts.creator_lp_token.to_account_info(),
+        amount: user_lp_amount,
+        authority: ctx.accounts.authority.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
+        max_top_up: None,
+    }
+    .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[ctx.bumps.authority]]])?;
 
     Ok(())
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
-pub struct InitializeCompressionParams {
-    // pool state
-    pub pool_address_tree_info: PackedAddressTreeInfo,
-    // observation state
-    pub observation_address_tree_info: PackedAddressTreeInfo,
-    // lp mint
-    pub lp_mint_address_tree_info: PackedAddressTreeInfo,
-    pub lp_mint_bump: u8,
-    pub creator_lp_token_bump: u8,
-    // shared
-    pub proof: ValidityProof,
-    pub output_state_tree_index: u8,
 }

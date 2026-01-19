@@ -2,13 +2,12 @@ use crate::curve::CurveCalculator;
 use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
 use crate::states::*;
-use crate::utils::ctoken::get_bumps;
 use crate::utils::token::*;
-use crate::utils::transfer_ctoken_from_pool_vault_to_user;
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
-use anchor_spl::token_interface::{Mint, Token2022, TokenAccount};
-use light_sdk::compressible::HasCompressionInfo;
+use anchor_spl::token_interface::Token2022;
+use light_token_sdk::token::MintToCpi;
+use anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -17,6 +16,7 @@ pub struct Deposit<'info> {
 
     /// CHECK: pool vault and lp mint authority
     #[account(
+        mut,
         seeds = [
             crate::AUTH_SEED.as_bytes(),
         ],
@@ -67,6 +67,9 @@ pub struct Deposit<'info> {
     /// Token program 2022
     pub token_program_2022: Program<'info, Token2022>,
 
+    /// CHECK: Light Token program for CPI.
+    pub light_token_program: Interface<'info, TokenInterface>,
+
     /// The mint of token_0 vault
     #[account(
         address = token_0_vault.mint
@@ -79,33 +82,17 @@ pub struct Deposit<'info> {
     )]
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Lp token vault
+    /// Lp mint
     #[account(
         mut,
-        seeds = [
-            POOL_VAULT_SEED.as_bytes(),
-            pool_state.lp_mint.as_ref()
-        ],
-        bump,
-        token::mint = lp_vault.mint,
-        token::authority = authority
+        address = pool_state.lp_mint @ ErrorCode::IncorrectLpMint
     )]
-    pub lp_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// CHECK: checked by protocol.
-    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    pub compressed_token_program: AccountInfo<'info>,
+    pub system_program: Program<'info, System>,
 
-    /// CHECK: checked by protocol.
-    ///
-    /// Every mint must be registered in the compression protocol via a
-    /// compression_token_pool_pda.
-    #[account(mut)]
-    pub compressed_token_0_pool_pda: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    #[account(mut)]
-    pub compressed_token_1_pool_pda: AccountInfo<'info>,
+    /// CHECK: light-token CPI authority.
+    pub light_token_cpi_authority: AccountInfo<'info>,
 }
 
 pub fn deposit(
@@ -155,6 +142,18 @@ pub fn deposit(
         )
     };
 
+    #[cfg(feature = "enable-log")]
+    msg!(
+        "results.token_0_amount;{}, results.token_1_amount:{},transfer_token_0_amount:{},transfer_token_0_fee:{},
+            transfer_token_1_amount:{},transfer_token_1_fee:{}",
+        results.token_0_amount,
+        results.token_1_amount,
+        transfer_token_0_amount,
+        transfer_token_0_fee,
+        transfer_token_1_amount,
+        transfer_token_1_fee
+    );
+
     emit!(LpChangeEvent {
         pool_id,
         lp_amount_before: pool_state.lp_supply,
@@ -172,11 +171,6 @@ pub fn deposit(
     {
         return Err(ErrorCode::ExceededSlippage.into());
     }
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
-        ctx.accounts.vault_0_mint.key(),
-        ctx.accounts.vault_1_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
-    );
 
     transfer_from_user_to_pool_vault(
         ctx.accounts.owner.to_account_info(),
@@ -188,12 +182,10 @@ pub fn deposit(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         transfer_token_0_amount,
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -206,27 +198,24 @@ pub fn deposit(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         transfer_token_1_amount,
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
 
-    transfer_ctoken_from_pool_vault_to_user(
-        ctx.accounts.authority.to_account_info(),
-        ctx.accounts.lp_vault.to_account_info(),
-        ctx.accounts.owner_lp_token.to_account_info(),
-        lp_token_amount,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
-    )?;
+    MintToCpi {
+        mint: ctx.accounts.lp_mint.to_account_info(),
+        destination: ctx.accounts.owner_lp_token.to_account_info(),
+        amount: lp_token_amount,
+        authority: ctx.accounts.authority.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
+        max_top_up: None,
+    }
+    .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]])?;
     pool_state.recent_epoch = Clock::get()?.epoch;
-
-    // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_written_slot()?;
 
     Ok(())
 }

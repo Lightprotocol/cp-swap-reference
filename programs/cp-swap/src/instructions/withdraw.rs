@@ -1,17 +1,15 @@
 use crate::curve::CurveCalculator;
 use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
-use crate::utils::ctoken::get_bumps;
 use crate::states::*;
 use crate::utils::token::*;
-use crate::utils::transfer_ctoken_from_user_to_pool_vault;
 use anchor_lang::prelude::*;
 use anchor_spl::{
     memo::spl_memo,
     token::Token,
-    token_interface::{Mint, Token2022, TokenAccount},
+    token_interface::{Mint, Token2022, TokenAccount, TokenInterface},
 };
-use light_sdk::compressible::HasCompressionInfo;
+use light_token_sdk::token::BurnCpi;
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
@@ -32,7 +30,7 @@ pub struct Withdraw<'info> {
     pub pool_state: Box<Account<'info, PoolState>>,
 
     #[account(
-        mut, 
+        mut,
         token::authority = owner
     )]
     pub owner_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -83,32 +81,12 @@ pub struct Withdraw<'info> {
     )]
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Program lp token vault
+    /// Lp mint
     #[account(
         mut,
-        seeds = [
-            POOL_VAULT_SEED.as_bytes(),
-            pool_state.lp_mint.as_ref()
-        ],
-        bump,
-        token::mint = lp_vault.mint,
-        token::authority = authority
+        address = pool_state.lp_mint @ ErrorCode::IncorrectLpMint
     )]
-    pub lp_vault: InterfaceAccount<'info, TokenAccount>,
-
-    /// CHECK: checked by protocol.
-    pub compressed_token_program_cpi_authority: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    pub compressed_token_program: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    ///
-    /// Every mint must be registered in the compression protocol via a
-    /// compression_token_pool_pda.
-    #[account(mut)]
-    pub compressed_token_0_pool_pda: AccountInfo<'info>,
-    /// CHECK: checked by protocol.
-    #[account(mut)]
-    pub compressed_token_1_pool_pda: AccountInfo<'info>,
+    pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// memo program
     /// CHECK:
@@ -116,6 +94,14 @@ pub struct Withdraw<'info> {
         address = spl_memo::id()
     )]
     pub memo_program: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
+
+    /// CHECK: light-token CPI authority.
+    pub light_token_cpi_authority: AccountInfo<'info>,
+
+    /// Light Token program for CPI
+    pub light_token_program: Interface<'info, TokenInterface>,
 }
 
 pub fn withdraw(
@@ -125,7 +111,6 @@ pub fn withdraw(
     minimum_token_1_amount: u64,
 ) -> Result<()> {
     require_gt!(lp_token_amount, 0);
-    require_gt!(ctx.accounts.lp_vault.amount, 0);
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw) {
@@ -197,23 +182,18 @@ pub fn withdraw(
         return Err(ErrorCode::ExceededSlippage.into());
     }
 
-    transfer_ctoken_from_user_to_pool_vault(
-        ctx.accounts.owner.to_account_info(),
-        ctx.accounts.owner_lp_token.to_account_info(),
-        ctx.accounts.lp_vault.to_account_info(),
-        lp_token_amount,
-    )?;
+    BurnCpi {
+        source: ctx.accounts.owner_lp_token.to_account_info(),
+        mint: ctx.accounts.lp_mint.to_account_info(),
+        amount: lp_token_amount,
+        authority: ctx.accounts.owner.to_account_info(),
+        max_top_up: None,
+    }
+    .invoke()?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_sub(lp_token_amount).unwrap();
 
-    let (compressed_token_0_pool_bump, compressed_token_1_pool_bump) = get_bumps(
-        ctx.accounts.vault_0_mint.key(),
-        ctx.accounts.vault_1_mint.key(),
-        ctx.accounts.compressed_token_program.key(),
-    );
-
     transfer_from_pool_vault_to_user(
-        ctx.accounts.owner.to_account_info(),
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_0_vault.to_account_info(),
         ctx.accounts.token_0_account.to_account_info(),
@@ -223,17 +203,14 @@ pub fn withdraw(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        ctx.accounts.compressed_token_0_pool_pda.to_account_info(),
-        compressed_token_0_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         token_0_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_pool_vault_to_user(
-        ctx.accounts.owner.to_account_info(),
         ctx.accounts.authority.to_account_info(),
         ctx.accounts.token_1_vault.to_account_info(),
         ctx.accounts.token_1_account.to_account_info(),
@@ -243,18 +220,13 @@ pub fn withdraw(
         } else {
             ctx.accounts.token_program_2022.to_account_info()
         },
-        ctx.accounts.compressed_token_1_pool_pda.to_account_info(),
-        compressed_token_1_pool_bump,
-        ctx.accounts
-            .compressed_token_program_cpi_authority
-            .to_account_info(),
         token_1_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
     pool_state.recent_epoch = Clock::get()?.epoch;
-
-    // The account was written to, so we must update CompressionInfo.
-    pool_state.compression_info_mut().bump_last_written_slot().unwrap();
 
     Ok(())
 }
