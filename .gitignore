@@ -10,3 +10,7 @@ test-ledger
 Makefile
 
 expand.rs
+# For devenv tests, copy from ../light-protocol/cli/accounts
+# cp ../light-protocol/cli/accounts target/deploy
+# cp ../light-protocol/target/deploy/*.so target/deploy
+cli/
