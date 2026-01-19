@@ -6,7 +6,7 @@ use light_compressible_client::{
     get_create_accounts_proof, CreateAccountsProofInput, CreateAccountsProofResult,
     InitializeRentFreeConfig,
 };
-use light_macros::pubkey;
+use solana_pubkey::pubkey;
 use light_program_test::{
     program_test::{setup_mock_program_data, LightProgramTest, TestRpc},
     Indexer, ProgramTestConfig, Rpc,
@@ -17,7 +17,7 @@ use light_token_sdk::{
     token::{
         find_mint_address, get_associated_token_address_and_bump, CreateAssociatedTokenAccount,
         CreateMint, CreateMintParams, MintTo, COMPRESSIBLE_CONFIG_V1,
-        RENT_SPONSOR as CTOKEN_RENT_SPONSOR,
+        RENT_SPONSOR as LIGHT_TOKEN_RENT_SPONSOR,
     },
 };
 use raydium_cp_swap::{
@@ -457,7 +457,7 @@ pub fn build_withdraw_instruction(
         lp_mint: pdas.lp_mint,
         memo_program: spl_memo::id(),
         system_program: solana_sdk::system_program::ID,
-        ctoken_cpi_authority: CPI_AUTHORITY_PDA,
+        light_token_cpi_authority: CPI_AUTHORITY_PDA,
         light_token_program: light_token_program_id(),
     };
 
@@ -519,7 +519,7 @@ pub fn build_swap_instruction(
         observation_state: pdas.observation_state,
         light_token_program: light_token_program_id(),
         system_program: solana_sdk::system_program::ID,
-        ctoken_cpi_authority: CPI_AUTHORITY_PDA,
+        light_token_cpi_authority: CPI_AUTHORITY_PDA,
     };
 
     let instruction_data = raydium_cp_swap::instruction::SwapBaseInput {
@@ -562,7 +562,7 @@ pub fn build_deposit_instruction(
         vault_1_mint: tokens.token_1_mint,
         lp_mint: pdas.lp_mint,
         system_program: solana_sdk::system_program::ID,
-        ctoken_cpi_authority: CPI_AUTHORITY_PDA,
+        light_token_cpi_authority: CPI_AUTHORITY_PDA,
     };
 
     let instruction_data = raydium_cp_swap::instruction::Deposit {
@@ -624,10 +624,10 @@ pub fn build_initialize_instruction(
         system_program: solana_sdk::system_program::ID,
         rent: solana_sdk::sysvar::rent::ID,
         compression_config: config_pda,
-        ctoken_compressible_config: Pubkey::from(COMPRESSIBLE_CONFIG_V1),
-        ctoken_rent_sponsor: Pubkey::from(CTOKEN_RENT_SPONSOR),
+        light_token_compressible_config: Pubkey::from(COMPRESSIBLE_CONFIG_V1),
+        light_token_rent_sponsor: Pubkey::from(LIGHT_TOKEN_RENT_SPONSOR),
         light_token_program: light_token_program_id(),
-        ctoken_cpi_authority: CPI_AUTHORITY_PDA,
+        light_token_cpi_authority: CPI_AUTHORITY_PDA,
     };
 
     let instruction_data = raydium_cp_swap::instruction::Initialize {

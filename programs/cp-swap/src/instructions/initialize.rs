@@ -14,11 +14,11 @@ use anchor_spl::{
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
 use light_compressible::CreateAccountsProof;
-use light_sdk_macros::RentFree;
+use light_sdk_macros::LightAccounts;
 use light_token_sdk::{
     token::{
         CreateTokenAccountCpi, CreateTokenAtaCpi, MintToCpi, COMPRESSIBLE_CONFIG_V1,
-        RENT_SPONSOR as CTOKEN_RENT_SPONSOR,
+        RENT_SPONSOR as LIGHT_TOKEN_RENT_SPONSOR,
     },
     utils::get_token_account_balance,
 };
@@ -36,7 +36,7 @@ pub struct InitializeParams {
     pub authority_bump: u8,
 }
 
-#[derive(Accounts, RentFree)]
+#[derive(Accounts, LightAccounts)]
 #[instruction(params: InitializeParams)]
 pub struct Initialize<'info> {
     #[account(mut)]
@@ -63,7 +63,7 @@ pub struct Initialize<'info> {
         payer = creator,
         space = 8 + PoolState::INIT_SPACE
     )]
-    #[rentfree]
+    #[light_account(init)]
     pub pool_state: Box<Account<'info, PoolState>>,
 
     #[account(
@@ -82,7 +82,7 @@ pub struct Initialize<'info> {
     pub lp_mint_signer: UncheckedAccount<'info>,
 
     #[account(mut)]
-    #[light_mint(
+    #[light_account(init, mint,
         mint_signer = lp_mint_signer,
         authority = authority,
         decimals = 9,
@@ -117,7 +117,7 @@ pub struct Initialize<'info> {
         ],
         bump,
     )]
-    #[rentfree_token(authority = [crate::AUTH_SEED.as_bytes()])]
+    #[light_account(token, authority = [crate::AUTH_SEED.as_bytes()])]
     pub token_0_vault: UncheckedAccount<'info>,
 
     #[account(
@@ -129,7 +129,7 @@ pub struct Initialize<'info> {
         ],
         bump,
     )]
-    #[rentfree_token(authority = [crate::AUTH_SEED.as_bytes()])]
+    #[light_account(token, authority = [crate::AUTH_SEED.as_bytes()])]
     pub token_1_vault: UncheckedAccount<'info>,
 
     #[account(
@@ -139,7 +139,7 @@ pub struct Initialize<'info> {
         payer = creator,
         space = 8 + ObservationState::INIT_SPACE
     )]
-    #[rentfree]
+    #[light_account(init)]
     pub observation_state: Box<Account<'info, ObservationState>>,
 
     #[account(mut, address = crate::create_pool_fee_receiver::ID)]
@@ -155,15 +155,15 @@ pub struct Initialize<'info> {
     pub compression_config: AccountInfo<'info>,
 
     #[account(address = COMPRESSIBLE_CONFIG_V1)]
-    pub ctoken_compressible_config: AccountInfo<'info>,
+    pub light_token_compressible_config: AccountInfo<'info>,
 
-    #[account(mut, address = CTOKEN_RENT_SPONSOR)]
-    pub ctoken_rent_sponsor: AccountInfo<'info>,
+    #[account(mut, address = LIGHT_TOKEN_RENT_SPONSOR)]
+    pub light_token_rent_sponsor: AccountInfo<'info>,
 
     pub light_token_program: AccountInfo<'info>,
 
-    /// CHECK: CToken CPI authority.
-    pub ctoken_cpi_authority: AccountInfo<'info>,
+    /// CHECK: light-token CPI authority.
+    pub light_token_cpi_authority: AccountInfo<'info>,
 }
 
 pub fn initialize<'info>(
@@ -199,8 +199,8 @@ pub fn initialize<'info>(
         owner: ctx.accounts.authority.key(),
     }
     .rent_free(
-        ctx.accounts.ctoken_compressible_config.to_account_info(),
-        ctx.accounts.ctoken_rent_sponsor.to_account_info(),
+        ctx.accounts.light_token_compressible_config.to_account_info(),
+        ctx.accounts.light_token_rent_sponsor.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
         &crate::ID,
     )
@@ -219,8 +219,8 @@ pub fn initialize<'info>(
         owner: ctx.accounts.authority.key(),
     }
     .rent_free(
-        ctx.accounts.ctoken_compressible_config.to_account_info(),
-        ctx.accounts.ctoken_rent_sponsor.to_account_info(),
+        ctx.accounts.light_token_compressible_config.to_account_info(),
+        ctx.accounts.light_token_rent_sponsor.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
         &crate::ID,
     )
@@ -240,7 +240,7 @@ pub fn initialize<'info>(
         ctx.accounts.token_0_program.to_account_info(),
         init_amount_0,
         ctx.accounts.creator.to_account_info(),
-        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )?;
 
@@ -252,7 +252,7 @@ pub fn initialize<'info>(
         ctx.accounts.token_1_program.to_account_info(),
         init_amount_1,
         ctx.accounts.creator.to_account_info(),
-        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )?;
 
@@ -332,8 +332,8 @@ pub fn initialize<'info>(
     }
     .idempotent()
     .rent_free(
-        ctx.accounts.ctoken_compressible_config.to_account_info(),
-        ctx.accounts.ctoken_rent_sponsor.to_account_info(),
+        ctx.accounts.light_token_compressible_config.to_account_info(),
+        ctx.accounts.light_token_rent_sponsor.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )
     .invoke()?;

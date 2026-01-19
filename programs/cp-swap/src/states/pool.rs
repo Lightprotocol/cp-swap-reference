@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use light_sdk::compressible::CompressionInfo;
 use light_sdk::LightDiscriminator;
-use light_sdk_macros::RentFreeAccount;
+use light_sdk_macros::LightAccount;
 use std::ops::{BitAnd, BitOr, BitXor};
 
 pub const POOL_SEED: &str = "pool";
@@ -23,7 +23,7 @@ pub enum PoolStatusBitFlag {
     Disable,
 }
 
-#[derive(Default, Debug, InitSpace, RentFreeAccount)]
+#[derive(Default, Debug, InitSpace, LightAccount)]
 #[account]
 #[repr(C)]
 pub struct PoolState {

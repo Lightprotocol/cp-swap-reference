@@ -30,7 +30,7 @@ pub struct Withdraw<'info> {
     pub pool_state: Box<Account<'info, PoolState>>,
 
     #[account(
-        mut, 
+        mut,
         token::authority = owner
     )]
     pub owner_lp_token: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -97,8 +97,8 @@ pub struct Withdraw<'info> {
 
     pub system_program: Program<'info, System>,
 
-    /// CHECK: CToken CPI authority.
-    pub ctoken_cpi_authority: AccountInfo<'info>,
+    /// CHECK: light-token CPI authority.
+    pub light_token_cpi_authority: AccountInfo<'info>,
 
     /// Light Token program for CPI
     pub light_token_program: Interface<'info, TokenInterface>,
@@ -206,7 +206,7 @@ pub fn withdraw(
         token_0_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
         ctx.accounts.owner.to_account_info(),
-        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )?;
 
@@ -223,7 +223,7 @@ pub fn withdraw(
         token_1_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
         ctx.accounts.owner.to_account_info(),
-        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )?;
     pool_state.recent_epoch = Clock::get()?.epoch;

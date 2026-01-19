@@ -58,7 +58,7 @@ pub fn transfer_from_user_to_pool_vault<'a>(
     _token_program: AccountInfo<'a>,
     amount: u64,
     payer: AccountInfo<'a>,
-    ctoken_cpi_authority: AccountInfo<'a>,
+    light_token_cpi_authority: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
 ) -> Result<()> {
     if amount == 0 {
@@ -76,7 +76,7 @@ pub fn transfer_from_user_to_pool_vault<'a>(
         to_vault,
         authority,
         payer,
-        ctoken_cpi_authority,
+        light_token_cpi_authority,
         system_program,
     )
     .invoke()
@@ -94,7 +94,7 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     amount: u64,
     signer_seeds: &[&[&[u8]]],
     payer: AccountInfo<'a>,
-    ctoken_cpi_authority: AccountInfo<'a>,
+    light_token_cpi_authority: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
 ) -> Result<()> {
     if amount == 0 {
@@ -112,7 +112,7 @@ pub fn transfer_from_pool_vault_to_user<'a>(
         to,
         authority,
         payer,
-        ctoken_cpi_authority,
+        light_token_cpi_authority,
         system_program,
     )
     .invoke_signed(signer_seeds)

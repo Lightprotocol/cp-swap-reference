@@ -72,8 +72,8 @@ pub struct CollectProtocolFee<'info> {
 
     pub system_program: Program<'info, System>,
 
-    /// CHECK: CToken CPI authority.
-    pub ctoken_cpi_authority: AccountInfo<'info>,
+    /// CHECK: light_token CPI authority.
+    pub light_token_cpi_authority: AccountInfo<'info>,
 }
 
 pub fn collect_protocol_fee(
@@ -116,7 +116,7 @@ pub fn collect_protocol_fee(
         amount_0,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
         ctx.accounts.owner.to_account_info(),
-        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )?;
 
@@ -133,7 +133,7 @@ pub fn collect_protocol_fee(
         amount_1,
         &[&[crate::AUTH_SEED.as_bytes(), &[auth_bump]]],
         ctx.accounts.owner.to_account_info(),
-        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )?;
 

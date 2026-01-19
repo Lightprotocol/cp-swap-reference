@@ -15,8 +15,8 @@ pub use crate::states::{
 use anchor_lang::prelude::*;
 use instructions::*;
 use light_sdk::{derive_light_cpi_signer, derive_light_rent_sponsor_pda};
-
-use light_sdk_macros::rentfree_program;
+use light_sdk::light_hasher::*;
+use light_sdk_macros::light_program;
 use light_sdk_types::CpiSigner;
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -67,7 +67,7 @@ pub mod create_pool_fee_receiver {
 
 pub const AUTH_SEED: &str = "vault_and_lp_mint_auth_seed";
 
-#[rentfree_program]
+#[light_program]
 #[program]
 pub mod raydium_cp_swap {
     #![allow(clippy::too_many_arguments)]

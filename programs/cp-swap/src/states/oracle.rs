@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use light_sdk::compressible::CompressionInfo;
 use light_sdk::LightDiscriminator;
-use light_sdk_macros::RentFreeAccount;
+use light_sdk_macros::LightAccount;
 
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -17,7 +17,7 @@ pub struct Observation {
     pub cumulative_token_1_price_x32: u128,
 }
 
-#[derive(Default, Debug, InitSpace, RentFreeAccount)]
+#[derive(Default, Debug, InitSpace, LightAccount)]
 #[account]
 pub struct ObservationState {
     pub compression_info: Option<CompressionInfo>,

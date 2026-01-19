@@ -173,7 +173,7 @@ pub fn swap_base_output(
         ctx.accounts.input_token_program.to_account_info(),
         input_transfer_amount,
         ctx.accounts.payer.to_account_info(),
-        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )?;
 
@@ -186,7 +186,7 @@ pub fn swap_base_output(
         output_transfer_amount,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
         ctx.accounts.payer.to_account_info(),
-        ctx.accounts.ctoken_cpi_authority.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )?;
 
