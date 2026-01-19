@@ -14,16 +14,6 @@ The SDK pays rent-exemption for:
 
 Migrating to Rent Free accounts is easy because Light-token is a superset of SPL-token.
 
-1. add [#light_program] tag
-
-1. Retrofit your Anchor Accounts
-
-
-
-
-
-# Client
-
 
 
 ## Environment Setup
