@@ -1,16 +1,30 @@
-# raydium-cp-swap
+# Rentfree AMM example
 
-An AMM reference implementation based on Raydium's CP AMM.
+Fork of Raydium AMM that creates markets without paying rent-exemption.
 
-We added:
+- drop-in SDK, minimal code diff
+- no extra CU overhead on hot paths
+- no UX diff on hot paths
 
-- rent-free
+The SDK pays rent-exemption for:
+- PoolState
+- Token Vaults
+- User ATAs
+- LP Mint
 
-Original readme:
+Migrating to Rent Free accounts is easy because Light-token is a superset of SPL-token.
 
-- No Openbook market ID is required for pool creation
-- Token22 is supported
-- Built-in price oracle
+1. add [#light_program] tag
+
+1. Retrofit your Anchor Accounts
+
+
+
+
+
+# Client
+
+
 
 ## Environment Setup
 
