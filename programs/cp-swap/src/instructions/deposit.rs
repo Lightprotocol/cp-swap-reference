@@ -7,7 +7,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
 use anchor_spl::token_interface::Token2022;
 use light_token_sdk::token::MintToCpi;
-use light_token_sdk::utils::get_token_account_balance;
 use anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
 
 #[derive(Accounts)]
@@ -86,7 +85,7 @@ pub struct Deposit<'info> {
     /// Lp mint
     #[account(
         mut,
-        address = pool_state.lp_mint
+        address = pool_state.lp_mint @ ErrorCode::IncorrectLpMint
     )]
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -108,15 +107,9 @@ pub fn deposit(
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit) {
         return err!(ErrorCode::NotApproved);
     }
-    let token_0_vault_balance =
-        get_token_account_balance(&ctx.accounts.token_0_vault.to_account_info())
-            .map_err(|_| ErrorCode::InvalidAccountData)?;
-    let token_1_vault_balance =
-        get_token_account_balance(&ctx.accounts.token_1_vault.to_account_info())
-            .map_err(|_| ErrorCode::InvalidAccountData)?;
     let (total_token_0_amount, total_token_1_amount) = pool_state.vault_amount_without_fee(
-        token_0_vault_balance,
-        token_1_vault_balance,
+        ctx.accounts.token_0_vault.amount,
+        ctx.accounts.token_1_vault.amount,
     );
     let results = CurveCalculator::lp_tokens_to_trading_tokens(
         u128::from(lp_token_amount),
@@ -148,6 +141,18 @@ pub fn deposit(
             transfer_fee,
         )
     };
+
+    #[cfg(feature = "enable-log")]
+    msg!(
+        "results.token_0_amount;{}, results.token_1_amount:{},transfer_token_0_amount:{},transfer_token_0_fee:{},
+            transfer_token_1_amount:{},transfer_token_1_fee:{}",
+        results.token_0_amount,
+        results.token_1_amount,
+        transfer_token_0_amount,
+        transfer_token_0_fee,
+        transfer_token_1_amount,
+        transfer_token_1_fee
+    );
 
     emit!(LpChangeEvent {
         pool_id,

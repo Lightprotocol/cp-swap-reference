@@ -84,7 +84,7 @@ pub struct Withdraw<'info> {
     /// Lp mint
     #[account(
         mut,
-        address = pool_state.lp_mint
+        address = pool_state.lp_mint @ ErrorCode::IncorrectLpMint
     )]
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
