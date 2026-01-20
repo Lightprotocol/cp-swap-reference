@@ -270,13 +270,13 @@ async fn test_sdk_from_keyed_accounts() {
 
     // Check account requirements for each instruction type
     let swap_accounts = sdk.get_accounts_to_update(&CpSwapInstruction::Swap);
-    assert_eq!(swap_accounts.len(), 4, "Swap needs 4 accounts: pool, observation, vault0, vault1");
+    assert_eq!(swap_accounts.len(), 6, "Swap needs 6 accounts: pool, observation, vault0, vault1, mint0, mint1");
 
     let deposit_accounts = sdk.get_accounts_to_update(&CpSwapInstruction::Deposit);
-    assert_eq!(deposit_accounts.len(), 5, "Deposit needs 5 accounts: +lp_mint");
+    assert_eq!(deposit_accounts.len(), 7, "Deposit needs 7 accounts: pool, observation, vault0, vault1, lp_mint, mint0, mint1");
 
     let withdraw_accounts = sdk.get_accounts_to_update(&CpSwapInstruction::Withdraw);
-    assert_eq!(withdraw_accounts.len(), 5, "Withdraw needs 5 accounts: +lp_mint");
+    assert_eq!(withdraw_accounts.len(), 7, "Withdraw needs 7 accounts: pool, observation, vault0, vault1, lp_mint, mint0, mint1");
 
     // Verify program_id method
     assert_eq!(sdk.program_id(), program_id);

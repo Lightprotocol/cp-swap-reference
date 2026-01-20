@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// CpSwap SDK implementing LightProgramInterface trait.
 ///
 /// Provides:

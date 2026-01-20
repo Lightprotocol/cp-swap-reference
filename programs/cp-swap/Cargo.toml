@@ -33,13 +33,13 @@ bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 blake3 = { workspace = true }
 
-light-sdk = { path = "../../../light-protocol/sdk-libs/sdk", features = ["anchor", "anchor-discriminator", "v2", "idl-build", "cpi-context"] }
-light-hasher = { path = "../../../light-protocol/program-libs/hasher" }
-light-sdk-types = { path = "../../../light-protocol/sdk-libs/sdk-types", features = ["v2", "cpi-context"] }
-light-sdk-macros = { path = "../../../light-protocol/sdk-libs/macros", features = ["anchor-discriminator"] }
-light-compressible = { path = "../../../light-protocol/program-libs/compressible", features = ["anchor"] }
-light-token-sdk = { path = "../../../light-protocol/sdk-libs/token-sdk", features = ["anchor", "compressible"] }
-light-compressed-account = { path = "../../../light-protocol/program-libs/compressed-account" }
+light-sdk = { git = "https://github.com/Lightprotocol/light-protocol", rev = "a85aefbc604f39e1bb761650aa0b6dbbbd6e966d", features = ["anchor", "anchor-discriminator", "v2", "idl-build", "cpi-context"] }
+light-hasher = { git = "https://github.com/Lightprotocol/light-protocol", rev = "a85aefbc604f39e1bb761650aa0b6dbbbd6e966d" }
+light-sdk-types = { git = "https://github.com/Lightprotocol/light-protocol", rev = "a85aefbc604f39e1bb761650aa0b6dbbbd6e966d", features = ["v2", "cpi-context"] }
+light-sdk-macros = { git = "https://github.com/Lightprotocol/light-protocol", rev = "a85aefbc604f39e1bb761650aa0b6dbbbd6e966d", features = ["anchor-discriminator"] }
+light-compressible = { git = "https://github.com/Lightprotocol/light-protocol", rev = "a85aefbc604f39e1bb761650aa0b6dbbbd6e966d", features = ["anchor"] }
+light-token-sdk = { git = "https://github.com/Lightprotocol/light-protocol", rev = "a85aefbc604f39e1bb761650aa0b6dbbbd6e966d", features = ["anchor", "compressible"] }
+light-compressed-account = { git = "https://github.com/Lightprotocol/light-protocol", rev = "a85aefbc604f39e1bb761650aa0b6dbbbd6e966d" }
 solana-account-info = "2.3"
 solana-program = "2.2"
 solana-pubkey = "2.2"
@@ -52,8 +52,8 @@ quickcheck = "1.0.3"
 proptest = "1.0"
 rand = "0.9.0"
 
-light-program-test = { path = "../../../light-protocol/sdk-libs/program-test", features = ["v2", "devenv"] }
-light-client = { path = "../../../light-protocol/sdk-libs/client", features = ["v2"] }
+light-program-test = { git = "https://github.com/Lightprotocol/light-protocol", rev = "a85aefbc604f39e1bb761650aa0b6dbbbd6e966d", features = ["v2", "devenv"] }
+light-client = { git = "https://github.com/Lightprotocol/light-protocol", rev = "a85aefbc604f39e1bb761650aa0b6dbbbd6e966d", features = ["v2"] }
 tokio = { version = "1", features = ["full"] }
 spl-token = "7.0.0"
 solana-keypair = { version = "2.2" }

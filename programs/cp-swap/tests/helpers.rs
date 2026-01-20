@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// Functional integration test for cp-swap program.
 /// Tests pool initialization with light-program-test framework.
 
