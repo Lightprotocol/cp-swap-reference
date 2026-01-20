@@ -2,10 +2,10 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
-use light_token_sdk::anchor::anchor_spl::token::Token;
-use light_token_sdk::anchor::anchor_spl::token_interface::Mint;
-use light_token_sdk::anchor::anchor_spl::token_interface::Token2022;
-use light_token_sdk::anchor::anchor_spl::token_interface::TokenAccount;
+use light_anchor_spl::token::Token;
+use light_anchor_spl::token_interface::Mint;
+use light_anchor_spl::token_interface::Token2022;
+use light_anchor_spl::token_interface::TokenAccount;
 #[derive(Accounts)]
 pub struct CollectFundFee<'info> {
     /// Only admin or fund_owner can collect fee now

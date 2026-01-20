@@ -4,12 +4,12 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
-use light_token_sdk::anchor::anchor_spl::{
+use light_anchor_spl::{
     memo::spl_memo,
     token::Token,
     token_interface::{Mint, Token2022, TokenAccount, TokenInterface},
 };
-use light_token_sdk::token::BurnCpi;
+use light_token::instruction::BurnCpi;
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {

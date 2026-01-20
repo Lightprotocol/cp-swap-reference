@@ -1,12 +1,12 @@
 use crate::error::ErrorCode;
 use anchor_lang::{prelude::*, system_program};
-use light_token_sdk::anchor::anchor_spl::{
+use light_anchor_spl::{
     token::{Token, TokenAccount},
     token_2022,
     token_interface::{initialize_account3, InitializeAccount3, Mint},
 };
 use light_sdk::constants::LIGHT_TOKEN_PROGRAM_ID;
-use light_token_sdk::token::TransferInterfaceCpi;
+use light_token::instruction::TransferInterfaceCpi;
 use spl_token_2022::{
     self,
     extension::{

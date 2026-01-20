@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use light_sdk::LightDiscriminator;
-use light_token_sdk::anchor::{CompressionInfo, LightAccount};
+use light_token::anchor::{CompressionInfo, LightAccount};
 
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
