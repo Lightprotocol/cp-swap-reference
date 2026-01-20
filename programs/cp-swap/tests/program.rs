@@ -13,7 +13,7 @@ use light_client::interface::{
     TokenAccountInterface,
 };
 use light_sdk::LightDiscriminator;
-use light_token_sdk::compat::{CTokenData, TokenData};
+use light_token::compat::{CTokenData, TokenData};
 use raydium_cp_swap::instructions::initialize::LP_MINT_SIGNER_SEED;
 use raydium_cp_swap::{
     raydium_cp_swap::{LightAccountVariant, TokenAccountVariant},
@@ -203,7 +203,7 @@ impl CpSwapSdk {
             } else {
                 None
             },
-            state: light_token_sdk::compat::AccountState::Initialized,
+            state: light_token::compat::AccountState::Initialized,
             tlv: None,
         };
 

@@ -13,9 +13,9 @@ use light_program_test::{
     program_test::{setup_mock_program_data, LightProgramTest, TestRpc},
     Indexer, ProgramTestConfig, Rpc,
 };
-use light_token_sdk::{
+use light_token::{
     constants::CPI_AUTHORITY_PDA,
-    token::{
+    instruction::{
         find_mint_address, get_associated_token_address_and_bump, CreateAssociatedTokenAccount,
         CreateMint, CreateMintParams, MintTo, COMPRESSIBLE_CONFIG_V1,
         RENT_SPONSOR as LIGHT_TOKEN_RENT_SPONSOR,
@@ -32,7 +32,7 @@ use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use solana_sdk::{program_pack::Pack, signature::SeedDerivable};
-use light_token_sdk::anchor::anchor_spl::memo::spl_memo;
+use light_anchor_spl::memo::spl_memo;
 use spl_token_2022;
 
 
@@ -129,7 +129,7 @@ pub async fn setup_create_mint(
     let address_tree = rpc.get_address_tree_v2();
     let output_queue = rpc.get_random_state_tree_info().unwrap().queue;
 
-    let compression_address = light_token_sdk::token::derive_mint_compressed_address(
+    let compression_address = light_token::instruction::derive_mint_compressed_address(
         &mint_seed.pubkey(),
         &address_tree.tree,
     );
@@ -628,7 +628,7 @@ pub fn build_initialize_instruction(
         token_program: spl_token::id(),
         token_0_program: light_token_program_id(),
         token_1_program: light_token_program_id(),
-        associated_token_program: light_token_sdk::anchor::anchor_spl::associated_token::ID,
+        associated_token_program: light_anchor_spl::associated_token::ID,
         system_program: solana_sdk::system_program::ID,
         rent: solana_sdk::sysvar::rent::ID,
         compression_config: config_pda,

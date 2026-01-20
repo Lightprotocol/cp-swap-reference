@@ -4,10 +4,10 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
-use light_token_sdk::anchor::anchor_spl::token::Token;
-use light_token_sdk::anchor::anchor_spl::token_interface::Token2022;
-use light_token_sdk::token::MintToCpi;
-use light_token_sdk::anchor::anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
+use light_anchor_spl::token::Token;
+use light_anchor_spl::token_interface::Token2022;
+use light_token::instruction::MintToCpi;
+use light_anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
