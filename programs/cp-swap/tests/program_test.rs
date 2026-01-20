@@ -4,9 +4,10 @@
 use light_client::interface::{
     create_load_instructions, AccountInterfaceExt, AccountSpec, LightProgramInterface,
 };
-use light_compressible::rent::SLOTS_PER_EPOCH;
 use light_program_test::program_test::TestRpc;
 use light_program_test::Rpc;
+use solana_instruction::Instruction;
+use solana_sdk::transaction::Transaction;
 use solana_signer::Signer;
 
 mod helpers;
@@ -14,6 +15,12 @@ mod program;
 
 use helpers::*;
 use program::{CpSwapInstruction, CpSwapSdk};
+
+fn log_transaction_size(name: &str, ixs: &[Instruction]) {
+    let tx = Transaction::new_with_payer(ixs, None);
+    let serialized = bincode::serialize(&tx).expect("Failed to serialize transaction");
+    println!("{}: {} bytes ({} instructions)", name, serialized.len(), ixs.len());
+}
 
 #[tokio::test]
 async fn test_sdk_lifecycle() {
@@ -36,6 +43,7 @@ async fn test_sdk_lifecycle() {
         100_000,
         0,
     );
+    log_transaction_size("Initialize transaction", &[init_ix.clone()]);
     setup
         .env
         .rpc
@@ -50,7 +58,7 @@ async fn test_sdk_lifecycle() {
     setup
         .env
         .rpc
-        .warp_slot_forward(SLOTS_PER_EPOCH * 30)
+    .warp_epoch_forward(30)
         .await
         .unwrap();
 
@@ -124,6 +132,7 @@ async fn test_sdk_lifecycle() {
     .expect("create_load_instructions should succeed");
 
     // ==================== PHASE 9: Execute Load ====================
+    log_transaction_size("Load transaction", &all_load_ixs);
     setup
         .env
         .rpc
@@ -151,6 +160,13 @@ async fn test_sdk_lifecycle() {
         10_000,
         10_000,
     );
+    log_transaction_size("Deposit transaction", &[deposit_ix.clone()]);
+
+    // Log combined Load + Deposit
+    let mut load_plus_deposit = all_load_ixs.clone();
+    load_plus_deposit.push(deposit_ix.clone());
+    log_transaction_size("Load + Deposit transaction", &load_plus_deposit);
+
     setup
         .env
         .rpc
@@ -171,6 +187,13 @@ async fn test_sdk_lifecycle() {
         100,
         1,
     );
+    log_transaction_size("Swap transaction", &[swap_ix.clone()]);
+
+    // Log combined Load + Swap
+    let mut load_plus_swap = all_load_ixs.clone();
+    load_plus_swap.push(swap_ix.clone());
+    log_transaction_size("Load + Swap transaction", &load_plus_swap);
+
     setup
         .env
         .rpc

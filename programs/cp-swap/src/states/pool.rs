@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::Mint;
-use light_sdk::compressible::CompressionInfo;
+use light_token_sdk::anchor::anchor_spl::token_interface::Mint;
 use light_sdk::LightDiscriminator;
-use light_sdk_macros::LightAccount;
+use light_token_sdk::anchor::{CompressionInfo, LightAccount};
 use std::ops::{BitAnd, BitOr, BitXor};
 
 pub const POOL_SEED: &str = "pool";

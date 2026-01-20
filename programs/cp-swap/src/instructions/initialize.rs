@@ -7,14 +7,14 @@ use anchor_lang::{
     prelude::*,
     solana_program::{clock, program::invoke, system_instruction},
 };
-use anchor_spl::{
+use light_token_sdk::anchor::anchor_spl::{
     associated_token::AssociatedToken,
     token::spl_token,
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use light_compressible::CreateAccountsProof;
-use light_sdk_macros::LightAccounts;
+use light_sdk::interface::CreateAccountsProof;
+use light_token_sdk::anchor::LightAccounts;
 use light_token_sdk::{
     token::{
         CreateTokenAccountCpi, CreateTokenAtaCpi, MintToCpi, COMPRESSIBLE_CONFIG_V1,

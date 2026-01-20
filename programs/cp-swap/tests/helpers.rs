@@ -13,7 +13,6 @@ use light_program_test::{
     program_test::{setup_mock_program_data, LightProgramTest, TestRpc},
     Indexer, ProgramTestConfig, Rpc,
 };
-use light_sdk_types::LIGHT_TOKEN_PROGRAM_ID;
 use light_token_sdk::{
     constants::CPI_AUTHORITY_PDA,
     token::{
@@ -21,6 +20,7 @@ use light_token_sdk::{
         CreateMint, CreateMintParams, MintTo, COMPRESSIBLE_CONFIG_V1,
         RENT_SPONSOR as LIGHT_TOKEN_RENT_SPONSOR,
     },
+    constants::LIGHT_TOKEN_PROGRAM_ID,
 };
 use raydium_cp_swap::{
     instructions::initialize::LP_MINT_SIGNER_SEED,
@@ -32,7 +32,7 @@ use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use solana_sdk::{program_pack::Pack, signature::SeedDerivable};
-use anchor_spl::memo::spl_memo;
+use light_token_sdk::anchor::anchor_spl::memo::spl_memo;
 use spl_token_2022;
 
 
@@ -628,7 +628,7 @@ pub fn build_initialize_instruction(
         token_program: spl_token::id(),
         token_0_program: light_token_program_id(),
         token_1_program: light_token_program_id(),
-        associated_token_program: anchor_spl::associated_token::ID,
+        associated_token_program: light_token_sdk::anchor::anchor_spl::associated_token::ID,
         system_program: solana_sdk::system_program::ID,
         rent: solana_sdk::sysvar::rent::ID,
         compression_config: config_pda,
