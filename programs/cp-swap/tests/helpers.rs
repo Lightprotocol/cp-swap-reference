@@ -1,8 +1,10 @@
+#![allow(dead_code)]
+
 /// Functional integration test for cp-swap program.
 /// Tests pool initialization with light-program-test framework.
 
 use anchor_lang::{InstructionData, ToAccountMetas};
-use light_compressible_client::{
+use light_client::interface::{
     get_create_accounts_proof, CreateAccountsProofInput, CreateAccountsProofResult,
     InitializeRentFreeConfig,
 };
@@ -11,7 +13,6 @@ use light_program_test::{
     program_test::{setup_mock_program_data, LightProgramTest, TestRpc},
     Indexer, ProgramTestConfig, Rpc,
 };
-use light_sdk_types::LIGHT_TOKEN_PROGRAM_ID;
 use light_token_sdk::{
     constants::CPI_AUTHORITY_PDA,
     token::{
@@ -19,6 +20,7 @@ use light_token_sdk::{
         CreateMint, CreateMintParams, MintTo, COMPRESSIBLE_CONFIG_V1,
         RENT_SPONSOR as LIGHT_TOKEN_RENT_SPONSOR,
     },
+    constants::LIGHT_TOKEN_PROGRAM_ID,
 };
 use raydium_cp_swap::{
     instructions::initialize::LP_MINT_SIGNER_SEED,
@@ -30,7 +32,7 @@ use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use solana_sdk::{program_pack::Pack, signature::SeedDerivable};
-use anchor_spl::memo::spl_memo;
+use light_token_sdk::anchor::anchor_spl::memo::spl_memo;
 use spl_token_2022;
 
 
@@ -74,6 +76,8 @@ pub struct TestEnv {
 pub struct TokenSetup {
     pub token_0_mint: Pubkey,
     pub token_1_mint: Pubkey,
+    pub token_0_mint_signer: Pubkey,
+    pub token_1_mint_signer: Pubkey,
     pub creator_token_0: Pubkey,
     pub creator_token_1: Pubkey,
 }
@@ -218,7 +222,7 @@ pub async fn setup_token_mints(
     creator: &Pubkey,
     initial_balance: u64,
 ) -> TokenSetup {
-    let (mint_a, ata_pubkeys_a, _) = setup_create_mint(
+    let (mint_a, ata_pubkeys_a, mint_seed_a) = setup_create_mint(
         rpc,
         payer,
         payer.pubkey(),
@@ -227,7 +231,7 @@ pub async fn setup_token_mints(
     )
     .await;
 
-    let (mint_b, ata_pubkeys_b, _) = setup_create_mint(
+    let (mint_b, ata_pubkeys_b, mint_seed_b) = setup_create_mint(
         rpc,
         payer,
         payer.pubkey(),
@@ -241,6 +245,8 @@ pub async fn setup_token_mints(
         TokenSetup {
             token_0_mint: mint_a,
             token_1_mint: mint_b,
+            token_0_mint_signer: mint_seed_a.pubkey(),
+            token_1_mint_signer: mint_seed_b.pubkey(),
             creator_token_0: ata_pubkeys_a[0],
             creator_token_1: ata_pubkeys_b[0],
         }
@@ -248,6 +254,8 @@ pub async fn setup_token_mints(
         TokenSetup {
             token_0_mint: mint_b,
             token_1_mint: mint_a,
+            token_0_mint_signer: mint_seed_b.pubkey(),
+            token_1_mint_signer: mint_seed_a.pubkey(),
             creator_token_0: ata_pubkeys_b[0],
             creator_token_1: ata_pubkeys_a[0],
         }
@@ -620,7 +628,7 @@ pub fn build_initialize_instruction(
         token_program: spl_token::id(),
         token_0_program: light_token_program_id(),
         token_1_program: light_token_program_id(),
-        associated_token_program: anchor_spl::associated_token::ID,
+        associated_token_program: light_token_sdk::anchor::anchor_spl::associated_token::ID,
         system_program: solana_sdk::system_program::ID,
         rent: solana_sdk::sysvar::rent::ID,
         compression_config: config_pda,
@@ -666,6 +674,49 @@ pub async fn get_token_balance(rpc: &mut LightProgramTest, account: Pubkey) -> u
     } else {
         0
     }
+}
+
+/// Assert that an account exists on-chain.
+pub async fn assert_onchain_exists(rpc: &mut LightProgramTest, pda: &Pubkey) {
+    assert!(
+        rpc.get_account(*pda).await.unwrap().is_some(),
+        "Account {} should exist on-chain",
+        pda
+    );
+}
+
+/// Assert that an account is closed (doesn't exist or has 0 lamports).
+pub async fn assert_onchain_closed(rpc: &mut LightProgramTest, pda: &Pubkey) {
+    let acc = rpc.get_account(*pda).await.unwrap();
+    assert!(
+        acc.is_none() || acc.unwrap().lamports == 0,
+        "Account {} should be closed",
+        pda
+    );
+}
+
+/// Assert all pool accounts exist on-chain (hot or decompressed state).
+pub async fn assert_pool_accounts_exist(rpc: &mut LightProgramTest, pdas: &AmmPdas, tokens: &TokenSetup) {
+    assert_onchain_exists(rpc, &pdas.pool_state).await;
+    assert_onchain_exists(rpc, &pdas.observation_state).await;
+    assert_onchain_exists(rpc, &pdas.lp_mint).await;
+    assert_onchain_exists(rpc, &pdas.token_0_vault).await;
+    assert_onchain_exists(rpc, &pdas.token_1_vault).await;
+    assert_onchain_exists(rpc, &pdas.creator_lp_token).await;
+    assert_onchain_exists(rpc, &tokens.token_0_mint).await;
+    assert_onchain_exists(rpc, &tokens.token_1_mint).await;
+}
+
+/// Assert all pool accounts are compressed (closed on-chain).
+pub async fn assert_pool_accounts_compressed(rpc: &mut LightProgramTest, pdas: &AmmPdas, tokens: &TokenSetup) {
+    assert_onchain_closed(rpc, &pdas.pool_state).await;
+    assert_onchain_closed(rpc, &pdas.observation_state).await;
+    assert_onchain_closed(rpc, &pdas.lp_mint).await;
+    assert_onchain_closed(rpc, &pdas.token_0_vault).await;
+    assert_onchain_closed(rpc, &pdas.token_1_vault).await;
+    assert_onchain_closed(rpc, &pdas.creator_lp_token).await;
+    assert_onchain_closed(rpc, &tokens.token_0_mint).await;
+    assert_onchain_closed(rpc, &tokens.token_1_mint).await;
 }
 
 /// Verify that the pool was initialized correctly.
@@ -751,4 +802,56 @@ pub async fn assert_withdraw_succeeded(
 pub async fn assert_amm_config_created(rpc: &mut LightProgramTest, amm_config: Pubkey) {
     let account = rpc.get_account(amm_config).await.unwrap();
     assert!(account.is_some(), "AmmConfig account should exist");
+}
+
+// ============================================================================
+// Unified Setup Functions for SDK-based Tests
+// ============================================================================
+
+/// Complete pool setup result containing all necessary state.
+pub struct PoolSetup {
+    pub env: TestEnv,
+    pub creator: Keypair,
+    pub tokens: TokenSetup,
+    pub amm_config: Pubkey,
+    pub pdas: AmmPdas,
+}
+
+/// Setup a complete pool environment in a single call.
+pub async fn setup_pool_environment(program_id: Pubkey, amm_config_index: u16) -> PoolSetup {
+    let mut env = setup_test_environment(program_id).await;
+
+    let creator = Keypair::new();
+    env.rpc
+        .airdrop_lamports(&creator.pubkey(), 100_000_000_000)
+        .await
+        .unwrap();
+
+    let admin = get_admin_keypair();
+    env.rpc
+        .airdrop_lamports(&admin.pubkey(), 10_000_000_000)
+        .await
+        .unwrap();
+
+    let initial_balance = 1_000_000;
+    let tokens = setup_token_mints(&mut env.rpc, &env.payer, &creator.pubkey(), initial_balance).await;
+
+    let amm_config = create_amm_config(&mut env.rpc, &env.payer, &admin, program_id, amm_config_index).await;
+    setup_create_pool_fee_account(&mut env.rpc, &env.payer.pubkey());
+
+    let pdas = derive_amm_pdas(
+        &program_id,
+        &amm_config,
+        &tokens.token_0_mint,
+        &tokens.token_1_mint,
+        &creator.pubkey(),
+    );
+
+    PoolSetup {
+        env,
+        creator,
+        tokens,
+        amm_config,
+        pdas,
+    }
 }

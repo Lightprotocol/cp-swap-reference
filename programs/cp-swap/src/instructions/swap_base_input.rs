@@ -5,7 +5,7 @@ use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use light_token_sdk::anchor::anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 #[derive(Accounts)]
 pub struct Swap<'info> {

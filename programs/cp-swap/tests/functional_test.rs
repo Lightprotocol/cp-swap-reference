@@ -1,12 +1,14 @@
 /// Functional integration test for cp-swap program.
 /// Tests pool initialization with light-program-test framework.
 
+use light_client::interface::AccountInterfaceExt;
+use light_program_test::program_test::TestRpc;
+use light_program_test::Rpc;
 use solana_keypair::Keypair;
 use solana_signer::Signer;
-use light_program_test::Rpc;
-use light_program_test::program_test::TestRpc;
 
 mod helpers;
+mod program;
 use helpers::*;
 
 #[tokio::test]
@@ -214,4 +216,70 @@ async fn test_full_lifecycle() {
     );
 
     println!("Full lifecycle test completed successfully!");
+}
+
+/// Test SDK initialization from fetched accounts and account requirements.
+#[tokio::test]
+async fn test_sdk_from_keyed_accounts() {
+    use program::{CpSwapSdk, CpSwapInstruction};
+    use light_client::interface::LightProgramInterface;
+
+    let program_id = raydium_cp_swap::ID;
+
+    // Setup environment and initialize pool
+    let mut setup = setup_pool_environment(program_id, 2).await;
+
+    // Initialize pool first (SDK requires actual account data)
+    let proof_result = get_pool_create_accounts_proof(&setup.env.rpc, &program_id, &setup.pdas).await;
+    let init_ix = build_initialize_instruction(
+        program_id,
+        setup.creator.pubkey(),
+        setup.amm_config,
+        &setup.pdas,
+        &setup.tokens,
+        setup.env.config_pda,
+        &proof_result,
+        100_000,
+        100_000,
+        0,
+    );
+    setup.env.rpc
+        .create_and_send_transaction(&[init_ix], &setup.creator.pubkey(), &[&setup.creator])
+        .await
+        .expect("Initialize should succeed");
+
+    // Fetch pool state account
+    let pool_interface = setup.env.rpc
+        .get_account_interface(&setup.pdas.pool_state, &program_id)
+        .await
+        .expect("get_account_interface should succeed");
+
+    // Create SDK from fetched account
+    let sdk = CpSwapSdk::from_keyed_accounts(&[pool_interface])
+        .expect("from_keyed_accounts should succeed");
+
+    // Verify SDK parsed addresses match expected
+    assert_eq!(sdk.pool_state_pubkey, Some(setup.pdas.pool_state));
+    assert_eq!(sdk.observation_key, Some(setup.pdas.observation_state));
+    assert_eq!(sdk.token_0_vault, Some(setup.pdas.token_0_vault));
+    assert_eq!(sdk.token_1_vault, Some(setup.pdas.token_1_vault));
+    assert_eq!(sdk.lp_mint, Some(setup.pdas.lp_mint));
+    assert_eq!(sdk.amm_config, Some(setup.amm_config));
+    assert_eq!(sdk.token_0_mint, Some(setup.tokens.token_0_mint));
+    assert_eq!(sdk.token_1_mint, Some(setup.tokens.token_1_mint));
+
+    // Check account requirements for each instruction type
+    let swap_accounts = sdk.get_accounts_to_update(&CpSwapInstruction::Swap);
+    assert_eq!(swap_accounts.len(), 6, "Swap needs 6 accounts: pool, observation, vault0, vault1, mint0, mint1");
+
+    let deposit_accounts = sdk.get_accounts_to_update(&CpSwapInstruction::Deposit);
+    assert_eq!(deposit_accounts.len(), 7, "Deposit needs 7 accounts: pool, observation, vault0, vault1, lp_mint, mint0, mint1");
+
+    let withdraw_accounts = sdk.get_accounts_to_update(&CpSwapInstruction::Withdraw);
+    assert_eq!(withdraw_accounts.len(), 7, "Withdraw needs 7 accounts: pool, observation, vault0, vault1, lp_mint, mint0, mint1");
+
+    // Verify program_id method
+    assert_eq!(sdk.program_id(), program_id);
+
+    println!("SDK initialization test completed successfully!");
 }

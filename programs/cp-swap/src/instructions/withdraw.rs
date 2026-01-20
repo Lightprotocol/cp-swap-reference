@@ -4,7 +4,7 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
-use anchor_spl::{
+use light_token_sdk::anchor::anchor_spl::{
     memo::spl_memo,
     token::Token,
     token_interface::{Mint, Token2022, TokenAccount, TokenInterface},
