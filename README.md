@@ -6,15 +6,15 @@ Fork of Raydium AMM that creates markets without paying rent-exemption.
 - no extra CU overhead on hot paths
 - no UX diff on hot paths
 
-The SDK pays rent-exemption for:
+The SDK sponsors rent-exemption on behalf of your users for:
 - PoolState
 - Token Vaults
+- LP Mint account
 - User ATAs
-- LP Mint
 
-Migrating to Rent Free accounts is easy because Light-token is a superset of SPL-token.
+Upgrading your program accounts to be rent-free is fast and straightforward because Light-token is a superset of SPL-token. See [here](https://www.zkcompression.com/light-token/defi/programs) for a guide.
 
-
+For hands-on support, join the [Developer Discord](https://discord.com/invite/7cJ8BhAXhu).
 
 ## Environment Setup
 
