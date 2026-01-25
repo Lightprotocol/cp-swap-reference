@@ -4,8 +4,10 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
-use anchor_spl::token::Token;
-use anchor_spl::token_interface::{Mint, Token2022, TokenAccount};
+use light_anchor_spl::token::Token;
+use light_anchor_spl::token_interface::Token2022;
+use light_token::instruction::MintToCpi;
+use light_anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -14,6 +16,7 @@ pub struct Deposit<'info> {
 
     /// CHECK: pool vault and lp mint authority
     #[account(
+        mut,
         seeds = [
             crate::AUTH_SEED.as_bytes(),
         ],
@@ -22,7 +25,7 @@ pub struct Deposit<'info> {
     pub authority: UncheckedAccount<'info>,
 
     #[account(mut)]
-    pub pool_state: AccountLoader<'info, PoolState>,
+    pub pool_state: Account<'info, PoolState>,
 
     /// Owner lp token account
     #[account(mut,  token::authority = owner)]
@@ -47,14 +50,14 @@ pub struct Deposit<'info> {
     /// The address that holds pool tokens for token_0
     #[account(
         mut,
-        constraint = token_0_vault.key() == pool_state.load()?.token_0_vault
+        constraint = token_0_vault.key() == pool_state.token_0_vault
     )]
     pub token_0_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_1
     #[account(
         mut,
-        constraint = token_1_vault.key() == pool_state.load()?.token_1_vault
+        constraint = token_1_vault.key() == pool_state.token_1_vault
     )]
     pub token_1_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -63,6 +66,9 @@ pub struct Deposit<'info> {
 
     /// Token program 2022
     pub token_program_2022: Program<'info, Token2022>,
+
+    /// CHECK: Light Token program for CPI.
+    pub light_token_program: Interface<'info, TokenInterface>,
 
     /// The mint of token_0 vault
     #[account(
@@ -76,12 +82,17 @@ pub struct Deposit<'info> {
     )]
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// Lp token mint
+    /// Lp mint
     #[account(
         mut,
-        address = pool_state.load()?.lp_mint @ ErrorCode::IncorrectLpMint)
-    ]
+        address = pool_state.lp_mint @ ErrorCode::IncorrectLpMint
+    )]
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
+
+    pub system_program: Program<'info, System>,
+
+    /// CHECK: light-token CPI authority.
+    pub light_token_cpi_authority: AccountInfo<'info>,
 }
 
 pub fn deposit(
@@ -92,7 +103,7 @@ pub fn deposit(
 ) -> Result<()> {
     require_gt!(lp_token_amount, 0);
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    let pool_state = &mut ctx.accounts.pool_state;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit) {
         return err!(ErrorCode::NotApproved);
     }
@@ -172,7 +183,9 @@ pub fn deposit(
             ctx.accounts.token_program_2022.to_account_info()
         },
         transfer_token_0_amount,
-        ctx.accounts.vault_0_mint.decimals,
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -186,19 +199,22 @@ pub fn deposit(
             ctx.accounts.token_program_2022.to_account_info()
         },
         transfer_token_1_amount,
-        ctx.accounts.vault_1_mint.decimals,
+        ctx.accounts.owner.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
 
-    token_mint_to(
-        ctx.accounts.authority.to_account_info(),
-        ctx.accounts.token_program.to_account_info(),
-        ctx.accounts.lp_mint.to_account_info(),
-        ctx.accounts.owner_lp_token.to_account_info(),
-        lp_token_amount,
-        &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
-    )?;
+    MintToCpi {
+        mint: ctx.accounts.lp_mint.to_account_info(),
+        destination: ctx.accounts.owner_lp_token.to_account_info(),
+        amount: lp_token_amount,
+        authority: ctx.accounts.authority.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
+        max_top_up: None,
+    }
+    .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]])?;
     pool_state.recent_epoch = Clock::get()?.epoch;
 
     Ok(())

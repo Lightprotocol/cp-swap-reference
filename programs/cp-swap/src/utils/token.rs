@@ -1,10 +1,12 @@
 use crate::error::ErrorCode;
 use anchor_lang::{prelude::*, system_program};
-use anchor_spl::{
+use light_anchor_spl::{
     token::{Token, TokenAccount},
     token_2022,
     token_interface::{initialize_account3, InitializeAccount3, Mint},
 };
+use light_sdk::constants::LIGHT_TOKEN_PROGRAM_ID;
+use light_token::instruction::TransferInterfaceCpi;
 use spl_token_2022::{
     self,
     extension::{
@@ -13,6 +15,33 @@ use spl_token_2022::{
     },
 };
 use std::collections::HashSet;
+
+/// SPL Token mint size (first 82 bytes are SPL-compatible for light tokens)
+const SPL_MINT_SIZE: usize = 82;
+/// Account type byte position (byte 165)
+const ACCOUNT_TYPE_OFFSET: usize = 165;
+/// Account type discriminator for Mint
+const ACCOUNT_TYPE_MINT: u8 = 1;
+
+/// Extract decimals from mint data, supporting both SPL and Light token mints.
+/// For extended mints (>82 bytes), validates byte 165 == 1 (Mint type).
+fn get_mint_decimals(mint_data: &[u8]) -> Result<u8> {
+    // For extended mints, verify account type is Mint (byte 165 == 1)
+    if mint_data.len() > ACCOUNT_TYPE_OFFSET {
+        if mint_data[ACCOUNT_TYPE_OFFSET] != ACCOUNT_TYPE_MINT {
+            return err!(ErrorCode::InvalidAccountData);
+        }
+    }
+
+    // Use first 82 bytes for SPL compatibility
+    let mint_slice = if mint_data.len() > SPL_MINT_SIZE {
+        &mint_data[..SPL_MINT_SIZE]
+    } else {
+        mint_data
+    };
+    let mint_state = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(mint_slice)?;
+    Ok(mint_state.base.decimals)
+}
 
 const MINT_WHITELIST: [&'static str; 4] = [
     "HVbpJAQGNpkgBaYBZQBR1t7yFdvaYVp2vCQQfKKEN4tM",
@@ -26,26 +55,34 @@ pub fn transfer_from_user_to_pool_vault<'a>(
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
+    _token_program: AccountInfo<'a>,
     amount: u64,
-    mint_decimals: u8,
+    payer: AccountInfo<'a>,
+    light_token_cpi_authority: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    token_2022::transfer_checked(
-        CpiContext::new(
-            token_program.to_account_info(),
-            token_2022::TransferChecked {
-                from,
-                to: to_vault,
-                authority,
-                mint,
-            },
-        ),
+
+    let mint_data = mint.try_borrow_data()?;
+    let decimals = get_mint_decimals(&mint_data)?;
+    drop(mint_data);
+
+    TransferInterfaceCpi::new(
         amount,
-        mint_decimals,
+        decimals,
+        from,
+        to_vault,
+        authority,
+        payer,
+        light_token_cpi_authority,
+        system_program,
     )
+    .invoke()
+    .map_err(|e| anchor_lang::prelude::ProgramError::from(e))?;
+
+    Ok(())
 }
 
 pub fn transfer_from_pool_vault_to_user<'a>(
@@ -53,78 +90,43 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
+    _token_program: AccountInfo<'a>,
     amount: u64,
-    mint_decimals: u8,
     signer_seeds: &[&[&[u8]]],
+    payer: AccountInfo<'a>,
+    light_token_cpi_authority: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
-    token_2022::transfer_checked(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            token_2022::TransferChecked {
-                from: from_vault,
-                to,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
+
+    let mint_data = mint.try_borrow_data()?;
+    let decimals = get_mint_decimals(&mint_data)?;
+    drop(mint_data);
+
+    TransferInterfaceCpi::new(
         amount,
-        mint_decimals,
+        decimals,
+        from_vault,
+        to,
+        authority,
+        payer,
+        light_token_cpi_authority,
+        system_program,
     )
+    .invoke_signed(signer_seeds)
+    .map_err(|e| anchor_lang::prelude::ProgramError::from(e))?;
+
+    Ok(())
 }
 
-/// Issue a spl_token `MintTo` instruction.
-pub fn token_mint_to<'a>(
-    authority: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
-    mint: AccountInfo<'a>,
-    destination: AccountInfo<'a>,
-    amount: u64,
-    signer_seeds: &[&[&[u8]]],
-) -> Result<()> {
-    token_2022::mint_to(
-        CpiContext::new_with_signer(
-            token_program,
-            token_2022::MintTo {
-                to: destination,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
-        amount,
-    )
-}
-
-pub fn token_burn<'a>(
-    authority: AccountInfo<'a>,
-    token_program: AccountInfo<'a>,
-    mint: AccountInfo<'a>,
-    from: AccountInfo<'a>,
-    amount: u64,
-    signer_seeds: &[&[&[u8]]],
-) -> Result<()> {
-    token_2022::burn(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            token_2022::Burn {
-                from,
-                authority,
-                mint,
-            },
-            signer_seeds,
-        ),
-        amount,
-    )
-}
-
-/// Calculate the fee for output amount
 pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
+        return Ok(0);
+    }
+    // Light token mints don't have transfer fees
+    if *mint_info.owner == Pubkey::from(LIGHT_TOKEN_PROGRAM_ID) {
         return Ok(0);
     }
     if post_fee_amount == 0 {
@@ -157,9 +159,12 @@ pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -
     Ok(fee)
 }
 
-/// Calculate the fee for input amount
 pub fn get_transfer_fee(mint_info: &AccountInfo, pre_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
+        return Ok(0);
+    }
+    // Light token mints don't have transfer fees
+    if *mint_info.owner == Pubkey::from(LIGHT_TOKEN_PROGRAM_ID) {
         return Ok(0);
     }
     let mint_data = mint_info.try_borrow_data()?;
@@ -180,6 +185,10 @@ pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> 
     if *mint_info.owner == Token::id() {
         return Ok(true);
     }
+    // Support light token mints
+    if *mint_info.owner == Pubkey::from(LIGHT_TOKEN_PROGRAM_ID) {
+        return Ok(true);
+    }
     let mint_whitelist: HashSet<&str> = MINT_WHITELIST.into_iter().collect();
     if mint_whitelist.contains(mint_account.key().to_string().as_str()) {
         return Ok(true);
@@ -188,12 +197,7 @@ pub fn is_supported_mint(mint_account: &InterfaceAccount<Mint>) -> Result<bool> 
     let mint = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&mint_data)?;
     let extensions = mint.get_extension_types()?;
     for e in extensions {
-        if e != ExtensionType::TransferFeeConfig
-            && e != ExtensionType::MetadataPointer
-            && e != ExtensionType::TokenMetadata
-            && e != ExtensionType::InterestBearingConfig
-            && e != ExtensionType::ScaledUiAmount
-        {
+        if e != ExtensionType::TokenMetadata {
             return Ok(false);
         }
     }
@@ -248,7 +252,7 @@ pub fn create_or_allocate_account<'a>(
     payer: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
     target_account: AccountInfo<'a>,
-    siger_seed: &[&[u8]],
+    signer_seed: &[&[u8]],
     space: usize,
 ) -> Result<()> {
     let rent = Rent::get()?;
@@ -262,7 +266,7 @@ pub fn create_or_allocate_account<'a>(
         };
         let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
         system_program::create_account(
-            cpi_context.with_signer(&[siger_seed]),
+            cpi_context.with_signer(&[signer_seed]),
             lamports,
             u64::try_from(space).unwrap(),
             program_id,
@@ -285,7 +289,7 @@ pub fn create_or_allocate_account<'a>(
         };
         let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
         system_program::allocate(
-            cpi_context.with_signer(&[siger_seed]),
+            cpi_context.with_signer(&[signer_seed]),
             u64::try_from(space).unwrap(),
         )?;
 
@@ -293,7 +297,7 @@ pub fn create_or_allocate_account<'a>(
             account_to_assign: target_account.clone(),
         };
         let cpi_context = CpiContext::new(system_program.clone(), cpi_accounts);
-        system_program::assign(cpi_context.with_signer(&[siger_seed]), program_id)?;
+        system_program::assign(cpi_context.with_signer(&[signer_seed]), program_id)?;
     }
     Ok(())
 }

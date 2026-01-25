@@ -1,14 +1,20 @@
-# raydium-cp-swap
+# Rentfree AMM example
 
-A revamped constant product AMM program optimized for straightforward pool deployment along with additional features and integrations:
-- No Openbook market ID is required for pool creation
-- Token22 is supported
-- Built-in price oracle
-- Optimized in Anchor
+Fork of Raydium AMM that creates markets without paying rent-exemption.
 
-The program has been audited by [MadShield](https://www.madshield.xyz/). The report can be found [here](https://github.com/raydium-io/raydium-docs/tree/master/audit/MadShield%20Q1%202024).
+- drop-in SDK, minimal code diff
+- no extra CU overhead on hot paths
+- no UX diff on hot paths
 
-The program assets are in-scope for Raydium’s [Immunefi bug bounty program](https://immunefi.com/bug-bounty/raydium/).
+The SDK sponsors rent-exemption on behalf of your users for:
+- PoolState
+- Token Vaults
+- LP Mint account
+- User ATAs
+
+Upgrading your program accounts to be rent-free is fast and straightforward because Light-token is a superset of SPL-token. See [here](https://www.zkcompression.com/light-token/defi/programs) for a guide.
+
+For hands-on support, join the [Developer Discord](https://discord.com/invite/7cJ8BhAXhu).
 
 ## Environment Setup
 
@@ -30,20 +36,35 @@ The program assets are in-scope for Raydium’s [Immunefi bug bounty program](ht
 3. install `Anchor`
 
    ```shell
-   # Installing using Anchor version manager (avm) 
+   # Installing using Anchor version manager (avm)
    cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
    # Install anchor
-   avm install 0.31.0
+   avm install 0.31.1
    ```
 
 ## Quickstart
 
-Clone the repository and test the program.
+1. install the latest compression dependencies
+
+```shell
+npm i -g @lightprotocol/zk-compression-cli@alpha --force
+
+cargo install --git https://github.com/lightprotocol/photon.git --rev 6ba6813 --locked --force
+```
+
+2. Clone the repository and install node dependencies
 
 ```shell
 
-git clone https://github.com/raydium-io/raydium-cp-swap
-cd raydium-cp-swap && yarn && anchor test
+git clone https://github.com/Lightprotocol/cp-swap-reference
+
+cd raydium-cp-swap && yarn
+```
+
+3. Run the tests
+
+```shell
+yarn test
 ```
 
 ## License

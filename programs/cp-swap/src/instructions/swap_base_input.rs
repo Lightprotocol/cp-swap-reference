@@ -5,7 +5,7 @@ use crate::states::*;
 use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use light_anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 #[derive(Accounts)]
 pub struct Swap<'info> {
@@ -22,12 +22,12 @@ pub struct Swap<'info> {
     pub authority: UncheckedAccount<'info>,
 
     /// The factory state to read protocol fees
-    #[account(address = pool_state.load()?.amm_config)]
+    #[account(address = pool_state.amm_config)]
     pub amm_config: Box<Account<'info, AmmConfig>>,
 
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
-    pub pool_state: AccountLoader<'info, PoolState>,
+    pub pool_state: Box<Account<'info, PoolState>>,
 
     /// The user token account for input token
     #[account(mut)]
@@ -40,14 +40,14 @@ pub struct Swap<'info> {
     /// The vault token account for input token
     #[account(
         mut,
-        constraint = input_vault.key() == pool_state.load()?.token_0_vault || input_vault.key() == pool_state.load()?.token_1_vault
+        constraint = input_vault.key() == pool_state.token_0_vault || input_vault.key() == pool_state.token_1_vault
     )]
     pub input_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The vault token account for output token
     #[account(
         mut,
-        constraint = output_vault.key() == pool_state.load()?.token_0_vault || output_vault.key() == pool_state.load()?.token_1_vault
+        constraint = output_vault.key() == pool_state.token_0_vault || output_vault.key() == pool_state.token_1_vault
     )]
     pub output_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -69,14 +69,22 @@ pub struct Swap<'info> {
     )]
     pub output_token_mint: Box<InterfaceAccount<'info, Mint>>,
     /// The program account for the most recent oracle observation
-    #[account(mut, address = pool_state.load()?.observation_key)]
-    pub observation_state: AccountLoader<'info, ObservationState>,
+    #[account(mut, address = pool_state.observation_key)]
+    pub observation_state: Account<'info, ObservationState>,
+
+    /// Light Token program for CPI
+    pub light_token_program: Interface<'info, TokenInterface>,
+
+    pub system_program: Program<'info, System>,
+
+    /// CHECK: light_token CPI authority.
+    pub light_token_cpi_authority: AccountInfo<'info>,
 }
 
 pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    let pool_state = &mut ctx.accounts.pool_state;
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
         || block_timestamp < pool_state.open_time
     {
@@ -232,7 +240,9 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.input_token_mint.to_account_info(),
         ctx.accounts.input_token_program.to_account_info(),
         input_transfer_amount,
-        ctx.accounts.input_token_mint.decimals,
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -242,12 +252,14 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.output_token_mint.to_account_info(),
         ctx.accounts.output_token_program.to_account_info(),
         output_transfer_amount,
-        ctx.accounts.output_token_mint.decimals,
         &[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]],
+        ctx.accounts.payer.to_account_info(),
+        ctx.accounts.light_token_cpi_authority.to_account_info(),
+        ctx.accounts.system_program.to_account_info(),
     )?;
 
     // update the previous price to the observation
-    ctx.accounts.observation_state.load_mut()?.update(
+    ctx.accounts.observation_state.update(
         oracle::block_timestamp(),
         token_0_price_x64,
         token_1_price_x64,
