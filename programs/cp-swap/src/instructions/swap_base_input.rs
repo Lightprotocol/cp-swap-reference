@@ -79,9 +79,23 @@ pub struct Swap<'info> {
 
     /// CHECK: light_token CPI authority.
     pub light_token_cpi_authority: AccountInfo<'info>,
+
+    /// Optional SPL interface PDA for token_0 (only needed if token_0 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_0: Option<AccountInfo<'info>>,
+
+    /// Optional SPL interface PDA for token_1 (only needed if token_1 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_1: Option<AccountInfo<'info>>,
 }
 
-pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
+pub fn swap_base_input(
+    ctx: Context<Swap>,
+    amount_in: u64,
+    minimum_amount_out: u64,
+    spl_interface_bump_0: Option<u8>,
+    spl_interface_bump_1: Option<u8>,
+) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state;
@@ -233,6 +247,22 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     });
     require_gte!(constant_after, constant_before);
 
+    // Select SPL interface PDAs based on trade direction
+    let (input_spl_pda, input_spl_bump, output_spl_pda, output_spl_bump) = match trade_direction {
+        TradeDirection::ZeroForOne => (
+            ctx.accounts.spl_interface_pda_0.clone(),
+            spl_interface_bump_0,
+            ctx.accounts.spl_interface_pda_1.clone(),
+            spl_interface_bump_1,
+        ),
+        TradeDirection::OneForZero => (
+            ctx.accounts.spl_interface_pda_1.clone(),
+            spl_interface_bump_1,
+            ctx.accounts.spl_interface_pda_0.clone(),
+            spl_interface_bump_0,
+        ),
+    };
+
     transfer_from_user_to_pool_vault(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.input_token_account.to_account_info(),
@@ -243,6 +273,8 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        input_spl_pda,
+        input_spl_bump,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -256,6 +288,8 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        output_spl_pda,
+        output_spl_bump,
     )?;
 
     // update the previous price to the observation

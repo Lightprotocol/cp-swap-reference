@@ -34,6 +34,10 @@ pub struct InitializeParams {
     pub lp_mint_signer_bump: u8,
     pub creator_lp_token_bump: u8,
     pub authority_bump: u8,
+    /// SPL interface PDA bump for token_0 (None for Light tokens)
+    pub spl_interface_bump_0: Option<u8>,
+    /// SPL interface PDA bump for token_1 (None for Light tokens)
+    pub spl_interface_bump_1: Option<u8>,
 }
 
 #[derive(Accounts, LightAccounts)]
@@ -166,6 +170,14 @@ pub struct Initialize<'info> {
 
     /// CHECK: light-token CPI authority.
     pub light_token_cpi_authority: AccountInfo<'info>,
+
+    /// Optional SPL interface PDA for token_0 (only needed if token_0 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_0: Option<AccountInfo<'info>>,
+
+    /// Optional SPL interface PDA for token_1 (only needed if token_1 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_1: Option<AccountInfo<'info>>,
 }
 
 pub fn initialize<'info>(
@@ -248,6 +260,8 @@ pub fn initialize<'info>(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.spl_interface_pda_0.clone(),
+        params.spl_interface_bump_0,
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -260,6 +274,8 @@ pub fn initialize<'info>(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.spl_interface_pda_1.clone(),
+        params.spl_interface_bump_1,
     )?;
 
     // Get vault balances - supports both light token and spl token accounts

@@ -16,10 +16,11 @@ use light_token::{
     constants::CPI_AUTHORITY_PDA,
     constants::LIGHT_TOKEN_PROGRAM_ID,
     instruction::{
-        find_mint_address, get_associated_token_address_and_bump, CreateAssociatedTokenAccount,
-        CreateMint, CreateMintParams, MintTo, COMPRESSIBLE_CONFIG_V1,
+        find_mint_address, get_associated_token_address_and_bump, get_spl_interface_pda_and_bump,
+        CreateAssociatedTokenAccount, CreateMint, CreateMintParams, MintTo, COMPRESSIBLE_CONFIG_V1,
         RENT_SPONSOR as LIGHT_TOKEN_RENT_SPONSOR,
     },
+    spl_interface::CreateSplInterfacePda,
 };
 use raydium_cp_swap::{
     instructions::initialize::LP_MINT_SIGNER_SEED,
@@ -212,6 +213,60 @@ pub async fn setup_create_mint(
     (mint, ata_pubkeys, mint_seed)
 }
 
+/// Create the SPL interface PDA (token pool) for an SPL/Token-2022 mint.
+/// This is required before SPL tokens can be transferred to/from Light Token accounts.
+pub async fn create_spl_interface_pda(
+    rpc: &mut LightProgramTest,
+    payer: &Keypair,
+    mint: &Pubkey,
+) -> Pubkey {
+    create_spl_interface_pda_with_program(rpc, payer, mint, spl_token::id()).await
+}
+
+/// Create the SPL interface PDA for a mint with specified token program.
+pub async fn create_spl_interface_pda_with_program(
+    rpc: &mut LightProgramTest,
+    payer: &Keypair,
+    mint: &Pubkey,
+    token_program: Pubkey,
+) -> Pubkey {
+    let (spl_interface_pda, _bump) = get_spl_interface_pda_and_bump(mint);
+
+    let ix = CreateSplInterfacePda::new(payer.pubkey(), *mint, token_program, false).instruction();
+
+    rpc.create_and_send_transaction(&[ix], &payer.pubkey(), &[payer])
+        .await
+        .expect("Create SPL interface PDA should succeed");
+
+    spl_interface_pda
+}
+
+/// Create SPL interface PDAs for any non-Light tokens in the setup.
+pub async fn create_spl_interface_pdas_for_setup(
+    rpc: &mut LightProgramTest,
+    payer: &Keypair,
+    setup: &FlexibleTokenSetup,
+) {
+    if setup.token_0_type.needs_spl_interface() {
+        create_spl_interface_pda_with_program(
+            rpc,
+            payer,
+            &setup.token_0_mint,
+            setup.token_0_type.program_id(),
+        )
+        .await;
+    }
+    if setup.token_1_type.needs_spl_interface() {
+        create_spl_interface_pda_with_program(
+            rpc,
+            payer,
+            &setup.token_1_mint,
+            setup.token_1_type.program_id(),
+        )
+        .await;
+    }
+}
+
 /// Create token mints and fund creator with initial balances.
 pub async fn setup_token_mints(
     rpc: &mut LightProgramTest,
@@ -256,6 +311,364 @@ pub async fn setup_token_mints(
             creator_token_0: ata_pubkeys_b[0],
             creator_token_1: ata_pubkeys_a[0],
         }
+    }
+}
+
+/// Create an SPL token mint (not Light token) and fund creator with initial balance.
+pub async fn setup_spl_mint(
+    rpc: &mut LightProgramTest,
+    payer: &Keypair,
+    decimals: u8,
+    recipients: Vec<(u64, Pubkey)>,
+) -> (Pubkey, Keypair, Vec<Pubkey>) {
+    use light_anchor_spl::associated_token::spl_associated_token_account;
+    use solana_sdk::program_pack::Pack;
+
+    let mint_keypair = Keypair::new();
+    let mint_pubkey = mint_keypair.pubkey();
+
+    // Create mint account
+    let mint_rent = rpc
+        .get_minimum_balance_for_rent_exemption(spl_token::state::Mint::LEN)
+        .await
+        .unwrap();
+    let create_mint_ix = solana_sdk::system_instruction::create_account(
+        &payer.pubkey(),
+        &mint_pubkey,
+        mint_rent,
+        spl_token::state::Mint::LEN as u64,
+        &spl_token::id(),
+    );
+
+    let init_mint_ix = spl_token::instruction::initialize_mint(
+        &spl_token::id(),
+        &mint_pubkey,
+        &payer.pubkey(),
+        None,
+        decimals,
+    )
+    .unwrap();
+
+    rpc.create_and_send_transaction(
+        &[create_mint_ix, init_mint_ix],
+        &payer.pubkey(),
+        &[payer, &mint_keypair],
+    )
+    .await
+    .expect("Create SPL mint should succeed");
+
+    if recipients.is_empty() {
+        return (mint_pubkey, mint_keypair, vec![]);
+    }
+
+    let mut ata_pubkeys = Vec::with_capacity(recipients.len());
+
+    for (amount, owner) in &recipients {
+        let ata = spl_associated_token_account::get_associated_token_address(owner, &mint_pubkey);
+        ata_pubkeys.push(ata);
+
+        let create_ata_ix =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &payer.pubkey(),
+                owner,
+                &mint_pubkey,
+                &spl_token::id(),
+            );
+
+        rpc.create_and_send_transaction(&[create_ata_ix], &payer.pubkey(), &[payer])
+            .await
+            .expect("Create SPL ATA should succeed");
+
+        if *amount > 0 {
+            let mint_to_ix = spl_token::instruction::mint_to(
+                &spl_token::id(),
+                &mint_pubkey,
+                &ata,
+                &payer.pubkey(),
+                &[],
+                *amount,
+            )
+            .unwrap();
+
+            rpc.create_and_send_transaction(&[mint_to_ix], &payer.pubkey(), &[payer])
+                .await
+                .expect("Mint SPL tokens should succeed");
+        }
+    }
+
+    (mint_pubkey, mint_keypair, ata_pubkeys)
+}
+
+/// Token type for flexible test setup.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TokenType {
+    Light,
+    Spl,
+    Token2022,
+}
+
+impl TokenType {
+    pub fn program_id(&self) -> Pubkey {
+        match self {
+            TokenType::Light => light_token_program_id(),
+            TokenType::Spl => spl_token::id(),
+            TokenType::Token2022 => spl_token_2022::id(),
+        }
+    }
+
+    pub fn needs_spl_interface(&self) -> bool {
+        matches!(self, TokenType::Spl | TokenType::Token2022)
+    }
+}
+
+/// Flexible token setup that works with any combination of token types.
+pub struct FlexibleTokenSetup {
+    pub token_0_mint: Pubkey,
+    pub token_1_mint: Pubkey,
+    pub token_0_mint_signer: Pubkey,
+    pub token_1_mint_signer: Pubkey,
+    pub creator_token_0: Pubkey,
+    pub creator_token_1: Pubkey,
+    pub token_0_type: TokenType,
+    pub token_1_type: TokenType,
+}
+
+impl FlexibleTokenSetup {
+    pub fn to_token_setup(&self) -> TokenSetup {
+        TokenSetup {
+            token_0_mint: self.token_0_mint,
+            token_1_mint: self.token_1_mint,
+            token_0_mint_signer: self.token_0_mint_signer,
+            token_1_mint_signer: self.token_1_mint_signer,
+            creator_token_0: self.creator_token_0,
+            creator_token_1: self.creator_token_1,
+        }
+    }
+
+    pub fn build_spl_interface(&self) -> SplInterfaceInfo {
+        let (token_0_pda, token_0_bump) = if self.token_0_type.needs_spl_interface() {
+            let (pda, bump) = get_spl_interface_pda_and_bump(&self.token_0_mint);
+            (Some(pda), Some(bump))
+        } else {
+            (None, None)
+        };
+
+        let (token_1_pda, token_1_bump) = if self.token_1_type.needs_spl_interface() {
+            let (pda, bump) = get_spl_interface_pda_and_bump(&self.token_1_mint);
+            (Some(pda), Some(bump))
+        } else {
+            (None, None)
+        };
+
+        SplInterfaceInfo {
+            token_0_pda,
+            token_0_bump,
+            token_1_pda,
+            token_1_bump,
+        }
+    }
+}
+
+/// Create a Token-2022 mint (no extensions) and fund creator with initial balance.
+pub async fn setup_token2022_mint(
+    rpc: &mut LightProgramTest,
+    payer: &Keypair,
+    decimals: u8,
+    recipients: Vec<(u64, Pubkey)>,
+) -> (Pubkey, Keypair, Vec<Pubkey>) {
+    use light_anchor_spl::associated_token::spl_associated_token_account;
+    use solana_sdk::program_pack::Pack;
+
+    let mint_keypair = Keypair::new();
+    let mint_pubkey = mint_keypair.pubkey();
+
+    // Create mint account for Token-2022
+    let mint_rent = rpc
+        .get_minimum_balance_for_rent_exemption(spl_token_2022::state::Mint::LEN)
+        .await
+        .unwrap();
+    let create_mint_ix = solana_sdk::system_instruction::create_account(
+        &payer.pubkey(),
+        &mint_pubkey,
+        mint_rent,
+        spl_token_2022::state::Mint::LEN as u64,
+        &spl_token_2022::id(),
+    );
+
+    let init_mint_ix = spl_token_2022::instruction::initialize_mint(
+        &spl_token_2022::id(),
+        &mint_pubkey,
+        &payer.pubkey(),
+        None,
+        decimals,
+    )
+    .unwrap();
+
+    rpc.create_and_send_transaction(
+        &[create_mint_ix, init_mint_ix],
+        &payer.pubkey(),
+        &[payer, &mint_keypair],
+    )
+    .await
+    .expect("Create Token-2022 mint should succeed");
+
+    if recipients.is_empty() {
+        return (mint_pubkey, mint_keypair, vec![]);
+    }
+
+    let mut ata_pubkeys = Vec::with_capacity(recipients.len());
+
+    for (amount, owner) in &recipients {
+        let ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+            owner,
+            &mint_pubkey,
+            &spl_token_2022::id(),
+        );
+        ata_pubkeys.push(ata);
+
+        let create_ata_ix =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &payer.pubkey(),
+                owner,
+                &mint_pubkey,
+                &spl_token_2022::id(),
+            );
+
+        rpc.create_and_send_transaction(&[create_ata_ix], &payer.pubkey(), &[payer])
+            .await
+            .expect("Create Token-2022 ATA should succeed");
+
+        if *amount > 0 {
+            let mint_to_ix = spl_token_2022::instruction::mint_to(
+                &spl_token_2022::id(),
+                &mint_pubkey,
+                &ata,
+                &payer.pubkey(),
+                &[],
+                *amount,
+            )
+            .unwrap();
+
+            rpc.create_and_send_transaction(&[mint_to_ix], &payer.pubkey(), &[payer])
+                .await
+                .expect("Mint Token-2022 tokens should succeed");
+        }
+    }
+
+    (mint_pubkey, mint_keypair, ata_pubkeys)
+}
+
+/// Create a single token based on type.
+async fn create_single_token(
+    rpc: &mut LightProgramTest,
+    payer: &Keypair,
+    creator: &Pubkey,
+    initial_balance: u64,
+    token_type: TokenType,
+) -> (Pubkey, Pubkey, Pubkey) {
+    // Returns (mint, mint_signer, creator_ata)
+    match token_type {
+        TokenType::Light => {
+            let (mint, atas, mint_seed) = setup_create_mint(
+                rpc,
+                payer,
+                payer.pubkey(),
+                9,
+                vec![(initial_balance, *creator)],
+            )
+            .await;
+            (mint, mint_seed.pubkey(), atas[0])
+        }
+        TokenType::Spl => {
+            let (mint, _keypair, atas) =
+                setup_spl_mint(rpc, payer, 9, vec![(initial_balance, *creator)]).await;
+            (mint, Pubkey::default(), atas[0])
+        }
+        TokenType::Token2022 => {
+            let (mint, _keypair, atas) =
+                setup_token2022_mint(rpc, payer, 9, vec![(initial_balance, *creator)]).await;
+            (mint, Pubkey::default(), atas[0])
+        }
+    }
+}
+
+/// Create token pair with specified types.
+pub async fn setup_token_pair(
+    rpc: &mut LightProgramTest,
+    payer: &Keypair,
+    creator: &Pubkey,
+    initial_balance: u64,
+    type_a: TokenType,
+    type_b: TokenType,
+) -> FlexibleTokenSetup {
+    let (mint_a, signer_a, ata_a) =
+        create_single_token(rpc, payer, creator, initial_balance, type_a).await;
+    let (mint_b, signer_b, ata_b) =
+        create_single_token(rpc, payer, creator, initial_balance, type_b).await;
+
+    // Ensure proper ordering: token_0_mint < token_1_mint
+    if mint_a < mint_b {
+        FlexibleTokenSetup {
+            token_0_mint: mint_a,
+            token_1_mint: mint_b,
+            token_0_mint_signer: signer_a,
+            token_1_mint_signer: signer_b,
+            creator_token_0: ata_a,
+            creator_token_1: ata_b,
+            token_0_type: type_a,
+            token_1_type: type_b,
+        }
+    } else {
+        FlexibleTokenSetup {
+            token_0_mint: mint_b,
+            token_1_mint: mint_a,
+            token_0_mint_signer: signer_b,
+            token_1_mint_signer: signer_a,
+            creator_token_0: ata_b,
+            creator_token_1: ata_a,
+            token_0_type: type_b,
+            token_1_type: type_a,
+        }
+    }
+}
+
+/// Legacy: Token setup for mixed SPL + Light token pair.
+pub struct MixedTokenSetup {
+    pub token_0_mint: Pubkey,
+    pub token_1_mint: Pubkey,
+    pub token_0_mint_signer: Pubkey,
+    pub token_1_mint_signer: Pubkey,
+    pub creator_token_0: Pubkey,
+    pub creator_token_1: Pubkey,
+    pub token_0_is_spl: bool,
+    pub token_1_is_spl: bool,
+}
+
+/// Legacy: Create token mints where one is SPL and other is Light.
+pub async fn setup_mixed_token_mints(
+    rpc: &mut LightProgramTest,
+    payer: &Keypair,
+    creator: &Pubkey,
+    initial_balance: u64,
+) -> MixedTokenSetup {
+    let flex = setup_token_pair(
+        rpc,
+        payer,
+        creator,
+        initial_balance,
+        TokenType::Spl,
+        TokenType::Light,
+    )
+    .await;
+    MixedTokenSetup {
+        token_0_mint: flex.token_0_mint,
+        token_1_mint: flex.token_1_mint,
+        token_0_mint_signer: flex.token_0_mint_signer,
+        token_1_mint_signer: flex.token_1_mint_signer,
+        creator_token_0: flex.creator_token_0,
+        creator_token_1: flex.creator_token_1,
+        token_0_is_spl: flex.token_0_type == TokenType::Spl,
+        token_1_is_spl: flex.token_1_type == TokenType::Spl,
     }
 }
 
@@ -445,6 +858,7 @@ pub fn build_withdraw_instruction(
     lp_token_amount: u64,
     minimum_token_0_amount: u64,
     minimum_token_1_amount: u64,
+    spl_interface: SplInterfaceInfo,
 ) -> Instruction {
     let accounts = raydium_cp_swap::accounts::Withdraw {
         owner,
@@ -464,12 +878,16 @@ pub fn build_withdraw_instruction(
         system_program: solana_sdk::system_program::ID,
         light_token_cpi_authority: CPI_AUTHORITY_PDA,
         light_token_program: light_token_program_id(),
+        spl_interface_pda_0: spl_interface.token_0_pda,
+        spl_interface_pda_1: spl_interface.token_1_pda,
     };
 
     let instruction_data = raydium_cp_swap::instruction::Withdraw {
         lp_token_amount,
         minimum_token_0_amount,
         minimum_token_1_amount,
+        spl_interface_bump_0: spl_interface.token_0_bump,
+        spl_interface_bump_1: spl_interface.token_1_bump,
     };
 
     Instruction {
@@ -491,22 +909,30 @@ pub fn build_swap_instruction(
     is_token_0_input: bool, // true = swap 0->1, false = swap 1->0
     amount_in: u64,
     minimum_amount_out: u64,
+    spl_interface: SplInterfaceInfo,
+    token_0_program: Pubkey,
+    token_1_program: Pubkey,
 ) -> Instruction {
-    let (input_vault, output_vault, input_mint, output_mint) = if is_token_0_input {
-        (
-            pdas.token_0_vault,
-            pdas.token_1_vault,
-            tokens.token_0_mint,
-            tokens.token_1_mint,
-        )
-    } else {
-        (
-            pdas.token_1_vault,
-            pdas.token_0_vault,
-            tokens.token_1_mint,
-            tokens.token_0_mint,
-        )
-    };
+    let (input_vault, output_vault, input_mint, output_mint, input_program, output_program) =
+        if is_token_0_input {
+            (
+                pdas.token_0_vault,
+                pdas.token_1_vault,
+                tokens.token_0_mint,
+                tokens.token_1_mint,
+                token_0_program,
+                token_1_program,
+            )
+        } else {
+            (
+                pdas.token_1_vault,
+                pdas.token_0_vault,
+                tokens.token_1_mint,
+                tokens.token_0_mint,
+                token_1_program,
+                token_0_program,
+            )
+        };
 
     let accounts = raydium_cp_swap::accounts::Swap {
         payer,
@@ -517,19 +943,23 @@ pub fn build_swap_instruction(
         output_token_account,
         input_vault,
         output_vault,
-        input_token_program: light_token_program_id(),
-        output_token_program: light_token_program_id(),
+        input_token_program: input_program,
+        output_token_program: output_program,
         input_token_mint: input_mint,
         output_token_mint: output_mint,
         observation_state: pdas.observation_state,
         light_token_program: light_token_program_id(),
         system_program: solana_sdk::system_program::ID,
         light_token_cpi_authority: CPI_AUTHORITY_PDA,
+        spl_interface_pda_0: spl_interface.token_0_pda,
+        spl_interface_pda_1: spl_interface.token_1_pda,
     };
 
     let instruction_data = raydium_cp_swap::instruction::SwapBaseInput {
         amount_in,
         minimum_amount_out,
+        spl_interface_bump_0: spl_interface.token_0_bump,
+        spl_interface_bump_1: spl_interface.token_1_bump,
     };
 
     Instruction {
@@ -550,6 +980,7 @@ pub fn build_deposit_instruction(
     lp_token_amount: u64,
     maximum_token_0_amount: u64,
     maximum_token_1_amount: u64,
+    spl_interface: SplInterfaceInfo,
 ) -> Instruction {
     let accounts = raydium_cp_swap::accounts::Deposit {
         owner,
@@ -568,12 +999,16 @@ pub fn build_deposit_instruction(
         lp_mint: pdas.lp_mint,
         system_program: solana_sdk::system_program::ID,
         light_token_cpi_authority: CPI_AUTHORITY_PDA,
+        spl_interface_pda_0: spl_interface.token_0_pda,
+        spl_interface_pda_1: spl_interface.token_1_pda,
     };
 
     let instruction_data = raydium_cp_swap::instruction::Deposit {
         lp_token_amount,
         maximum_token_0_amount,
         maximum_token_1_amount,
+        spl_interface_bump_0: spl_interface.token_0_bump,
+        spl_interface_bump_1: spl_interface.token_1_bump,
     };
 
     Instruction {
@@ -581,6 +1016,15 @@ pub fn build_deposit_instruction(
         accounts: accounts.to_account_metas(None),
         data: instruction_data.data(),
     }
+}
+
+/// SPL interface info for instructions involving SPL/Token-2022 tokens.
+#[derive(Default, Clone)]
+pub struct SplInterfaceInfo {
+    pub token_0_pda: Option<Pubkey>,
+    pub token_0_bump: Option<u8>,
+    pub token_1_pda: Option<Pubkey>,
+    pub token_1_bump: Option<u8>,
 }
 
 /// Build the Initialize instruction.
@@ -596,6 +1040,39 @@ pub fn build_initialize_instruction(
     init_amount_1: u64,
     open_time: u64,
 ) -> Instruction {
+    build_initialize_instruction_with_spl(
+        program_id,
+        creator,
+        amm_config,
+        pdas,
+        tokens,
+        config_pda,
+        proof_result,
+        init_amount_0,
+        init_amount_1,
+        open_time,
+        light_token_program_id(),
+        light_token_program_id(),
+        SplInterfaceInfo::default(),
+    )
+}
+
+/// Build the Initialize instruction with SPL interface support.
+pub fn build_initialize_instruction_with_spl(
+    program_id: Pubkey,
+    creator: Pubkey,
+    amm_config: Pubkey,
+    pdas: &AmmPdas,
+    tokens: &TokenSetup,
+    config_pda: Pubkey,
+    proof_result: &CreateAccountsProofResult,
+    init_amount_0: u64,
+    init_amount_1: u64,
+    open_time: u64,
+    token_0_program: Pubkey,
+    token_1_program: Pubkey,
+    spl_interface: SplInterfaceInfo,
+) -> Instruction {
     let init_params = InitializeParams {
         init_amount_0,
         init_amount_1,
@@ -604,6 +1081,8 @@ pub fn build_initialize_instruction(
         lp_mint_signer_bump: pdas.lp_mint_signer_bump,
         creator_lp_token_bump: pdas.creator_lp_token_bump,
         authority_bump: pdas.authority_bump,
+        spl_interface_bump_0: spl_interface.token_0_bump,
+        spl_interface_bump_1: spl_interface.token_1_bump,
     };
 
     let accounts = raydium_cp_swap::accounts::Initialize {
@@ -623,8 +1102,8 @@ pub fn build_initialize_instruction(
         observation_state: pdas.observation_state,
         create_pool_fee: raydium_cp_swap::create_pool_fee_receiver::ID,
         token_program: spl_token::id(),
-        token_0_program: light_token_program_id(),
-        token_1_program: light_token_program_id(),
+        token_0_program,
+        token_1_program,
         associated_token_program: light_anchor_spl::associated_token::ID,
         system_program: solana_sdk::system_program::ID,
         rent: solana_sdk::sysvar::rent::ID,
@@ -633,6 +1112,8 @@ pub fn build_initialize_instruction(
         light_token_rent_sponsor: Pubkey::from(LIGHT_TOKEN_RENT_SPONSOR),
         light_token_program: light_token_program_id(),
         light_token_cpi_authority: CPI_AUTHORITY_PDA,
+        spl_interface_pda_0: spl_interface.token_0_pda,
+        spl_interface_pda_1: spl_interface.token_1_pda,
     };
 
     let instruction_data = raydium_cp_swap::instruction::Initialize {

@@ -102,6 +102,14 @@ pub struct Withdraw<'info> {
 
     /// Light Token program for CPI
     pub light_token_program: Interface<'info, TokenInterface>,
+
+    /// Optional SPL interface PDA for token_0 (only needed if token_0 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_0: Option<AccountInfo<'info>>,
+
+    /// Optional SPL interface PDA for token_1 (only needed if token_1 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_1: Option<AccountInfo<'info>>,
 }
 
 pub fn withdraw(
@@ -109,6 +117,8 @@ pub fn withdraw(
     lp_token_amount: u64,
     minimum_token_0_amount: u64,
     minimum_token_1_amount: u64,
+    spl_interface_bump_0: Option<u8>,
+    spl_interface_bump_1: Option<u8>,
 ) -> Result<()> {
     require_gt!(lp_token_amount, 0);
     let pool_id = ctx.accounts.pool_state.key();
@@ -210,6 +220,8 @@ pub fn withdraw(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.spl_interface_pda_0.clone(),
+        spl_interface_bump_0,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -227,6 +239,8 @@ pub fn withdraw(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.spl_interface_pda_1.clone(),
+        spl_interface_bump_1,
     )?;
     pool_state.recent_epoch = Clock::get()?.epoch;
 
