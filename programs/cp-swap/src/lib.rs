@@ -145,8 +145,16 @@ pub mod raydium_cp_swap {
         ctx: Context<CollectProtocolFee>,
         amount_0_requested: u64,
         amount_1_requested: u64,
+        spl_interface_bump_0: Option<u8>,
+        spl_interface_bump_1: Option<u8>,
     ) -> Result<()> {
-        instructions::collect_protocol_fee(ctx, amount_0_requested, amount_1_requested)
+        instructions::collect_protocol_fee(
+            ctx,
+            amount_0_requested,
+            amount_1_requested,
+            spl_interface_bump_0,
+            spl_interface_bump_1,
+        )
     }
 
     /// Collect the fund fee accrued to the pool
@@ -161,8 +169,16 @@ pub mod raydium_cp_swap {
         ctx: Context<CollectFundFee>,
         amount_0_requested: u64,
         amount_1_requested: u64,
+        spl_interface_bump_0: Option<u8>,
+        spl_interface_bump_1: Option<u8>,
     ) -> Result<()> {
-        instructions::collect_fund_fee(ctx, amount_0_requested, amount_1_requested)
+        instructions::collect_fund_fee(
+            ctx,
+            amount_0_requested,
+            amount_1_requested,
+            spl_interface_bump_0,
+            spl_interface_bump_1,
+        )
     }
 
     /// Creates a pool for the given token pair and the initial price
@@ -193,12 +209,16 @@ pub mod raydium_cp_swap {
         lp_token_amount: u64,
         maximum_token_0_amount: u64,
         maximum_token_1_amount: u64,
+        spl_interface_bump_0: Option<u8>,
+        spl_interface_bump_1: Option<u8>,
     ) -> Result<()> {
         instructions::deposit(
             ctx,
             lp_token_amount,
             maximum_token_0_amount,
             maximum_token_1_amount,
+            spl_interface_bump_0,
+            spl_interface_bump_1,
         )
     }
 
@@ -216,12 +236,16 @@ pub mod raydium_cp_swap {
         lp_token_amount: u64,
         minimum_token_0_amount: u64,
         minimum_token_1_amount: u64,
+        spl_interface_bump_0: Option<u8>,
+        spl_interface_bump_1: Option<u8>,
     ) -> Result<()> {
         instructions::withdraw(
             ctx,
             lp_token_amount,
             minimum_token_0_amount,
             minimum_token_1_amount,
+            spl_interface_bump_0,
+            spl_interface_bump_1,
         )
     }
 
@@ -237,8 +261,16 @@ pub mod raydium_cp_swap {
         ctx: Context<Swap>,
         amount_in: u64,
         minimum_amount_out: u64,
+        spl_interface_bump_0: Option<u8>,
+        spl_interface_bump_1: Option<u8>,
     ) -> Result<()> {
-        instructions::swap_base_input(ctx, amount_in, minimum_amount_out)
+        instructions::swap_base_input(
+            ctx,
+            amount_in,
+            minimum_amount_out,
+            spl_interface_bump_0,
+            spl_interface_bump_1,
+        )
     }
 
     /// Swap the tokens in the pool base output amount
@@ -249,7 +281,19 @@ pub mod raydium_cp_swap {
     /// * `max_amount_in` -  input amount prevents excessive slippage
     /// * `amount_out` -  amount of output token
     ///
-    pub fn swap_base_output(ctx: Context<Swap>, max_amount_in: u64, amount_out: u64) -> Result<()> {
-        instructions::swap_base_output(ctx, max_amount_in, amount_out)
+    pub fn swap_base_output(
+        ctx: Context<Swap>,
+        max_amount_in: u64,
+        amount_out: u64,
+        spl_interface_bump_0: Option<u8>,
+        spl_interface_bump_1: Option<u8>,
+    ) -> Result<()> {
+        instructions::swap_base_output(
+            ctx,
+            max_amount_in,
+            amount_out,
+            spl_interface_bump_0,
+            spl_interface_bump_1,
+        )
     }
 }
