@@ -83,11 +83,13 @@ pub struct Initialize<'info> {
 
     #[account(mut)]
     #[light_account(init, mint,
-        mint_signer = lp_mint_signer,
-        authority = authority,
-        decimals = 9,
-        mint_seeds = &[LP_MINT_SIGNER_SEED, self.pool_state.to_account_info().key.as_ref(), &[params.lp_mint_signer_bump]],
-        authority_seeds = &[crate::AUTH_SEED.as_bytes(), &[params.authority_bump]]
+        mint::signer = lp_mint_signer,
+        mint::authority = authority,
+        mint::decimals = 9,
+        mint::seeds = &[LP_MINT_SIGNER_SEED, self.pool_state.to_account_info().key.as_ref()],
+        mint::bump = params.lp_mint_signer_bump,
+        mint::authority_seeds = &[crate::AUTH_SEED.as_bytes()],
+        mint::authority_bump = params.authority_bump
     )]
     pub lp_mint: UncheckedAccount<'info>,
 
@@ -117,7 +119,7 @@ pub struct Initialize<'info> {
         ],
         bump,
     )]
-    #[light_account(token, authority = [crate::AUTH_SEED.as_bytes()])]
+    #[light_account(token, token::authority = [crate::AUTH_SEED.as_bytes()])]
     pub token_0_vault: UncheckedAccount<'info>,
 
     #[account(
@@ -129,7 +131,7 @@ pub struct Initialize<'info> {
         ],
         bump,
     )]
-    #[light_account(token, authority = [crate::AUTH_SEED.as_bytes()])]
+    #[light_account(token, token::authority = [crate::AUTH_SEED.as_bytes()])]
     pub token_1_vault: UncheckedAccount<'info>,
 
     #[account(
@@ -199,7 +201,9 @@ pub fn initialize<'info>(
         owner: ctx.accounts.authority.key(),
     }
     .rent_free(
-        ctx.accounts.light_token_compressible_config.to_account_info(),
+        ctx.accounts
+            .light_token_compressible_config
+            .to_account_info(),
         ctx.accounts.light_token_rent_sponsor.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
         &crate::ID,
@@ -219,7 +223,9 @@ pub fn initialize<'info>(
         owner: ctx.accounts.authority.key(),
     }
     .rent_free(
-        ctx.accounts.light_token_compressible_config.to_account_info(),
+        ctx.accounts
+            .light_token_compressible_config
+            .to_account_info(),
         ctx.accounts.light_token_rent_sponsor.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
         &crate::ID,
@@ -332,7 +338,9 @@ pub fn initialize<'info>(
     }
     .idempotent()
     .rent_free(
-        ctx.accounts.light_token_compressible_config.to_account_info(),
+        ctx.accounts
+            .light_token_compressible_config
+            .to_account_info(),
         ctx.accounts.light_token_rent_sponsor.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
     )
@@ -340,6 +348,7 @@ pub fn initialize<'info>(
 
     // Mint LP tokens to creator
     MintToCpi {
+        fee_payer: Some(ctx.accounts.creator.to_account_info()),
         mint: ctx.accounts.lp_mint.to_account_info(),
         destination: ctx.accounts.creator_lp_token.to_account_info(),
         amount: user_lp_amount,

@@ -6,11 +6,10 @@
 /// - Parsing pool accounts from AccountInterface
 /// - Tracking account state (hot/cold)
 /// - Building AccountSpec for load instructions
-
 use anchor_lang::AnchorDeserialize;
 use light_client::interface::{
-    AccountInterface, AccountSpec, AccountToFetch, ColdContext, LightProgramInterface, PdaSpec,
-    TokenAccountInterface,
+    AccountInterface, AccountSpec, AccountToFetch, ColdAccountSpec, ColdContext,
+    LightProgramInterface, PdaSpec, TokenAccountInterface,
 };
 use light_sdk::LightDiscriminator;
 use light_token::compat::{CTokenData, TokenData};
@@ -156,7 +155,10 @@ impl CpSwapSdk {
     }
 
     /// Parse observation state from AccountInterface.
-    fn parse_observation_state(&mut self, interface: AccountInterface) -> Result<(), CpSwapSdkError> {
+    fn parse_observation_state(
+        &mut self,
+        interface: AccountInterface,
+    ) -> Result<(), CpSwapSdkError> {
         let pool_state = self
             .pool_state_pubkey
             .ok_or(CpSwapSdkError::PoolStateNotParsed)?;
@@ -186,7 +188,9 @@ impl CpSwapSdk {
     /// Vaults are program-owned PDAs, so we convert them to PdaSpec with CTokenData variant.
     pub fn set_token_vault(&mut self, interface: TokenAccountInterface, is_vault_0: bool) {
         let key = interface.key;
-        let pool_state = self.pool_state_pubkey.expect("pool_state must be set before vaults");
+        let pool_state = self
+            .pool_state_pubkey
+            .expect("pool_state must be set before vaults");
         let mint = if is_vault_0 {
             self.token_0_mint.expect("token_0_mint must be set")
         } else {
@@ -408,7 +412,7 @@ impl CpSwapSdk {
 
 impl LightProgramInterface for CpSwapSdk {
     type Variant = LightAccountVariant;
-    type Instruction = CpSwapInstruction;
+    type InstructionKind = CpSwapInstruction;
     type Error = CpSwapSdkError;
 
     fn program_id(&self) -> Pubkey {
@@ -448,7 +452,7 @@ impl LightProgramInterface for CpSwapSdk {
         Ok(sdk)
     }
 
-    fn get_accounts_to_update(&self, ix: &Self::Instruction) -> Vec<AccountToFetch> {
+    fn get_accounts_for_instruction(&self, kind: Self::InstructionKind) -> Vec<AccountToFetch> {
         let mut accounts = Vec::new();
 
         // All instructions need pool_state and observation_state
@@ -476,7 +480,7 @@ impl LightProgramInterface for CpSwapSdk {
         }
 
         // Deposit and Withdraw also need LP mint
-        match ix {
+        match kind {
             CpSwapInstruction::Deposit | CpSwapInstruction::Withdraw => {
                 if let Some(pubkey) = self.lp_mint {
                     accounts.push(AccountToFetch::mint(pubkey));
@@ -488,8 +492,25 @@ impl LightProgramInterface for CpSwapSdk {
         accounts
     }
 
-    fn update(&mut self, accounts: &[AccountInterface]) -> Result<(), Self::Error> {
+    fn update_with_interfaces(&mut self, accounts: &[AccountInterface]) -> Result<(), Self::Error> {
         for account in accounts {
+            // Handle decompression: if account was cold but now hot, remove from specs
+            if account.is_hot() {
+                if self
+                    .pda_specs
+                    .get(&account.key)
+                    .map_or(false, |s| s.is_cold())
+                {
+                    self.pda_specs.remove(&account.key);
+                }
+                if self
+                    .mint_specs
+                    .get(&account.key)
+                    .map_or(false, |s| s.is_cold())
+                {
+                    self.mint_specs.remove(&account.key);
+                }
+            }
             self.parse_account(account)?;
         }
         Ok(())
@@ -511,7 +532,7 @@ impl LightProgramInterface for CpSwapSdk {
         specs
     }
 
-    fn get_specs_for_instruction(&self, ix: &Self::Instruction) -> Vec<AccountSpec<Self::Variant>> {
+    fn get_specs_for_instruction(&self, kind: Self::InstructionKind) -> Vec<AccountSpec<Self::Variant>> {
         let mut specs = Vec::new();
 
         // Pool state and observation state needed for all instructions
@@ -551,7 +572,7 @@ impl LightProgramInterface for CpSwapSdk {
         }
 
         // LP mint needed for deposit/withdraw
-        match ix {
+        match kind {
             CpSwapInstruction::Deposit | CpSwapInstruction::Withdraw => {
                 if let Some(pubkey) = self.lp_mint {
                     if let Some(spec) = self.mint_specs.get(&pubkey) {
@@ -564,4 +585,140 @@ impl LightProgramInterface for CpSwapSdk {
 
         specs
     }
+
+    fn get_compressible_accounts(&self) -> Vec<Pubkey> {
+        let mut accounts = Vec::new();
+        if let Some(pubkey) = self.pool_state_pubkey {
+            accounts.push(pubkey);
+        }
+        if let Some(pubkey) = self.observation_key {
+            accounts.push(pubkey);
+        }
+        if let Some(pubkey) = self.token_0_vault {
+            accounts.push(pubkey);
+        }
+        if let Some(pubkey) = self.token_1_vault {
+            accounts.push(pubkey);
+        }
+        if let Some(pubkey) = self.lp_mint {
+            accounts.push(pubkey);
+        }
+        accounts
+    }
+
+    fn get_compressible_accounts_for_instruction(&self, kind: Self::InstructionKind) -> Vec<Pubkey> {
+        let mut accounts = Vec::new();
+        if let Some(pubkey) = self.pool_state_pubkey {
+            accounts.push(pubkey);
+        }
+        if let Some(pubkey) = self.observation_key {
+            accounts.push(pubkey);
+        }
+        if let Some(pubkey) = self.token_0_vault {
+            accounts.push(pubkey);
+        }
+        if let Some(pubkey) = self.token_1_vault {
+            accounts.push(pubkey);
+        }
+        match kind {
+            CpSwapInstruction::Deposit | CpSwapInstruction::Withdraw => {
+                if let Some(pubkey) = self.lp_mint {
+                    accounts.push(pubkey);
+                }
+            }
+            CpSwapInstruction::Swap => {}
+        }
+        accounts
+    }
+
+    fn get_cold_specs_for_instruction(
+        &self,
+        kind: Self::InstructionKind,
+    ) -> Vec<ColdAccountSpec<Self::Variant>> {
+        let mut cold_specs = Vec::new();
+
+        // Check pool_state
+        if let Some(pubkey) = self.pool_state_pubkey {
+            if let Some(spec) = self.pda_specs.get(&pubkey) {
+                if spec.is_cold() {
+                    if let Some(compressed) = spec.interface.as_compressed_account() {
+                        cold_specs.push(ColdAccountSpec::Pda {
+                            key: pubkey,
+                            compressed: compressed.clone(),
+                            variant: spec.variant.clone(),
+                            program_id: PROGRAM_ID,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Check observation_state
+        if let Some(pubkey) = self.observation_key {
+            if let Some(spec) = self.pda_specs.get(&pubkey) {
+                if spec.is_cold() {
+                    if let Some(compressed) = spec.interface.as_compressed_account() {
+                        cold_specs.push(ColdAccountSpec::Pda {
+                            key: pubkey,
+                            compressed: compressed.clone(),
+                            variant: spec.variant.clone(),
+                            program_id: PROGRAM_ID,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Check vaults (stored as PDAs)
+        for vault_pubkey in [self.token_0_vault, self.token_1_vault].into_iter().flatten() {
+            if let Some(spec) = self.pda_specs.get(&vault_pubkey) {
+                if spec.is_cold() {
+                    if let Some(compressed) = spec.interface.as_compressed_account() {
+                        cold_specs.push(ColdAccountSpec::Pda {
+                            key: vault_pubkey,
+                            compressed: compressed.clone(),
+                            variant: spec.variant.clone(),
+                            program_id: PROGRAM_ID,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Check mints
+        for mint_pubkey in [self.token_0_mint, self.token_1_mint].into_iter().flatten() {
+            if let Some(iface) = self.mint_specs.get(&mint_pubkey) {
+                if iface.is_cold() {
+                    if let Some(compressed) = iface.as_compressed_account() {
+                        cold_specs.push(ColdAccountSpec::Mint {
+                            key: mint_pubkey,
+                            compressed: compressed.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
+        // LP mint only for deposit/withdraw
+        match kind {
+            CpSwapInstruction::Deposit | CpSwapInstruction::Withdraw => {
+                if let Some(lp_mint) = self.lp_mint {
+                    if let Some(iface) = self.mint_specs.get(&lp_mint) {
+                        if iface.is_cold() {
+                            if let Some(compressed) = iface.as_compressed_account() {
+                                cold_specs.push(ColdAccountSpec::Mint {
+                                    key: lp_mint,
+                                    compressed: compressed.clone(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            CpSwapInstruction::Swap => {}
+        }
+
+        cold_specs
+    }
+
 }

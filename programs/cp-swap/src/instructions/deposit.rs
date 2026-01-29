@@ -6,8 +6,8 @@ use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use light_anchor_spl::token::Token;
 use light_anchor_spl::token_interface::Token2022;
+use light_anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use light_token::instruction::MintToCpi;
-use light_anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -207,6 +207,7 @@ pub fn deposit(
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
 
     MintToCpi {
+        fee_payer: Some(ctx.accounts.owner.to_account_info()),
         mint: ctx.accounts.lp_mint.to_account_info(),
         destination: ctx.accounts.owner_lp_token.to_account_info(),
         amount: lp_token_amount,

@@ -183,10 +183,12 @@ pub fn withdraw(
     }
 
     BurnCpi {
+        fee_payer: Some(ctx.accounts.owner.to_account_info()),
         source: ctx.accounts.owner_lp_token.to_account_info(),
         mint: ctx.accounts.lp_mint.to_account_info(),
         amount: lp_token_amount,
         authority: ctx.accounts.owner.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
         max_top_up: None,
     }
     .invoke()?;

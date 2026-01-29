@@ -81,7 +81,7 @@ async fn test_sdk_lifecycle() {
         .expect("from_keyed_accounts should succeed");
 
     // ==================== PHASE 6: Fetch & Update SDK ====================
-    let accounts_to_fetch = sdk.get_accounts_to_update(&CpSwapInstruction::Deposit);
+    let accounts_to_fetch = sdk.get_accounts_for_instruction(CpSwapInstruction::Deposit);
     let keyed_accounts = setup
         .env
         .rpc
@@ -89,11 +89,11 @@ async fn test_sdk_lifecycle() {
         .await
         .expect("get_multiple_account_interfaces should succeed");
 
-    sdk.update(&keyed_accounts)
+    sdk.update_with_interfaces(&keyed_accounts)
         .expect("sdk.update should succeed");
 
     // ==================== PHASE 7: Build Specs for Load ====================
-    let mut all_specs = sdk.get_specs_for_instruction(&CpSwapInstruction::Deposit);
+    let mut all_specs = sdk.get_specs_for_instruction(CpSwapInstruction::Deposit);
 
     // Fetch creator's ATAs (compressed) and add to specs
     let creator_lp_ata_interface = setup
