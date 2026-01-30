@@ -6,17 +6,17 @@
 /// - Parsing pool accounts from AccountInterface
 /// - Tracking account state (hot/cold)
 /// - Building AccountSpec for load instructions
-
 use anchor_lang::AnchorDeserialize;
 use light_client::interface::{
     AccountInterface, AccountSpec, AccountToFetch, ColdContext, LightProgramInterface, PdaSpec,
     TokenAccountInterface,
 };
+use light_sdk::interface::token::{Token, TokenDataWithSeeds};
 use light_sdk::LightDiscriminator;
-use light_token::compat::{CTokenData, TokenData};
 use raydium_cp_swap::instructions::initialize::LP_MINT_SIGNER_SEED;
+use raydium_cp_swap::raydium_cp_swap::{LightAccountVariant, Token0VaultSeeds, Token1VaultSeeds};
+use raydium_cp_swap::raydium_cp_swap::{ObservationStateSeeds, PoolStateSeeds};
 use raydium_cp_swap::{
-    raydium_cp_swap::{LightAccountVariant, TokenAccountVariant},
     states::{ObservationState, PoolState},
     AUTH_SEED,
 };
@@ -144,10 +144,12 @@ impl CpSwapSdk {
 
         // Create PdaSpec with variant
         let variant = LightAccountVariant::PoolState {
+            seeds: PoolStateSeeds {
+                amm_config: pool_state.amm_config,
+                token_0_mint: pool_state.token_0_mint,
+                token_1_mint: pool_state.token_1_mint,
+            },
             data: pool_state.clone(),
-            amm_config: pool_state.amm_config,
-            token_0_mint: pool_state.token_0_mint,
-            token_1_mint: pool_state.token_1_mint,
         };
         let spec = PdaSpec::new(interface, variant, PROGRAM_ID);
         self.pda_specs.insert(pool_pubkey, spec);
@@ -156,7 +158,10 @@ impl CpSwapSdk {
     }
 
     /// Parse observation state from AccountInterface.
-    fn parse_observation_state(&mut self, interface: AccountInterface) -> Result<(), CpSwapSdkError> {
+    fn parse_observation_state(
+        &mut self,
+        interface: AccountInterface,
+    ) -> Result<(), CpSwapSdkError> {
         let pool_state = self
             .pool_state_pubkey
             .ok_or(CpSwapSdkError::PoolStateNotParsed)?;
@@ -173,8 +178,8 @@ impl CpSwapSdk {
             .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
 
         let variant = LightAccountVariant::ObservationState {
+            seeds: ObservationStateSeeds { pool_state },
             data: obs_state,
-            pool_state,
         };
         let spec = PdaSpec::new(interface, variant, PROGRAM_ID);
         self.pda_specs.insert(obs_pubkey, spec);
@@ -182,72 +187,60 @@ impl CpSwapSdk {
         Ok(())
     }
 
-    /// Store token vault interface.
-    /// Vaults are program-owned PDAs, so we convert them to PdaSpec with CTokenData variant.
-    pub fn set_token_vault(&mut self, interface: TokenAccountInterface, is_vault_0: bool) {
+    /// Store token vault interface and create PdaSpec with token vault variant.
+    pub fn set_token_vault(
+        &mut self,
+        interface: TokenAccountInterface,
+        is_vault_0: bool,
+    ) -> Result<(), CpSwapSdkError> {
+        let pool_state = self
+            .pool_state_pubkey
+            .ok_or(CpSwapSdkError::PoolStateNotParsed)?;
+
         let key = interface.key;
-        let pool_state = self.pool_state_pubkey.expect("pool_state must be set before vaults");
-        let mint = if is_vault_0 {
-            self.token_0_mint.expect("token_0_mint must be set")
-        } else {
-            self.token_1_mint.expect("token_1_mint must be set")
-        };
-
-        // Build TokenData from TokenAccountInterface
-        let token_data = TokenData {
-            mint: interface.mint(),
-            owner: interface.owner(),
-            amount: interface.amount(),
-            delegate: if interface.parsed.delegate.option == [1, 0, 0, 0] {
-                Some(Pubkey::from(interface.parsed.delegate.value))
-            } else {
-                None
-            },
-            state: light_token::compat::AccountState::Initialized,
-            tlv: None,
-        };
-
-        // Build variant based on which vault this is
-        let variant = if is_vault_0 {
-            LightAccountVariant::CTokenData(CTokenData {
-                variant: TokenAccountVariant::Token0Vault {
-                    pool_state,
-                    token_0_mint: mint,
-                },
-                token_data,
-            })
-        } else {
-            LightAccountVariant::CTokenData(CTokenData {
-                variant: TokenAccountVariant::Token1Vault {
-                    pool_state,
-                    token_1_mint: mint,
-                },
-                token_data,
-            })
-        };
-
-        // Convert TokenAccountInterface to AccountInterface for PdaSpec
-        // For cold vaults, we need to convert ColdContext::Token to ColdContext::Account
-        let cold = if let Some(ColdContext::Token(ct)) = &interface.cold {
-            Some(ColdContext::Account(ct.account.clone()))
-        } else {
-            None
-        };
-
-        let account_interface = AccountInterface {
-            key,
-            account: interface.account.clone(),
-            cold,
-        };
-
-        let spec = PdaSpec::new(account_interface, variant, PROGRAM_ID);
-
-        self.pda_specs.insert(key, spec);
         if is_vault_0 {
             self.token_0_vault = Some(key);
         } else {
             self.token_1_vault = Some(key);
         }
+
+        let token: Token = Token::deserialize(&mut &interface.account.data[..])
+            .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
+
+        let variant = if is_vault_0 {
+            let token_0_mint = self
+                .token_0_mint
+                .ok_or(CpSwapSdkError::MissingField("token_0_mint"))?;
+            LightAccountVariant::Token0Vault(TokenDataWithSeeds {
+                seeds: Token0VaultSeeds {
+                    pool_state,
+                    token_0_mint,
+                },
+                token_data: token,
+            })
+        } else {
+            let token_1_mint = self
+                .token_1_mint
+                .ok_or(CpSwapSdkError::MissingField("token_1_mint"))?;
+            LightAccountVariant::Token1Vault(TokenDataWithSeeds {
+                seeds: Token1VaultSeeds {
+                    pool_state,
+                    token_1_mint,
+                },
+                token_data: token,
+            })
+        };
+
+        let account_interface = AccountInterface {
+            key: interface.key,
+            account: interface.account,
+            cold: interface.cold,
+        };
+
+        let spec = PdaSpec::new(account_interface, variant, PROGRAM_ID);
+        self.pda_specs.insert(key, spec);
+
+        Ok(())
     }
 
     /// Store LP mint interface.
@@ -267,32 +260,30 @@ impl CpSwapSdk {
             .pool_state_pubkey
             .ok_or(CpSwapSdkError::PoolStateNotParsed)?;
 
-        // Deserialize token data properly
-        let token_data = TokenData::deserialize(&mut &account.data()[..])
+        let token: Token = Token::deserialize(&mut &account.data()[..])
             .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
 
-        // Build variant based on which vault this is
         let variant = if is_vault_0 {
             let token_0_mint = self
                 .token_0_mint
                 .ok_or(CpSwapSdkError::MissingField("token_0_mint"))?;
-            LightAccountVariant::CTokenData(CTokenData {
-                variant: TokenAccountVariant::Token0Vault {
+            LightAccountVariant::Token0Vault(TokenDataWithSeeds {
+                seeds: Token0VaultSeeds {
                     pool_state,
                     token_0_mint,
                 },
-                token_data,
+                token_data: token,
             })
         } else {
             let token_1_mint = self
                 .token_1_mint
                 .ok_or(CpSwapSdkError::MissingField("token_1_mint"))?;
-            LightAccountVariant::CTokenData(CTokenData {
-                variant: TokenAccountVariant::Token1Vault {
+            LightAccountVariant::Token1Vault(TokenDataWithSeeds {
+                seeds: Token1VaultSeeds {
                     pool_state,
                     token_1_mint,
                 },
-                token_data,
+                token_data: token,
             })
         };
 
@@ -313,6 +304,7 @@ impl CpSwapSdk {
             account.clone()
         };
 
+        // Decompression goes to PROGRAM_ID (cp-swap), not interface.account.owner (SPL/Light Token)
         let spec = PdaSpec::new(interface, variant, PROGRAM_ID);
         self.pda_specs.insert(account.key, spec);
 
