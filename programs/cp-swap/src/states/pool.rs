@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
 use light_anchor_spl::token_interface::Mint;
-use light_sdk::LightDiscriminator;
-use light_token::anchor::{CompressionInfo, LightAccount};
+use light_token::anchor::{
+    CompressionInfo, LightAccount, LightDiscriminatorTrait as LightDiscriminator,
+};
 use std::ops::{BitAnd, BitOr, BitXor};
 
 pub const POOL_SEED: &str = "pool";
@@ -26,7 +27,7 @@ pub enum PoolStatusBitFlag {
 #[account]
 #[repr(C)]
 pub struct PoolState {
-    pub compression_info: Option<CompressionInfo>,
+    pub compression_info: CompressionInfo,
     pub amm_config: Pubkey,
     pub pool_creator: Pubkey,
     pub token_0_vault: Pubkey,

@@ -213,6 +213,7 @@ pub fn deposit(
         authority: ctx.accounts.authority.to_account_info(),
         system_program: ctx.accounts.system_program.to_account_info(),
         max_top_up: None,
+        fee_payer: None,
     }
     .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]])?;
     pool_state.recent_epoch = Clock::get()?.epoch;
