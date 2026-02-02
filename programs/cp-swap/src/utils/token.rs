@@ -27,9 +27,10 @@ const ACCOUNT_TYPE_MINT: u8 = 1;
 /// For extended mints (>82 bytes), validates byte 165 == 1 (Mint type).
 fn get_mint_decimals(mint_data: &[u8]) -> Result<u8> {
     // For extended mints, verify account type is Mint (byte 165 == 1)
-    if mint_data.len() > ACCOUNT_TYPE_OFFSET && mint_data[ACCOUNT_TYPE_OFFSET] != ACCOUNT_TYPE_MINT
-    {
-        return err!(ErrorCode::InvalidAccountData);
+    if mint_data.len() > ACCOUNT_TYPE_OFFSET {
+        if mint_data[ACCOUNT_TYPE_OFFSET] != ACCOUNT_TYPE_MINT {
+            return err!(ErrorCode::InvalidAccountData);
+        }
     }
 
     // Use first 82 bytes for SPL compatibility
@@ -42,7 +43,7 @@ fn get_mint_decimals(mint_data: &[u8]) -> Result<u8> {
     Ok(mint_state.base.decimals)
 }
 
-const MINT_WHITELIST: [&str; 4] = [
+const MINT_WHITELIST: [&'static str; 4] = [
     "HVbpJAQGNpkgBaYBZQBR1t7yFdvaYVp2vCQQfKKEN4tM",
     "Crn4x1Y2HUKko7ox2EZMT6N2t2ZyH7eKtwkBGVnhEq1g",
     "FrBfWJ4qE5sCzKm3k3JaAtqZcXUh4LvJygDeketsrsH4",

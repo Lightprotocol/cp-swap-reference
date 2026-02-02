@@ -25,7 +25,7 @@ impl CheckedCeilDiv for u128 {
         // fail.
         if quotient == 0 {
             // return None;
-            if self.checked_mul(2_u128)? >= rhs {
+            if self.checked_mul(2 as u128)? >= rhs {
                 return Some((1, 0));
             } else {
                 return Some((0, 0));
