@@ -161,14 +161,12 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     )
     .ok_or(ErrorCode::ZeroTradingTokens)?;
 
-    let constant_after = u128::from(
-        result
-            .new_swap_source_amount
-            .checked_sub(result.trade_fee)
-            .unwrap(),
-    )
-    .checked_mul(u128::from(result.new_swap_destination_amount))
-    .unwrap();
+    let constant_after = result
+        .new_swap_source_amount
+        .checked_sub(result.trade_fee)
+        .unwrap()
+        .checked_mul(result.new_swap_destination_amount)
+        .unwrap();
     #[cfg(feature = "enable-log")]
     msg!(
         "source_amount_swapped:{}, destination_amount_swapped:{}, trade_fee:{}, constant_before:{},constant_after:{}",

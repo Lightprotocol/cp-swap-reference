@@ -364,35 +364,35 @@ impl CpSwapSdk {
     pub fn is_pool_state_cold(&self) -> bool {
         self.pool_state_pubkey
             .and_then(|k| self.pda_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
+            .is_some_and(|s| s.is_cold())
     }
 
     /// Check if observation state is cold.
     pub fn is_observation_cold(&self) -> bool {
         self.observation_key
             .and_then(|k| self.pda_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
+            .is_some_and(|s| s.is_cold())
     }
 
     /// Check if token 0 vault is cold.
     pub fn is_vault_0_cold(&self) -> bool {
         self.token_0_vault
             .and_then(|k| self.pda_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
+            .is_some_and(|s| s.is_cold())
     }
 
     /// Check if token 1 vault is cold.
     pub fn is_vault_1_cold(&self) -> bool {
         self.token_1_vault
             .and_then(|k| self.pda_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
+            .is_some_and(|s| s.is_cold())
     }
 
     /// Check if LP mint is cold.
     pub fn is_lp_mint_cold(&self) -> bool {
         self.lp_mint
             .and_then(|k| self.mint_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
+            .is_some_and(|s| s.is_cold())
     }
 
     /// Get pool state pubkey.

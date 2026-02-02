@@ -25,8 +25,8 @@ impl ConstantProductCurve {
         // delta_y = (delta_x * y) / (x + delta_x)
         let numerator = source_amount.checked_mul(swap_destination_amount).unwrap();
         let denominator = swap_source_amount.checked_add(source_amount).unwrap();
-        let destinsation_amount_swapped = numerator.checked_div(denominator).unwrap();
-        destinsation_amount_swapped
+
+        numerator.checked_div(denominator).unwrap()
     }
 
     pub fn swap_base_output_without_fees(

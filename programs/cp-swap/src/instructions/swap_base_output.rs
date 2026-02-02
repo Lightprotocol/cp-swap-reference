@@ -90,14 +90,12 @@ pub fn swap_base_output(
     )
     .ok_or(ErrorCode::ZeroTradingTokens)?;
 
-    let constant_after = u128::from(
-        result
-            .new_swap_source_amount
-            .checked_sub(result.trade_fee)
-            .unwrap(),
-    )
-    .checked_mul(u128::from(result.new_swap_destination_amount))
-    .unwrap();
+    let constant_after = result
+        .new_swap_source_amount
+        .checked_sub(result.trade_fee)
+        .unwrap()
+        .checked_mul(result.new_swap_destination_amount)
+        .unwrap();
 
     #[cfg(feature = "enable-log")]
     msg!(

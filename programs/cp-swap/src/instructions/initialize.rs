@@ -284,7 +284,7 @@ pub fn initialize<'info>(
             &system_instruction::transfer(
                 ctx.accounts.creator.key,
                 &ctx.accounts.create_pool_fee.key(),
-                u64::from(ctx.accounts.amm_config.create_pool_fee),
+                ctx.accounts.amm_config.create_pool_fee,
             ),
             &[
                 ctx.accounts.creator.to_account_info(),

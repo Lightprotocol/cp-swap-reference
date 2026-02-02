@@ -49,10 +49,7 @@ pub mod admin {
     use super::{pubkey, Pubkey};
     #[cfg(feature = "devnet")]
     pub const ID: Pubkey = pubkey!("adMCyoCgfkg7bQiJ9aBJ59H3BXLY3r5LNLfPpQfMzBe");
-    #[cfg(all(not(feature = "devnet"), not(feature = "test-sbf")))]
-    pub const ID: Pubkey = pubkey!("AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9");
-    // Test admin - pubkey derived from Keypair::from_seed(&[1u8; 32])
-    #[cfg(feature = "test-sbf")]
+    #[cfg(not(feature = "devnet"))]
     pub const ID: Pubkey = pubkey!("AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9");
 }
 

@@ -1,3 +1,4 @@
+#![allow(clippy::cloned_ref_to_slice_refs)]
 /// Clean integration test for cp-swap using CpSwapSdk.
 /// Tests the full lifecycle: Initialize -> Wait -> Compress -> Load -> Execute Operations
 use light_client::interface::{create_load_instructions, AccountSpec, LightProgramInterface};

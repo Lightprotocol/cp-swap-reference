@@ -1,7 +1,10 @@
-///! 128 and 256 bit numbers
-///! U128 is more efficient that u128
-///! https://github.com/solana-labs/solana/issues/19549
+//! 128 and 256 bit numbers
+//! U128 is more efficient that u128
+//! https://github.com/solana-labs/solana/issues/19549
+#![allow(clippy::manual_div_ceil, clippy::reversed_empty_ranges)]
+
 use uint::construct_uint;
+
 construct_uint! {
     pub struct U128(2);
 }
@@ -22,7 +25,7 @@ impl CheckedCeilDiv for u128 {
         // fail.
         if quotient == 0 {
             // return None;
-            if self.checked_mul(2 as u128)? >= rhs {
+            if self.checked_mul(2_u128)? >= rhs {
                 return Some((1, 0));
             } else {
                 return Some((0, 0));

@@ -1,7 +1,7 @@
 //! Helpers for local tests using LightProgramTest (LiteSVM-based, no external validator).
 //! These tests run faster but require less infrastructure.
 
-#![allow(dead_code)]
+#![allow(dead_code, deprecated, clippy::too_many_arguments)]
 
 use anchor_lang::{InstructionData, ToAccountMetas};
 use light_anchor_spl::memo::spl_memo;
@@ -35,7 +35,6 @@ use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_sdk::{bpf_loader_upgradeable, program_pack::Pack, signature::SeedDerivable};
 use solana_signer::Signer;
-use spl_token_2022;
 
 // ============================================================================
 // Constants
@@ -46,7 +45,7 @@ fn rent_sponsor() -> Pubkey {
 }
 
 pub fn light_token_program_id() -> Pubkey {
-    Pubkey::from(LIGHT_TOKEN_PROGRAM_ID)
+    LIGHT_TOKEN_PROGRAM_ID
 }
 
 // ============================================================================
@@ -674,9 +673,9 @@ pub fn build_initialize_instruction(
         system_program: solana_sdk::system_program::ID,
         rent: solana_sdk::sysvar::rent::ID,
         compression_config: config_pda,
-        light_token_config: Pubkey::from(LIGHT_TOKEN_CONFIG),
+        light_token_config: LIGHT_TOKEN_CONFIG,
         pda_rent_sponsor: raydium_cp_swap::program_rent_sponsor(),
-        light_token_rent_sponsor: Pubkey::from(LIGHT_TOKEN_RENT_SPONSOR),
+        light_token_rent_sponsor: LIGHT_TOKEN_RENT_SPONSOR,
         light_token_program: light_token_program_id(),
         light_token_cpi_authority: CPI_AUTHORITY_PDA,
     };

@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, clippy::too_many_arguments, clippy::useless_vec)]
 
 /// Functional integration test for cp-swap program.
 /// Tests pool initialization with light test-validator and photon indexer.
@@ -53,7 +53,6 @@ use solana_message::AddressLookupTableAccount;
 use solana_pubkey::Pubkey;
 use solana_sdk::{program_pack::Pack, signature::SeedDerivable};
 use solana_signer::Signer;
-use spl_token_2022;
 use tokio::sync::OnceCell;
 
 static VALIDATOR_INIT: OnceCell<()> = OnceCell::const_new();
@@ -72,7 +71,7 @@ fn rent_sponsor() -> Pubkey {
 }
 
 pub fn light_token_program_id() -> Pubkey {
-    Pubkey::from(LIGHT_TOKEN_PROGRAM_ID)
+    LIGHT_TOKEN_PROGRAM_ID
 }
 
 // ============================================================================
@@ -313,7 +312,7 @@ async fn ensure_validator_running_with_forester(program_id: Pubkey) {
         .map(|dir| format!("{}/raydium_cp_swap.so", dir))
         .unwrap_or_else(|_| {
             let cwd = std::env::current_dir().expect("Failed to get current directory");
-            let candidates = vec![
+            let candidates = [
                 cwd.join("target/deploy/raydium_cp_swap.so"),
                 cwd.join("../../target/deploy/raydium_cp_swap.so"),
                 cwd.parent()
@@ -1293,9 +1292,9 @@ pub fn build_initialize_instruction(
         system_program: solana_sdk::system_program::ID,
         rent: solana_sdk::sysvar::rent::ID,
         compression_config: config_pda,
-        light_token_config: Pubkey::from(LIGHT_TOKEN_CONFIG),
+        light_token_config: LIGHT_TOKEN_CONFIG,
         pda_rent_sponsor: raydium_cp_swap::program_rent_sponsor(),
-        light_token_rent_sponsor: Pubkey::from(LIGHT_TOKEN_RENT_SPONSOR),
+        light_token_rent_sponsor: LIGHT_TOKEN_RENT_SPONSOR,
         light_token_program: light_token_program_id(),
         light_token_cpi_authority: CPI_AUTHORITY_PDA,
     };
