@@ -154,11 +154,12 @@ jobs:
           just programs build
           just cli build
 
-      - name: Add light CLI to PATH
+      - name: Install light CLI globally
         run: |
-          echo "${{ github.workspace }}/light-protocol/cli/bin" >> $GITHUB_PATH
-          # Also make the CLI executable via npx/pnpm
-          cd light-protocol/cli && pnpm link --global
+          # Install the CLI globally so find_light_bin() can discover it
+          cd light-protocol/cli && npm install -g .
+          # Verify the CLI is accessible
+          which light
 
       - name: Download program artifact
         uses: actions/download-artifact@v4
@@ -261,11 +262,12 @@ jobs:
           just programs build
           just cli build
 
-      - name: Add light CLI to PATH
+      - name: Install light CLI globally
         run: |
-          echo "${{ github.workspace }}/light-protocol/cli/bin" >> $GITHUB_PATH
-          # Also make the CLI executable via npx/pnpm
-          cd light-protocol/cli && pnpm link --global
+          # Install the CLI globally so find_light_bin() can discover it
+          cd light-protocol/cli && npm install -g .
+          # Verify the CLI is accessible
+          which light
 
       - name: Download program artifact
         uses: actions/download-artifact@v4
