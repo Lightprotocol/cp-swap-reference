@@ -1,4 +1,15 @@
 #![allow(deprecated)]
+#![allow(clippy::redundant_static_lifetimes)]
+#![allow(clippy::let_and_return)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::needless_question_mark)]
+#![allow(clippy::needless_bool)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::suspicious_doc_comments)]
+#![allow(clippy::manual_div_ceil)]
+#![allow(clippy::bool_assert_comparison)]
+#![allow(clippy::reversed_empty_ranges)]
+#![allow(clippy::collapsible_if)]
 
 pub mod curve;
 pub mod error;
