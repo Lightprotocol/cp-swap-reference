@@ -145,8 +145,8 @@ async fn test_full_lifecycle() {
     // ========================================================================
     // Swap (token_0 -> token_1)
     // ========================================================================
-    // Pool should be open immediately since open_time = 0
-    // (In a real validator we can't warp time, so we use open_time = 0)
+    // Warp time forward so pool is open for swaps (open_time = block_timestamp + 1)
+    env.rpc.warp_to_slot(100).await.unwrap();
 
     let token_0_balance_before = get_token_balance(&mut env.rpc, tokens.creator_token_0).await;
     let token_1_balance_before = get_token_balance(&mut env.rpc, tokens.creator_token_1).await;

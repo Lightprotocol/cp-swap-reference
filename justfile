@@ -72,17 +72,50 @@ info:
 
 # === Development ===
 
+# Payer pubkey for upgradeable program deployment
+payer_pubkey := "ALA2cnz41Wa2v2EYUdkYHsg7VnKsbH1j7secM5aiP8k"
+accounts_dir := root_dir / "programs/cp-swap/tests/accounts"
+
 # Start light test-validator in foreground (for manual testing)
-start-validator:
-    light test-validator
+start-validator: _stop-validator _clean-ledger
+    @echo "Starting light test-validator with cp-swap program (foreground)..."
+    light test-validator \
+        --limit-ledger-size 50000000 \
+        --upgradeable-program CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C target/deploy/raydium_cp_swap.so "{{payer_pubkey}}" \
+        --account-dir "{{accounts_dir}}"
 
 # Start light test-validator in background with cp-swap program
-start-validator-background:
-    ./scripts/start-validator.sh
+start-validator-background: _stop-validator _clean-ledger
+    @echo "Starting light test-validator with cp-swap program..."
+    light test-validator \
+        --limit-ledger-size 50000000 \
+        --upgradeable-program CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C target/deploy/raydium_cp_swap.so "{{payer_pubkey}}" \
+        --account-dir "{{accounts_dir}}" &
+    @echo "Waiting for validator to start..."
+    @for i in $(seq 1 120); do \
+        if curl -s -X POST http://localhost:8899 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' 2>/dev/null | grep -q '"result"'; then \
+            echo "Validator is ready!"; \
+            exit 0; \
+        fi; \
+        sleep 1; \
+    done; \
+    echo "Validator failed to start within 120 seconds"; \
+    exit 1
 
 # Stop light test-validator
 stop-validator:
     light test-validator --stop 2>/dev/null || true
+
+# Internal: stop any existing validator
+_stop-validator:
+    @echo "Stopping any existing validator..."
+    @light test-validator --stop 2>/dev/null || true
+    @sleep 2
+
+# Internal: clean old ledger
+_clean-ledger:
+    @echo "Cleaning old ledger..."
+    @rm -rf test-ledger
 
 # Watch and rebuild on changes
 watch:

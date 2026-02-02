@@ -247,22 +247,24 @@ async fn ensure_validator_running(program_id: Pubkey) {
 
     let payer = get_payer_keypair();
 
-    // Create the pool fee receiver account file for preloading
-    let fee_receiver_file = create_pool_fee_receiver_account_file();
-    let fee_receiver_address = raydium_cp_swap::create_pool_fee_receiver::ID;
+    // Find the accounts directory containing the fee receiver account JSON
+    let cwd = std::env::current_dir().expect("Failed to get current directory");
+    let accounts_dir = cwd
+        .join("programs/cp-swap/tests/accounts")
+        .canonicalize()
+        .unwrap_or_else(|_| cwd.join("tests/accounts"));
 
     // Build the command using the light CLI from PATH
-    // Note: --account must be passed via --validator-args since it's a solana-test-validator flag
+    // Use --account-dir to load the fee receiver account
     let cmd = format!(
         "light test-validator \
          --limit-ledger-size 50000000 \
          --upgradeable-program {} {} {} \
-         --validator-args '--account {} {}'",
+         --account-dir {}",
         program_id,
         program_path,
         payer.pubkey(),
-        fee_receiver_address,
-        fee_receiver_file
+        accounts_dir.display()
     );
 
     println!("Starting validator with command: {}", cmd);
@@ -336,9 +338,12 @@ async fn ensure_validator_running_with_forester(program_id: Pubkey) {
 
     let payer = get_payer_keypair();
 
-    // Create the pool fee receiver account file for preloading
-    let fee_receiver_file = create_pool_fee_receiver_account_file();
-    let fee_receiver_address = raydium_cp_swap::create_pool_fee_receiver::ID;
+    // Find the accounts directory containing the fee receiver account JSON
+    let cwd = std::env::current_dir().expect("Failed to get current directory");
+    let accounts_dir = cwd
+        .join("programs/cp-swap/tests/accounts")
+        .canonicalize()
+        .unwrap_or_else(|_| cwd.join("tests/accounts"));
 
     // Get discriminators from the actual types via LightDiscriminator trait
     let pool_state_disc_b58 = bs58::encode(PoolState::LIGHT_DISCRIMINATOR).into_string();
@@ -351,14 +356,17 @@ async fn ensure_validator_running_with_forester(program_id: Pubkey) {
     // With max_funded_epochs=2 in RentConfig::default(), accounts become compressible after 2 epochs.
     // Using 32 slots/epoch means accounts become compressible after ~64 slots (~26 seconds at 400ms/slot).
     let slots_per_epoch = 32;
+    // Note: Use --no-use-surfpool for forester mode because forester requires solana-test-validator
     let cmd = format!(
         "light test-validator \
          --limit-ledger-size 50000000 \
          --upgradeable-program {} {} {} \
          --forester \
+         --no-use-surfpool \
          --compressible-pda-program {}:{} \
          --compressible-pda-program {}:{} \
-         --validator-args '--account {} {} --slots-per-epoch {}'",
+         --account-dir {} \
+         --validator-args '--slots-per-epoch {}'",
         program_id,
         program_path,
         payer.pubkey(),
@@ -366,8 +374,7 @@ async fn ensure_validator_running_with_forester(program_id: Pubkey) {
         pool_state_disc_b58,
         program_id,
         observation_state_disc_b58,
-        fee_receiver_address,
-        fee_receiver_file,
+        accounts_dir.display(),
         slots_per_epoch
     );
 
