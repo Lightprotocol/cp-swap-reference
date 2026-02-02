@@ -17,7 +17,7 @@ env:
   LIGHT_PROTOCOL_COMMIT: "4fa7d8941d698930b1dcfb618cc4901f95320b5c"
   # Versions from light-protocol at that commit
   SOLANA_VERSION: "2.2.15"
-  RUST_VERSION: "1.85"
+  RUST_VERSION: "1.93"
   NODE_VERSION: "22"
   PNPM_VERSION: "9.15.4"
   PHOTON_VERSION: "0.51.2"
