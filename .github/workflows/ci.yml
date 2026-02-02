@@ -108,6 +108,43 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Cache light-protocol
+        id: cache-light-protocol
+        uses: actions/cache@v4
+        with:
+          path: |
+            light-protocol
+            light-protocol/node_modules
+            light-protocol/target/deploy/*.so
+          key: ${{ runner.os }}-light-protocol-${{ env.LIGHT_PROTOCOL_COMMIT }}
+
+      - name: Clone and build light-protocol
+        if: steps.cache-light-protocol.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/Lightprotocol/light-protocol.git
+          cd light-protocol
+          git checkout ${{ env.LIGHT_PROTOCOL_COMMIT }}
+
+          just install
+          just programs build
+          just cli build
+
+      - name: Add light CLI to PATH
+        run: |
+          echo "${{ github.workspace }}/light-protocol/cli/bin" >> $GITHUB_PATH
+          # Also make the CLI executable via npx/pnpm
+          cd light-protocol/cli && pnpm link --global
+
       - name: Download program artifact
         uses: actions/download-artifact@v4
         with:
