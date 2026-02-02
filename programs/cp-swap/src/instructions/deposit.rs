@@ -6,8 +6,8 @@ use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use light_anchor_spl::token::Token;
 use light_anchor_spl::token_interface::Token2022;
+use light_anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use light_token::instruction::MintToCpi;
-use light_anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {

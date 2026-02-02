@@ -17,8 +17,6 @@ use light_client::{
         LightClient, LightClientConfig, Rpc,
     },
 };
-use light_sdk::compressed_account::derive_address;
-use light_sdk::light_account_checks::discriminator::DISCRIMINATOR_LEN;
 use light_program_test::accounts::test_keypairs::PAYER_KEYPAIR;
 use light_registry::{
     protocol_config::state::ProtocolConfigPda,
@@ -29,6 +27,9 @@ use light_registry::{
     utils::{get_forester_pda, get_protocol_config_pda_address},
     ForesterConfig as RegistryForesterConfig,
 };
+use light_sdk::compressed_account::derive_address;
+use light_sdk::light_account_checks::discriminator::DISCRIMINATOR_LEN;
+use light_sdk::LightDiscriminator;
 use light_token::{
     constants::CPI_AUTHORITY_PDA,
     constants::LIGHT_TOKEN_PROGRAM_ID,
@@ -37,11 +38,12 @@ use light_token::{
         CreateMint, CreateMintParams, MintTo, LIGHT_TOKEN_CONFIG, LIGHT_TOKEN_RENT_SPONSOR,
     },
 };
-use light_sdk::LightDiscriminator;
 use raydium_cp_swap::{
     instructions::initialize::LP_MINT_SIGNER_SEED,
     program_rent_sponsor,
-    states::{AMM_CONFIG_SEED, OBSERVATION_SEED, POOL_SEED, POOL_VAULT_SEED, ObservationState, PoolState},
+    states::{
+        ObservationState, PoolState, AMM_CONFIG_SEED, OBSERVATION_SEED, POOL_SEED, POOL_VAULT_SEED,
+    },
     InitializeParams, AUTH_SEED,
 };
 use solana_commitment_config::CommitmentConfig;
@@ -162,16 +164,46 @@ fn create_pool_fee_receiver_account_file() -> String {
     // Write to temp file
     let tmp_dir = std::env::temp_dir();
     let file_path: PathBuf = tmp_dir.join("pool_fee_receiver.json");
-    fs::write(&file_path, serde_json::to_string_pretty(&account_json).unwrap())
-        .expect("Failed to write pool fee receiver account file");
+    fs::write(
+        &file_path,
+        serde_json::to_string_pretty(&account_json).unwrap(),
+    )
+    .expect("Failed to write pool fee receiver account file");
 
     file_path.to_string_lossy().to_string()
 }
 
+/// Check if validator is already running by testing RPC endpoint.
+async fn is_validator_running() -> bool {
+    use reqwest::Client;
+    let client = Client::new();
+    match client
+        .post("http://localhost:8899")
+        .header("Content-Type", "application/json")
+        .body(r#"{"jsonrpc":"2.0","id":1,"method":"getHealth"}"#)
+        .send()
+        .await
+    {
+        Ok(resp) => resp
+            .text()
+            .await
+            .map(|t| t.contains("\"ok\""))
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
 /// Spawn the test-validator with cp-swap program deployed.
 /// This is called once per test run via Once.
+/// If validator is already running (e.g., started by justfile), skip spawning.
 async fn ensure_validator_running(program_id: Pubkey) {
     use std::process::{Command, Stdio};
+
+    // Check if validator is already running
+    if is_validator_running().await {
+        println!("Validator already running, skipping spawn");
+        return;
+    }
 
     // Stop any existing validator first
     println!("Stopping any existing validator...");
@@ -195,10 +227,17 @@ async fn ensure_validator_running(program_id: Pubkey) {
             let candidates = vec![
                 cwd.join("target/deploy/raydium_cp_swap.so"),
                 cwd.join("../../target/deploy/raydium_cp_swap.so"), // From programs/cp-swap
-                cwd.parent().unwrap().join("target/deploy/raydium_cp_swap.so"),
-                cwd.parent().unwrap().parent().unwrap().join("target/deploy/raydium_cp_swap.so"),
+                cwd.parent()
+                    .unwrap()
+                    .join("target/deploy/raydium_cp_swap.so"),
+                cwd.parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .join("target/deploy/raydium_cp_swap.so"),
             ];
-            candidates.iter()
+            candidates
+                .iter()
                 .find(|p| p.exists())
                 .expect("Could not find raydium_cp_swap.so - run `cargo build-sbf` first")
                 .canonicalize()
@@ -245,12 +284,17 @@ async fn ensure_validator_running(program_id: Pubkey) {
     tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
 }
 
-
 /// Spawn the test-validator with cp-swap program deployed AND forester for auto-compression.
 /// This is for tests that need to verify compression behavior.
 #[allow(dead_code)]
 async fn ensure_validator_running_with_forester(program_id: Pubkey) {
     use std::process::{Command, Stdio};
+
+    // Check if validator is already running
+    if is_validator_running().await {
+        println!("Validator already running, skipping spawn");
+        return;
+    }
 
     // Stop any existing validator first
     println!("Stopping any existing validator...");
@@ -272,10 +316,17 @@ async fn ensure_validator_running_with_forester(program_id: Pubkey) {
             let candidates = vec![
                 cwd.join("target/deploy/raydium_cp_swap.so"),
                 cwd.join("../../target/deploy/raydium_cp_swap.so"),
-                cwd.parent().unwrap().join("target/deploy/raydium_cp_swap.so"),
-                cwd.parent().unwrap().parent().unwrap().join("target/deploy/raydium_cp_swap.so"),
+                cwd.parent()
+                    .unwrap()
+                    .join("target/deploy/raydium_cp_swap.so"),
+                cwd.parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .join("target/deploy/raydium_cp_swap.so"),
             ];
-            candidates.iter()
+            candidates
+                .iter()
                 .find(|p| p.exists())
                 .expect("Could not find raydium_cp_swap.so - run `cargo build-sbf` first")
                 .canonicalize()
@@ -292,7 +343,8 @@ async fn ensure_validator_running_with_forester(program_id: Pubkey) {
 
     // Get discriminators from the actual types via LightDiscriminator trait
     let pool_state_disc_b58 = bs58::encode(PoolState::LIGHT_DISCRIMINATOR).into_string();
-    let observation_state_disc_b58 = bs58::encode(ObservationState::LIGHT_DISCRIMINATOR).into_string();
+    let observation_state_disc_b58 =
+        bs58::encode(ObservationState::LIGHT_DISCRIMINATOR).into_string();
 
     // Build the command with forester enabled
     // Format for compressible-pda-program: 'program_id:discriminator_base58'
@@ -311,8 +363,10 @@ async fn ensure_validator_running_with_forester(program_id: Pubkey) {
         program_id,
         program_path,
         payer.pubkey(),
-        program_id, pool_state_disc_b58,
-        program_id, observation_state_disc_b58,
+        program_id,
+        pool_state_disc_b58,
+        program_id,
+        observation_state_disc_b58,
         fee_receiver_address,
         fee_receiver_file,
         slots_per_epoch
@@ -352,7 +406,10 @@ async fn register_forester(rpc: &mut LightClient) -> Result<Keypair, Box<dyn std
     // Fund governance authority if needed
     let gov_balance = rpc.get_balance(&governance_pubkey).await.unwrap_or(0);
     if gov_balance < 10_000_000_000 {
-        println!("Funding governance authority {} with 10 SOL", governance_pubkey);
+        println!(
+            "Funding governance authority {} with 10 SOL",
+            governance_pubkey
+        );
         rpc.airdrop_lamports(&governance_pubkey, 10_000_000_000 - gov_balance)
             .await?;
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -419,16 +476,28 @@ async fn register_forester(rpc: &mut LightClient) -> Result<Keypair, Box<dyn std
                 "Already in active phase, registering for next epoch {}, phases: {:?}",
                 next_epoch, next_phases
             );
-            (next_epoch, next_phases.registration.start, next_phases.active.start)
+            (
+                next_epoch,
+                next_phases.registration.start,
+                next_phases.active.start,
+            )
         } else if current_slot >= phases.registration.start {
             println!("In registration phase for epoch {}", current_epoch);
-            (current_epoch, phases.registration.start, phases.active.start)
+            (
+                current_epoch,
+                phases.registration.start,
+                phases.active.start,
+            )
         } else {
             println!(
                 "Waiting for registration phase (starts at slot {})",
                 phases.registration.start
             );
-            (current_epoch, phases.registration.start, phases.active.start)
+            (
+                current_epoch,
+                phases.registration.start,
+                phases.active.start,
+            )
         };
 
     // Wait for registration phase
@@ -497,7 +566,10 @@ pub async fn wait_for_indexer(rpc: &LightClient) -> Result<(), String> {
             Ok(i) => i,
             Err(e) => {
                 if attempt % 10 == 0 {
-                    println!("Waiting for indexer connection... attempt {}: {}", attempt, e);
+                    println!(
+                        "Waiting for indexer connection... attempt {}: {}",
+                        attempt, e
+                    );
                 }
                 tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                 continue;
@@ -516,7 +588,10 @@ pub async fn wait_for_indexer(rpc: &LightClient) -> Result<(), String> {
         };
 
         if indexer_slot >= rpc_slot.saturating_sub(5) {
-            println!("Indexer synced! RPC slot: {}, Indexer slot: {}", rpc_slot, indexer_slot);
+            println!(
+                "Indexer synced! RPC slot: {}, Indexer slot: {}",
+                rpc_slot, indexer_slot
+            );
             return Ok(());
         }
 
@@ -561,12 +636,12 @@ async fn setup_test_environment_inner(program_id: Pubkey, with_forester: bool) -
 
     // Connect to the running validator
     let config = LightClientConfig::local();
-    let mut rpc = <LightClient as Rpc>::new(config).await.expect("Failed to connect to validator");
+    let mut rpc = <LightClient as Rpc>::new(config)
+        .await
+        .expect("Failed to connect to validator");
 
     // Wait for indexer to be synced before proceeding
-    wait_for_indexer(&rpc)
-        .await
-        .expect("Indexer should sync");
+    wait_for_indexer(&rpc).await.expect("Indexer should sync");
 
     // Fetch state trees from the validator (populates the internal cache)
     rpc.get_latest_active_state_trees()
@@ -805,7 +880,13 @@ pub async fn create_amm_config(
     );
 
     // Check if already exists (idempotent for test reruns with persisted ledger)
-    if rpc.get_account(amm_config_pda).await.ok().flatten().is_some() {
+    if rpc
+        .get_account(amm_config_pda)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+    {
         println!("AmmConfig already exists at {}", amm_config_pda);
         return amm_config_pda;
     }
@@ -849,7 +930,10 @@ pub async fn setup_create_pool_fee_account(
 
     // Check if account already exists (should be preloaded by validator)
     if let Ok(Some(_)) = rpc.get_account(create_pool_fee_receiver).await {
-        println!("Pool fee receiver account exists at {}", create_pool_fee_receiver);
+        println!(
+            "Pool fee receiver account exists at {}",
+            create_pool_fee_receiver
+        );
         return;
     }
 
@@ -1440,7 +1524,7 @@ pub async fn compress_pda_account(
 
     // Build program metas for compress_accounts_idempotent
     let program_metas = vec![
-        AccountMeta::new(payer.pubkey(), true),       // fee_payer
+        AccountMeta::new(payer.pubkey(), true),        // fee_payer
         AccountMeta::new_readonly(*config_pda, false), // config
         AccountMeta::new(rent_sponsor, false),         // rent_sponsor
         AccountMeta::new_readonly(compression_authority, false), // compression_authority
@@ -1503,12 +1587,19 @@ pub async fn setup_pool_environment(program_id: Pubkey, amm_config_index: u16) -
 }
 
 /// Setup a complete pool environment with forester for auto-compression tests.
-pub async fn setup_pool_environment_with_forester(program_id: Pubkey, amm_config_index: u16) -> PoolSetup {
+pub async fn setup_pool_environment_with_forester(
+    program_id: Pubkey,
+    amm_config_index: u16,
+) -> PoolSetup {
     setup_pool_environment_inner(program_id, amm_config_index, true).await
 }
 
 /// Internal helper for pool environment setup.
-async fn setup_pool_environment_inner(program_id: Pubkey, amm_config_index: u16, with_forester: bool) -> PoolSetup {
+async fn setup_pool_environment_inner(
+    program_id: Pubkey,
+    amm_config_index: u16,
+    with_forester: bool,
+) -> PoolSetup {
     let mut env = if with_forester {
         setup_test_environment_with_forester(program_id).await
     } else {

@@ -293,7 +293,9 @@ impl CpSwapSdk {
             let compressed_account = match &account.cold {
                 Some(ColdContext::Token(ct)) => ct.account.clone(),
                 Some(ColdContext::Account(ca)) => ca.clone(),
-                Some(ColdContext::Mint(_)) => return Err(CpSwapSdkError::MissingField("unexpected mint cold context")),
+                Some(ColdContext::Mint(_)) => {
+                    return Err(CpSwapSdkError::MissingField("unexpected mint cold context"))
+                }
                 None => return Err(CpSwapSdkError::MissingField("cold_context")),
             };
             AccountInterface {
@@ -412,14 +414,21 @@ impl LightProgramInterface for CpSwapSdk {
         let mut sdk = Self::new();
 
         // Debug: print expected discriminator
-        println!("DEBUG: Expected PoolState::LIGHT_DISCRIMINATOR = {:?}", PoolState::LIGHT_DISCRIMINATOR);
+        println!(
+            "DEBUG: Expected PoolState::LIGHT_DISCRIMINATOR = {:?}",
+            PoolState::LIGHT_DISCRIMINATOR
+        );
 
         // First pass: find and parse pool state
         for account in accounts {
             let data = account.data();
             if data.len() >= 8 {
                 let discriminator: [u8; 8] = data[..8].try_into().unwrap_or_default();
-                println!("DEBUG: Account discriminator = {:?}, matches = {}", discriminator, discriminator == PoolState::LIGHT_DISCRIMINATOR);
+                println!(
+                    "DEBUG: Account discriminator = {:?}, matches = {}",
+                    discriminator,
+                    discriminator == PoolState::LIGHT_DISCRIMINATOR
+                );
                 if discriminator == PoolState::LIGHT_DISCRIMINATOR {
                     sdk.parse_pool_state(account.clone())?;
                     break;

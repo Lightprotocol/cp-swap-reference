@@ -1,0 +1,244 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Light protocol commit that cp-swap-reference depends on
+  LIGHT_PROTOCOL_COMMIT: "4fa7d8941d698930b1dcfb618cc4901f95320b5c"
+  # Versions from light-protocol at that commit
+  SOLANA_VERSION: "2.2.15"
+  RUST_VERSION: "1.85"
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.4"
+  PHOTON_VERSION: "0.51.2"
+  PHOTON_COMMIT: "2e32a4e48f95d68a4d99b9384a763f4a4157fe85"
+  SBF_OUT_DIR: target/deploy
+
+jobs:
+  lint:
+    name: Lint
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+
+      - name: Run lint
+        run: just lint
+
+  build:
+    name: Build
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Cache Solana CLI
+        id: cache-solana
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/solana/install
+          key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
+
+      - name: Install Solana CLI
+        if: steps.cache-solana.outputs.cache-hit != 'true'
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+
+      - name: Add Solana to PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Cache program build
+        id: cache-program
+        uses: actions/cache@v4
+        with:
+          path: target/deploy/*.so
+          key: ${{ runner.os }}-program-${{ hashFiles('programs/**/*.rs', 'programs/**/Cargo.toml', 'Cargo.lock') }}
+
+      - name: Build program
+        if: steps.cache-program.outputs.cache-hit != 'true'
+        run: just build
+
+      - name: Upload program artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: program-so
+          path: target/deploy/*.so
+          retention-days: 1
+
+  test-local:
+    name: Local Tests
+    needs: build
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Download program artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: program-so
+          path: target/deploy
+
+      - name: Run local tests
+        run: just test-local
+
+  test-integration:
+    name: Integration Tests
+    needs: build
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      redis:
+        image: redis:8.0.1
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Cache Solana CLI
+        id: cache-solana
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/solana/install
+          key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
+
+      - name: Install Solana CLI
+        if: steps.cache-solana.outputs.cache-hit != 'true'
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+
+      - name: Add Solana to PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Cache Photon
+        id: cache-photon
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/photon
+          key: ${{ runner.os }}-photon-${{ env.PHOTON_VERSION }}-${{ env.PHOTON_COMMIT }}
+
+      - name: Install Photon from git
+        if: steps.cache-photon.outputs.cache-hit != 'true'
+        run: |
+          echo "Installing Photon ${{ env.PHOTON_VERSION }} (commit ${{ env.PHOTON_COMMIT }})..."
+          RUSTFLAGS="-A dead-code" cargo install --git https://github.com/helius-labs/photon.git --rev ${{ env.PHOTON_COMMIT }} --locked --force
+
+      - name: Cache light-protocol
+        id: cache-light-protocol
+        uses: actions/cache@v4
+        with:
+          path: |
+            light-protocol
+            light-protocol/node_modules
+            light-protocol/target/deploy/*.so
+          key: ${{ runner.os }}-light-protocol-${{ env.LIGHT_PROTOCOL_COMMIT }}
+
+      - name: Clone and build light-protocol
+        if: steps.cache-light-protocol.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/Lightprotocol/light-protocol.git
+          cd light-protocol
+          git checkout ${{ env.LIGHT_PROTOCOL_COMMIT }}
+
+          # Use light-protocol's justfile commands
+          just install
+          just programs build
+          just cli build
+
+      - name: Add light CLI to PATH
+        run: |
+          echo "${{ github.workspace }}/light-protocol/cli/bin" >> $GITHUB_PATH
+          # Also make the CLI executable via npx/pnpm
+          cd light-protocol/cli && pnpm link --global
+
+      - name: Download program artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: program-so
+          path: target/deploy
+
+      - name: Generate Solana keypair
+        run: |
+          mkdir -p ~/.config/solana
+          solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json
+
+      - name: Start light test-validator
+        run: |
+          cd light-protocol
+          pnpm --filter=@lightprotocol/zk-compression-cli test-validator &
+          # Wait for validator to be ready
+          sleep 45
+          solana cluster-version || (echo "Validator not ready" && exit 1)
+
+      - name: Run integration tests
+        run: just test-integration
+
+      - name: Display logs on failure
+        if: failure()
+        run: |
+          echo "=== Displaying test-ledger logs ==="
+          find . -path "*/test-ledger/*.log" -type f -exec echo "=== {} ===" \; -exec tail -100 {} \; || echo "No logs found"

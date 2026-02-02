@@ -1,16 +1,16 @@
-/// Functional integration test for cp-swap program.
-/// Tests pool initialization with light test-validator and photon indexer.
+//! Local integration tests for cp-swap program using LightProgramTest.
+//! These tests run with LiteSVM (no external validator required).
+
 use light_client::rpc::Rpc;
-use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_keypair::Keypair;
 use solana_signer::Signer;
 
-mod helpers;
-mod program;
-use helpers::*;
+mod helpers_local;
+use helpers_local::*;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_full_lifecycle() {
+/// Test the full pool lifecycle: Initialize -> Deposit -> Swap -> Withdraw
+#[tokio::test]
+async fn test_full_lifecycle_local() {
     let program_id = raydium_cp_swap::ID;
 
     // ========================================================================
@@ -18,7 +18,7 @@ async fn test_full_lifecycle() {
     // ========================================================================
     let mut env = setup_test_environment(program_id).await;
 
-    // Create and fund creator with more lamports for multiple transactions
+    // Create and fund creator
     let creator = Keypair::new();
     env.rpc
         .airdrop_lamports(&creator.pubkey(), 100_000_000_000)
@@ -32,17 +32,17 @@ async fn test_full_lifecycle() {
         .await
         .unwrap();
 
-    // Setup token mints with larger initial balance for lifecycle operations
+    // Setup token mints with initial balance for lifecycle operations
     let initial_balance = 1_000_000;
     let tokens =
         setup_token_mints(&mut env.rpc, &env.payer, &creator.pubkey(), initial_balance).await;
 
-    // Create AMM config (use index 1 to avoid collision with test_initialize_pool)
+    // Create AMM config
     let amm_config = create_amm_config(&mut env.rpc, &env.payer, &admin, program_id, 1).await;
     assert_amm_config_created(&mut env.rpc, amm_config).await;
 
     // Setup create pool fee account
-    setup_create_pool_fee_account(&mut env.rpc, &env.payer, &env.payer.pubkey()).await;
+    setup_create_pool_fee_account(&mut env.rpc, &env.payer.pubkey());
 
     // Derive PDAs
     let pdas = derive_amm_pdas(
@@ -74,27 +74,14 @@ async fn test_full_lifecycle() {
         0, // open_time = 0 (immediate)
     );
 
-    // Create Address Lookup Table with all accounts from the initialize instruction
-    // This reduces transaction size by referencing accounts via 1-byte indices
-    let lut_addresses = extract_lut_addresses(&proof_result.remaining_accounts);
-    let lut = create_address_lookup_table(&mut env.rpc, &env.payer, lut_addresses).await;
-
-    // Add compute budget instruction - Initialize requires more than default 200k CU
-    let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
-
     env.rpc
-        .create_and_send_versioned_transaction(
-            &[compute_budget_ix, init_instruction],
-            &creator.pubkey(),
-            &[&creator],
-            &[lut],
-        )
+        .create_and_send_transaction(&[init_instruction], &creator.pubkey(), &[&creator])
         .await
         .expect("Initialize should succeed");
 
     assert_pool_initialized(&mut env.rpc, &pdas).await;
 
-    // Check initial LP token balance (should have received initial LP tokens from initialize)
+    // Check initial LP token balance
     let lp_balance_after_init = get_token_balance(&mut env.rpc, pdas.creator_lp_token).await;
     println!("LP balance after init: {}", lp_balance_after_init);
     assert!(
@@ -107,9 +94,8 @@ async fn test_full_lifecycle() {
     // ========================================================================
     let lp_balance_before_deposit = get_token_balance(&mut env.rpc, pdas.creator_lp_token).await;
 
-    // Deposit: request LP tokens, allow 10% slippage on tokens provided
     let deposit_lp_amount = 500;
-    let max_token_0 = 10_000; // Allow generous slippage
+    let max_token_0 = 10_000;
     let max_token_1 = 10_000;
 
     let deposit_instruction = build_deposit_instruction(
@@ -145,15 +131,11 @@ async fn test_full_lifecycle() {
     // ========================================================================
     // Swap (token_0 -> token_1)
     // ========================================================================
-    // Pool should be open immediately since open_time = 0
-    // (In a real validator we can't warp time, so we use open_time = 0)
-
     let token_0_balance_before = get_token_balance(&mut env.rpc, tokens.creator_token_0).await;
     let token_1_balance_before = get_token_balance(&mut env.rpc, tokens.creator_token_1).await;
 
-    // Swap: 100 token_0 for token_1, allow 50% slippage
     let swap_amount_in = 100;
-    let min_amount_out = 1; // Allow high slippage for test stability
+    let min_amount_out = 1;
 
     let swap_instruction = build_swap_instruction(
         program_id,
@@ -161,9 +143,9 @@ async fn test_full_lifecycle() {
         amm_config,
         &pdas,
         &tokens,
-        tokens.creator_token_0, // input
-        tokens.creator_token_1, // output
-        true,                   // is_token_0_input
+        tokens.creator_token_0,
+        tokens.creator_token_1,
+        true,
         swap_amount_in,
         min_amount_out,
     );
@@ -191,12 +173,11 @@ async fn test_full_lifecycle() {
     );
 
     // ========================================================================
-    // Withdraw (burn half of LP tokens)
+    // Withdraw
     // ========================================================================
     let lp_balance_before_withdraw = get_token_balance(&mut env.rpc, pdas.creator_lp_token).await;
     let withdraw_lp_amount = lp_balance_before_withdraw / 2;
 
-    // Allow any amount of tokens out (0 minimum)
     let withdraw_instruction = build_withdraw_instruction(
         program_id,
         creator.pubkey(),
@@ -205,8 +186,8 @@ async fn test_full_lifecycle() {
         tokens.creator_token_0,
         tokens.creator_token_1,
         withdraw_lp_amount,
-        0, // minimum_token_0_amount - accept any
-        0, // minimum_token_1_amount - accept any
+        0,
+        0,
     );
 
     env.rpc
@@ -232,101 +213,21 @@ async fn test_full_lifecycle() {
     println!("Full lifecycle test completed successfully!");
 }
 
-/// Test SDK initialization from fetched accounts and account requirements.
-#[tokio::test(flavor = "multi_thread")]
-async fn test_sdk_from_keyed_accounts() {
-    use light_client::interface::LightProgramInterface;
-    use program::{CpSwapInstruction, CpSwapSdk};
-
+/// Test AMM config creation
+#[tokio::test]
+async fn test_amm_config_local() {
     let program_id = raydium_cp_swap::ID;
 
-    // Setup environment and initialize pool
-    let mut setup = setup_pool_environment(program_id, 2).await;
+    let mut env = setup_test_environment(program_id).await;
 
-    // Initialize pool first (SDK requires actual account data)
-    let proof_result =
-        get_pool_create_accounts_proof(&setup.env.rpc, &program_id, &setup.pdas).await;
-    let init_ix = build_initialize_instruction(
-        program_id,
-        setup.creator.pubkey(),
-        setup.amm_config,
-        &setup.pdas,
-        &setup.tokens,
-        setup.env.config_pda,
-        &proof_result,
-        100_000,
-        100_000,
-        0,
-    );
-
-    // Create Address Lookup Table for the initialize transaction
-    let lut_addresses = extract_lut_addresses(&proof_result.remaining_accounts);
-    let lut =
-        create_address_lookup_table(&mut setup.env.rpc, &setup.env.payer, lut_addresses).await;
-
-    // Add compute budget instruction
-    let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
-
-    setup
-        .env
-        .rpc
-        .create_and_send_versioned_transaction(
-            &[compute_budget_ix, init_ix],
-            &setup.creator.pubkey(),
-            &[&setup.creator],
-            &[lut],
-        )
+    let admin = get_admin_keypair();
+    env.rpc
+        .airdrop_lamports(&admin.pubkey(), 10_000_000_000)
         .await
-        .expect("Initialize should succeed");
+        .unwrap();
 
-    // Fetch pool state account
-    let pool_interface = setup
-        .env
-        .rpc
-        .get_account_interface(&setup.pdas.pool_state, None)
-        .await
-        .expect("get_account_interface should succeed")
-        .value
-        .expect("pool account should exist");
+    let amm_config = create_amm_config(&mut env.rpc, &env.payer, &admin, program_id, 0).await;
+    assert_amm_config_created(&mut env.rpc, amm_config).await;
 
-    // Create SDK from fetched account
-    let sdk = CpSwapSdk::from_keyed_accounts(&[pool_interface])
-        .expect("from_keyed_accounts should succeed");
-
-    // Verify SDK parsed addresses match expected
-    assert_eq!(sdk.pool_state_pubkey, Some(setup.pdas.pool_state));
-    assert_eq!(sdk.observation_key, Some(setup.pdas.observation_state));
-    assert_eq!(sdk.token_0_vault, Some(setup.pdas.token_0_vault));
-    assert_eq!(sdk.token_1_vault, Some(setup.pdas.token_1_vault));
-    assert_eq!(sdk.lp_mint, Some(setup.pdas.lp_mint));
-    assert_eq!(sdk.amm_config, Some(setup.amm_config));
-    assert_eq!(sdk.token_0_mint, Some(setup.tokens.token_0_mint));
-    assert_eq!(sdk.token_1_mint, Some(setup.tokens.token_1_mint));
-
-    // Check account requirements for each instruction type
-    let swap_accounts = sdk.get_accounts_to_update(&CpSwapInstruction::Swap);
-    assert_eq!(
-        swap_accounts.len(),
-        6,
-        "Swap needs 6 accounts: pool, observation, vault0, vault1, mint0, mint1"
-    );
-
-    let deposit_accounts = sdk.get_accounts_to_update(&CpSwapInstruction::Deposit);
-    assert_eq!(
-        deposit_accounts.len(),
-        7,
-        "Deposit needs 7 accounts: pool, observation, vault0, vault1, lp_mint, mint0, mint1"
-    );
-
-    let withdraw_accounts = sdk.get_accounts_to_update(&CpSwapInstruction::Withdraw);
-    assert_eq!(
-        withdraw_accounts.len(),
-        7,
-        "Withdraw needs 7 accounts: pool, observation, vault0, vault1, lp_mint, mint0, mint1"
-    );
-
-    // Verify program_id method
-    assert_eq!(sdk.program_id(), program_id);
-
-    println!("SDK initialization test completed successfully!");
+    println!("AMM config created at: {}", amm_config);
 }

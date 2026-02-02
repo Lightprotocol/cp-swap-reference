@@ -1,8 +1,6 @@
 /// Clean integration test for cp-swap using CpSwapSdk.
 /// Tests the full lifecycle: Initialize -> Wait -> Compress -> Load -> Execute Operations
-use light_client::interface::{
-    create_load_instructions, AccountSpec, LightProgramInterface,
-};
+use light_client::interface::{create_load_instructions, AccountSpec, LightProgramInterface};
 use light_client::rpc::Rpc;
 use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_instruction::Instruction;
@@ -52,7 +50,8 @@ async fn test_sdk_lifecycle() {
 
     // Create Address Lookup Table for the initialize transaction
     let lut_addresses = extract_lut_addresses(&proof_result.remaining_accounts);
-    let lut = create_address_lookup_table(&mut setup.env.rpc, &setup.env.payer, lut_addresses).await;
+    let lut =
+        create_address_lookup_table(&mut setup.env.rpc, &setup.env.payer, lut_addresses).await;
 
     // Add compute budget instruction
     let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
@@ -198,16 +197,19 @@ async fn test_sdk_lifecycle() {
         .expect("get_ata_interface for creator_token_1 should succeed")
         .value
         .expect("creator_token_1 should exist");
+    all_specs.push(AccountSpec::Ata(creator_token_1_interface));
 
     // ==================== PHASE 8: Create Load Instructions ====================
     // Debug: print tree info from the specs
     for spec in &all_specs {
         if let AccountSpec::Pda(pda_spec) = spec {
             if let Some(compressed) = pda_spec.compressed() {
-                println!("DEBUG: PDA spec tree_info: tree={}, queue={}, tree_type={:?}",
+                println!(
+                    "DEBUG: PDA spec tree_info: tree={}, queue={}, tree_type={:?}",
                     compressed.tree_info.tree,
                     compressed.tree_info.queue,
-                    compressed.tree_info.tree_type);
+                    compressed.tree_info.tree_type
+                );
             }
         }
     }
@@ -256,11 +258,7 @@ async fn test_sdk_lifecycle() {
     setup
         .env
         .rpc
-        .create_and_send_transaction(
-            &all_load_ixs,
-            &setup.env.payer.pubkey(),
-            &signers,
-        )
+        .create_and_send_transaction(&all_load_ixs, &setup.env.payer.pubkey(), &signers)
         .await
         .expect("Load should succeed");
 
