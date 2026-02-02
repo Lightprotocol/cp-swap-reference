@@ -32,9 +32,9 @@ bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 blake3 = { workspace = true }
 
-light-sdk = { git = "https://github.com/Lightprotocol/light-protocol", rev = "4fa7d8941d698930b1dcfb618cc4901f95320b5c", features = ["anchor", "anchor-discriminator", "cpi-context"] }
-light-token = { git = "https://github.com/Lightprotocol/light-protocol", rev = "4fa7d8941d698930b1dcfb618cc4901f95320b5c", features = ["anchor", "anchor-discriminator"] }
-light-hasher = { git = "https://github.com/Lightprotocol/light-protocol", rev = "4fa7d8941d698930b1dcfb618cc4901f95320b5c" }
+light-sdk = { git = "https://github.com/Lightprotocol/light-protocol", rev = "e705f24cede040a2452090d8dcf8ae4a9ab1e6aa", features = ["anchor", "cpi-context"] }
+light-token = { git = "https://github.com/Lightprotocol/light-protocol", rev = "e705f24cede040a2452090d8dcf8ae4a9ab1e6aa", features = ["anchor"] }
+light-hasher = { git = "https://github.com/Lightprotocol/light-protocol", rev = "e705f24cede040a2452090d8dcf8ae4a9ab1e6aa" }
 light-anchor-spl = { version = "0.31.1", features = ["memo", "token_2022"] }
 solana-account-info = "2.3"
 solana-program = "2.2"
@@ -48,10 +48,10 @@ quickcheck = "1.0.3"
 proptest = "1.0"
 rand = "0.9.0"
 
-light-program-test = { git = "https://github.com/Lightprotocol/light-protocol", rev = "4fa7d8941d698930b1dcfb618cc4901f95320b5c" }
-light-client = { git = "https://github.com/Lightprotocol/light-protocol", rev = "4fa7d8941d698930b1dcfb618cc4901f95320b5c" }
-light-registry = { git = "https://github.com/Lightprotocol/light-protocol", rev = "4fa7d8941d698930b1dcfb618cc4901f95320b5c" }
-forester-utils = { git = "https://github.com/Lightprotocol/light-protocol", rev = "4fa7d8941d698930b1dcfb618cc4901f95320b5c" }
+light-program-test = { git = "https://github.com/Lightprotocol/light-protocol", rev = "e705f24cede040a2452090d8dcf8ae4a9ab1e6aa" }
+light-client = { git = "https://github.com/Lightprotocol/light-protocol", rev = "e705f24cede040a2452090d8dcf8ae4a9ab1e6aa" }
+light-registry = { git = "https://github.com/Lightprotocol/light-protocol", rev = "e705f24cede040a2452090d8dcf8ae4a9ab1e6aa" }
+forester-utils = { git = "https://github.com/Lightprotocol/light-protocol", rev = "e705f24cede040a2452090d8dcf8ae4a9ab1e6aa" }
 tokio = { version = "1", features = ["full"] }
 spl-token = "7.0.0"
 solana-commitment-config = { version = "2.2" }
