@@ -206,7 +206,7 @@ pub mod pool_test {
                 false
             );
 
-            pool_state.set_status(3); // 0000011
+            pool_state.set_status(3);
             assert_eq!(pool_state.get_status_by_bit(PoolStatusBitIndex::Swap), true);
             assert_eq!(
                 pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit),
