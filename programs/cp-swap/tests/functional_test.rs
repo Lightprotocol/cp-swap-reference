@@ -1,9 +1,8 @@
 /// Functional integration test for cp-swap program.
-/// Tests pool initialization with light-program-test framework.
+/// Tests pool initialization with light test-validator and photon indexer.
 
-use light_client::interface::AccountInterfaceExt;
-use light_program_test::program_test::TestRpc;
-use light_program_test::Rpc;
+use light_client::rpc::Rpc;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_keypair::Keypair;
 use solana_signer::Signer;
 
@@ -11,7 +10,7 @@ mod helpers;
 mod program;
 use helpers::*;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_full_lifecycle() {
     let program_id = raydium_cp_swap::ID;
 
@@ -44,7 +43,7 @@ async fn test_full_lifecycle() {
     assert_amm_config_created(&mut env.rpc, amm_config).await;
 
     // Setup create pool fee account
-    setup_create_pool_fee_account(&mut env.rpc, &env.payer.pubkey());
+    setup_create_pool_fee_account(&mut env.rpc, &env.payer, &env.payer.pubkey()).await;
 
     // Derive PDAs
     let pdas = derive_amm_pdas(
@@ -76,8 +75,21 @@ async fn test_full_lifecycle() {
         0, // open_time = 0 (immediate)
     );
 
+    // Create Address Lookup Table with all accounts from the initialize instruction
+    // This reduces transaction size by referencing accounts via 1-byte indices
+    let lut_addresses = extract_lut_addresses(&proof_result.remaining_accounts);
+    let lut = create_address_lookup_table(&mut env.rpc, &env.payer, lut_addresses).await;
+
+    // Add compute budget instruction - Initialize requires more than default 200k CU
+    let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
+
     env.rpc
-        .create_and_send_transaction(&[init_instruction], &creator.pubkey(), &[&creator])
+        .create_and_send_versioned_transaction(
+            &[compute_budget_ix, init_instruction],
+            &creator.pubkey(),
+            &[&creator],
+            &[lut],
+        )
         .await
         .expect("Initialize should succeed");
 
@@ -131,8 +143,8 @@ async fn test_full_lifecycle() {
     // ========================================================================
     // Swap (token_0 -> token_1)
     // ========================================================================
-    // Warp time forward so pool is open for swaps (open_time = block_timestamp + 1)
-    env.rpc.warp_to_slot(100).unwrap();
+    // Pool should be open immediately since open_time = 0
+    // (In a real validator we can't warp time, so we use open_time = 0)
 
     let token_0_balance_before = get_token_balance(&mut env.rpc, tokens.creator_token_0).await;
     let token_1_balance_before = get_token_balance(&mut env.rpc, tokens.creator_token_1).await;
@@ -219,7 +231,7 @@ async fn test_full_lifecycle() {
 }
 
 /// Test SDK initialization from fetched accounts and account requirements.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_sdk_from_keyed_accounts() {
     use program::{CpSwapSdk, CpSwapInstruction};
     use light_client::interface::LightProgramInterface;
@@ -243,16 +255,31 @@ async fn test_sdk_from_keyed_accounts() {
         100_000,
         0,
     );
+
+    // Create Address Lookup Table for the initialize transaction
+    let lut_addresses = extract_lut_addresses(&proof_result.remaining_accounts);
+    let lut = create_address_lookup_table(&mut setup.env.rpc, &setup.env.payer, lut_addresses).await;
+
+    // Add compute budget instruction
+    let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_400_000);
+
     setup.env.rpc
-        .create_and_send_transaction(&[init_ix], &setup.creator.pubkey(), &[&setup.creator])
+        .create_and_send_versioned_transaction(
+            &[compute_budget_ix, init_ix],
+            &setup.creator.pubkey(),
+            &[&setup.creator],
+            &[lut],
+        )
         .await
         .expect("Initialize should succeed");
 
     // Fetch pool state account
     let pool_interface = setup.env.rpc
-        .get_account_interface(&setup.pdas.pool_state, &program_id)
+        .get_account_interface(&setup.pdas.pool_state, None)
         .await
-        .expect("get_account_interface should succeed");
+        .expect("get_account_interface should succeed")
+        .value
+        .expect("pool account should exist");
 
     // Create SDK from fetched account
     let sdk = CpSwapSdk::from_keyed_accounts(&[pool_interface])
