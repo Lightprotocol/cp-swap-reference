@@ -1,7 +1,5 @@
 use anchor_lang::prelude::*;
-use light_token::anchor::{
-    CompressionInfo, LightAccount, LightDiscriminatorTrait as LightDiscriminator,
-};
+use light_account::{CompressionInfo, LightAccount, LightDiscriminator};
 
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};

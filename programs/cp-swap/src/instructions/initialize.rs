@@ -13,8 +13,7 @@ use light_anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
-use light_sdk::interface::CreateAccountsProof;
-use light_token::anchor::LightAccounts;
+use light_account::{CreateAccountsProof, LightAccounts};
 use light_token::{
     instruction::{
         CreateTokenAccountCpi, CreateTokenAtaCpi, MintToCpi, LIGHT_TOKEN_CONFIG,
