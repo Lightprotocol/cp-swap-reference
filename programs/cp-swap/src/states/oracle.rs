@@ -1,6 +1,5 @@
 use anchor_lang::prelude::*;
-use light_sdk::LightDiscriminator;
-use light_token::anchor::{CompressionInfo, LightAccount};
+use light_account::{CompressionInfo, LightAccount, LightDiscriminator};
 
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -19,7 +18,7 @@ pub struct Observation {
 #[derive(Default, Debug, InitSpace, LightAccount)]
 #[account]
 pub struct ObservationState {
-    pub compression_info: Option<CompressionInfo>,
+    pub compression_info: CompressionInfo,
     pub initialized: bool,
     pub observation_index: u16,
     pub pool_id: Pubkey,

@@ -14,7 +14,22 @@ pub fn swap_base_output(
     require_gt!(amount_out_less_fee, 0);
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state;
+    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+
+    // Validate amm_config matches pool_state
+    require_keys_eq!(
+        ctx.accounts.amm_config.key(),
+        pool_state.amm_config,
+        ErrorCode::InvalidOwner
+    );
+
+    // Validate observation_state matches pool_state
+    require_keys_eq!(
+        ctx.accounts.observation_state.key(),
+        pool_state.observation_key,
+        ErrorCode::InvalidOwner
+    );
+
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
         || block_timestamp < pool_state.open_time
     {

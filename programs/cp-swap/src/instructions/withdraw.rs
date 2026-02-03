@@ -3,7 +3,7 @@ use crate::curve::RoundDirection;
 use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
-use anchor_lang::prelude::*;
+use anchor_lang::{accounts::account_loader::AccountLoader, prelude::*};
 use light_anchor_spl::{
     memo::spl_memo,
     token::Token,
@@ -27,7 +27,7 @@ pub struct Withdraw<'info> {
 
     /// Pool state account
     #[account(mut)]
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     #[account(
         mut,
@@ -50,17 +50,11 @@ pub struct Withdraw<'info> {
     pub token_1_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_0
-    #[account(
-        mut,
-        constraint = token_0_vault.key() == pool_state.token_0_vault
-    )]
+    #[account(mut)]
     pub token_0_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_1
-    #[account(
-        mut,
-        constraint = token_1_vault.key() == pool_state.token_1_vault
-    )]
+    #[account(mut)]
     pub token_1_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// token Program
@@ -82,10 +76,7 @@ pub struct Withdraw<'info> {
     pub vault_1_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// Lp mint
-    #[account(
-        mut,
-        address = pool_state.lp_mint @ ErrorCode::IncorrectLpMint
-    )]
+    #[account(mut)]
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// memo program
@@ -112,7 +103,25 @@ pub fn withdraw(
 ) -> Result<()> {
     require_gt!(lp_token_amount, 0);
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state;
+    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+
+    // Validate vault and lp_mint addresses
+    require_keys_eq!(
+        ctx.accounts.token_0_vault.key(),
+        pool_state.token_0_vault,
+        ErrorCode::InvalidVault
+    );
+    require_keys_eq!(
+        ctx.accounts.token_1_vault.key(),
+        pool_state.token_1_vault,
+        ErrorCode::InvalidVault
+    );
+    require_keys_eq!(
+        ctx.accounts.lp_mint.key(),
+        pool_state.lp_mint,
+        ErrorCode::IncorrectLpMint
+    );
+
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Withdraw) {
         return err!(ErrorCode::NotApproved);
     }
@@ -187,7 +196,9 @@ pub fn withdraw(
         mint: ctx.accounts.lp_mint.to_account_info(),
         amount: lp_token_amount,
         authority: ctx.accounts.owner.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
         max_top_up: None,
+        fee_payer: None,
     }
     .invoke()?;
 

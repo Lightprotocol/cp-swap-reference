@@ -1,6 +1,5 @@
 /// Clean integration test for cp-swap using CpSwapSdk.
 /// Tests the full lifecycle: Initialize -> Warp -> Compress -> Load -> Execute Operations
-
 use light_client::interface::{
     create_load_instructions, AccountInterfaceExt, AccountSpec, LightProgramInterface,
 };
@@ -19,7 +18,12 @@ use program::{CpSwapInstruction, CpSwapSdk};
 fn log_transaction_size(name: &str, ixs: &[Instruction]) {
     let tx = Transaction::new_with_payer(ixs, None);
     let serialized = bincode::serialize(&tx).expect("Failed to serialize transaction");
-    println!("{}: {} bytes ({} instructions)", name, serialized.len(), ixs.len());
+    println!(
+        "{}: {} bytes ({} instructions)",
+        name,
+        serialized.len(),
+        ixs.len()
+    );
 }
 
 #[tokio::test]
@@ -55,12 +59,7 @@ async fn test_sdk_lifecycle() {
     assert_pool_accounts_exist(&mut setup.env.rpc, &setup.pdas, &setup.tokens).await;
 
     // ==================== PHASE 3: Warp to Trigger Compression ====================
-    setup
-        .env
-        .rpc
-    .warp_epoch_forward(30)
-        .await
-        .unwrap();
+    setup.env.rpc.warp_epoch_forward(30).await.unwrap();
 
     // ==================== PHASE 4: Assert All Accounts Are Compressed ====================
     assert_pool_accounts_compressed(&mut setup.env.rpc, &setup.pdas, &setup.tokens).await;
@@ -125,7 +124,6 @@ async fn test_sdk_lifecycle() {
         &all_specs,
         setup.env.payer.pubkey(),
         setup.env.config_pda,
-        setup.env.payer.pubkey(),
         &setup.env.rpc,
     )
     .await

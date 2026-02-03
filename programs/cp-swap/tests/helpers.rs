@@ -2,46 +2,44 @@
 
 /// Functional integration test for cp-swap program.
 /// Tests pool initialization with light-program-test framework.
-
 use anchor_lang::{InstructionData, ToAccountMetas};
+use light_anchor_spl::memo::spl_memo;
 use light_client::interface::{
     get_create_accounts_proof, CreateAccountsProofInput, CreateAccountsProofResult,
     InitializeRentFreeConfig,
 };
-use solana_pubkey::pubkey;
 use light_program_test::{
     program_test::{setup_mock_program_data, LightProgramTest, TestRpc},
     Indexer, ProgramTestConfig, Rpc,
 };
 use light_token::{
     constants::CPI_AUTHORITY_PDA,
+    constants::LIGHT_TOKEN_PROGRAM_ID,
     instruction::{
         find_mint_address, get_associated_token_address_and_bump, CreateAssociatedTokenAccount,
-        CreateMint, CreateMintParams, MintTo, COMPRESSIBLE_CONFIG_V1,
-        RENT_SPONSOR as LIGHT_TOKEN_RENT_SPONSOR,
+        CreateMint, CreateMintParams, MintTo, LIGHT_TOKEN_CONFIG, LIGHT_TOKEN_RENT_SPONSOR,
     },
-    constants::LIGHT_TOKEN_PROGRAM_ID,
 };
 use raydium_cp_swap::{
     instructions::initialize::LP_MINT_SIGNER_SEED,
+    program_rent_sponsor,
     states::{AMM_CONFIG_SEED, OBSERVATION_SEED, POOL_SEED, POOL_VAULT_SEED},
     InitializeParams, AUTH_SEED,
 };
 use solana_instruction::Instruction;
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
-use solana_signer::Signer;
 use solana_sdk::{program_pack::Pack, signature::SeedDerivable};
-use light_anchor_spl::memo::spl_memo;
+use solana_signer::Signer;
 use spl_token_2022;
-
-
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-const RENT_SPONSOR: Pubkey = pubkey!("CLEuMG7pzJX9xAuKCFzBP154uiG1GaNo4Fq7x6KAcAfG");
+fn rent_sponsor() -> Pubkey {
+    program_rent_sponsor()
+}
 
 pub fn light_token_program_id() -> Pubkey {
     Pubkey::from(LIGHT_TOKEN_PROGRAM_ID)
@@ -88,8 +86,7 @@ pub struct TokenSetup {
 
 /// Initialize the test environment with LightProgramTest and compression config.
 pub async fn setup_test_environment(program_id: Pubkey) -> TestEnv {
-    let mut config =
-        ProgramTestConfig::new_v2(true, Some(vec![("raydium_cp_swap", program_id)]));
+    let mut config = ProgramTestConfig::new_v2(true, Some(vec![("raydium_cp_swap", program_id)]));
     config = config.with_light_protocol_events();
 
     let mut rpc = LightProgramTest::new(config).await.unwrap();
@@ -101,7 +98,7 @@ pub async fn setup_test_environment(program_id: Pubkey) -> TestEnv {
         &program_id,
         &payer.pubkey(),
         &program_data_pda,
-        RENT_SPONSOR,
+        rent_sponsor(),
         payer.pubkey(),
     )
     .build();
@@ -109,6 +106,11 @@ pub async fn setup_test_environment(program_id: Pubkey) -> TestEnv {
     rpc.create_and_send_transaction(&[init_config_ix], &payer.pubkey(), &[&payer])
         .await
         .expect("Initialize config should succeed");
+
+    // Fund the rent sponsor PDA so it can pay for rent reimbursements
+    rpc.airdrop_lamports(&rent_sponsor(), 1_000_000_000)
+        .await
+        .expect("Airdrop to rent sponsor should succeed");
 
     TestEnv {
         rpc,
@@ -202,6 +204,7 @@ pub async fn setup_create_mint(
                 amount: *amount,
                 authority: mint_authority,
                 max_top_up: None,
+                fee_payer: None,
             }
             .instruction()
             .unwrap();
@@ -632,7 +635,8 @@ pub fn build_initialize_instruction(
         system_program: solana_sdk::system_program::ID,
         rent: solana_sdk::sysvar::rent::ID,
         compression_config: config_pda,
-        light_token_compressible_config: Pubkey::from(COMPRESSIBLE_CONFIG_V1),
+        light_token_config: Pubkey::from(LIGHT_TOKEN_CONFIG),
+        pda_rent_sponsor: raydium_cp_swap::program_rent_sponsor(),
         light_token_rent_sponsor: Pubkey::from(LIGHT_TOKEN_RENT_SPONSOR),
         light_token_program: light_token_program_id(),
         light_token_cpi_authority: CPI_AUTHORITY_PDA,
@@ -696,7 +700,11 @@ pub async fn assert_onchain_closed(rpc: &mut LightProgramTest, pda: &Pubkey) {
 }
 
 /// Assert all pool accounts exist on-chain (hot or decompressed state).
-pub async fn assert_pool_accounts_exist(rpc: &mut LightProgramTest, pdas: &AmmPdas, tokens: &TokenSetup) {
+pub async fn assert_pool_accounts_exist(
+    rpc: &mut LightProgramTest,
+    pdas: &AmmPdas,
+    tokens: &TokenSetup,
+) {
     assert_onchain_exists(rpc, &pdas.pool_state).await;
     assert_onchain_exists(rpc, &pdas.observation_state).await;
     assert_onchain_exists(rpc, &pdas.lp_mint).await;
@@ -708,7 +716,11 @@ pub async fn assert_pool_accounts_exist(rpc: &mut LightProgramTest, pdas: &AmmPd
 }
 
 /// Assert all pool accounts are compressed (closed on-chain).
-pub async fn assert_pool_accounts_compressed(rpc: &mut LightProgramTest, pdas: &AmmPdas, tokens: &TokenSetup) {
+pub async fn assert_pool_accounts_compressed(
+    rpc: &mut LightProgramTest,
+    pdas: &AmmPdas,
+    tokens: &TokenSetup,
+) {
     assert_onchain_closed(rpc, &pdas.pool_state).await;
     assert_onchain_closed(rpc, &pdas.observation_state).await;
     assert_onchain_closed(rpc, &pdas.lp_mint).await;
@@ -834,9 +846,17 @@ pub async fn setup_pool_environment(program_id: Pubkey, amm_config_index: u16) -
         .unwrap();
 
     let initial_balance = 1_000_000;
-    let tokens = setup_token_mints(&mut env.rpc, &env.payer, &creator.pubkey(), initial_balance).await;
+    let tokens =
+        setup_token_mints(&mut env.rpc, &env.payer, &creator.pubkey(), initial_balance).await;
 
-    let amm_config = create_amm_config(&mut env.rpc, &env.payer, &admin, program_id, amm_config_index).await;
+    let amm_config = create_amm_config(
+        &mut env.rpc,
+        &env.payer,
+        &admin,
+        program_id,
+        amm_config_index,
+    )
+    .await;
     setup_create_pool_fee_account(&mut env.rpc, &env.payer.pubkey());
 
     let pdas = derive_amm_pdas(
