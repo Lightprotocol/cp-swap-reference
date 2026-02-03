@@ -3,7 +3,7 @@ use crate::curve::TradeDirection;
 use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
-use anchor_lang::prelude::*;
+use anchor_lang::{accounts::account_loader::AccountLoader, prelude::*};
 use anchor_lang::solana_program;
 use light_anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
@@ -22,12 +22,11 @@ pub struct Swap<'info> {
     pub authority: UncheckedAccount<'info>,
 
     /// The factory state to read protocol fees
-    #[account(address = pool_state.amm_config)]
     pub amm_config: Box<Account<'info, AmmConfig>>,
 
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     /// The user token account for input token
     #[account(mut)]
@@ -38,17 +37,11 @@ pub struct Swap<'info> {
     pub output_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The vault token account for input token
-    #[account(
-        mut,
-        constraint = input_vault.key() == pool_state.token_0_vault || input_vault.key() == pool_state.token_1_vault
-    )]
+    #[account(mut)]
     pub input_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The vault token account for output token
-    #[account(
-        mut,
-        constraint = output_vault.key() == pool_state.token_0_vault || output_vault.key() == pool_state.token_1_vault
-    )]
+    #[account(mut)]
     pub output_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// SPL program for input token transfers
@@ -69,7 +62,7 @@ pub struct Swap<'info> {
     )]
     pub output_token_mint: Box<InterfaceAccount<'info, Mint>>,
     /// The program account for the most recent oracle observation
-    #[account(mut, address = pool_state.observation_key)]
+    #[account(mut)]
     pub observation_state: Account<'info, ObservationState>,
 
     /// Light Token program for CPI
@@ -84,7 +77,22 @@ pub struct Swap<'info> {
 pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
     let pool_id = ctx.accounts.pool_state.key();
-    let pool_state = &mut ctx.accounts.pool_state;
+    let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+
+    // Validate amm_config matches pool_state
+    require_keys_eq!(
+        ctx.accounts.amm_config.key(),
+        pool_state.amm_config,
+        ErrorCode::InvalidOwner
+    );
+
+    // Validate observation_state matches pool_state
+    require_keys_eq!(
+        ctx.accounts.observation_state.key(),
+        pool_state.observation_key,
+        ErrorCode::InvalidOwner
+    );
+
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Swap)
         || block_timestamp < pool_state.open_time
     {

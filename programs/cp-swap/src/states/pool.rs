@@ -22,7 +22,7 @@ pub enum PoolStatusBitFlag {
 }
 
 #[derive(Default, Debug, InitSpace, LightAccount)]
-#[account]
+#[account(zero_copy)]
 #[repr(C)]
 pub struct PoolState {
     pub compression_info: CompressionInfo,
@@ -41,6 +41,7 @@ pub struct PoolState {
     pub lp_mint_decimals: u8,
     pub mint_0_decimals: u8,
     pub mint_1_decimals: u8,
+    pub _padding0: [u8; 3],
     pub lp_supply: u64,
     pub protocol_fees_token_0: u64,
     pub protocol_fees_token_1: u64,
@@ -80,6 +81,7 @@ impl PoolState {
         self.lp_mint_decimals = 9;
         self.mint_0_decimals = token_0_mint.decimals;
         self.mint_1_decimals = token_1_mint.decimals;
+        self._padding0 = [0u8; 3];
         self.lp_supply = lp_supply;
         self.protocol_fees_token_0 = 0;
         self.protocol_fees_token_1 = 0;

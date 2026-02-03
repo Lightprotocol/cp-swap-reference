@@ -3,7 +3,7 @@ use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::*;
 use anchor_lang::{
-    accounts::interface_account::InterfaceAccount,
+    accounts::{account_loader::AccountLoader, interface_account::InterfaceAccount},
     prelude::*,
     solana_program::{clock, program::invoke, system_instruction},
 };
@@ -62,8 +62,8 @@ pub struct Initialize<'info> {
         payer = creator,
         space = 8 + PoolState::INIT_SPACE
     )]
-    #[light_account(init)]
-    pub pool_state: Box<Account<'info, PoolState>>,
+    #[light_account(init, zero_copy)]
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     #[account(
         constraint = token_0_mint.key() < token_1_mint.key(),
@@ -314,7 +314,7 @@ pub fn initialize<'info>(
         .checked_sub(lock_lp_amount)
         .ok_or(ErrorCode::InitLpAmountTooLess)?;
 
-    let pool_state = &mut ctx.accounts.pool_state;
+    let pool_state = &mut ctx.accounts.pool_state.load_init()?;
     let observation_state = &mut ctx.accounts.observation_state;
     let observation_state_key = observation_state.key();
     observation_state.pool_id = pool_state_key;

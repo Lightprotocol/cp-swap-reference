@@ -1,7 +1,7 @@
 use crate::error::ErrorCode;
 use crate::states::*;
 use crate::utils::token::*;
-use anchor_lang::prelude::*;
+use anchor_lang::{accounts::account_loader::AccountLoader, prelude::*};
 use light_anchor_spl::token::Token;
 use light_anchor_spl::token_interface::Mint;
 use light_anchor_spl::token_interface::Token2022;
@@ -23,24 +23,17 @@ pub struct CollectFundFee<'info> {
 
     /// Pool state stores accumulated protocol fee amount
     #[account(mut)]
-    pub pool_state: Account<'info, PoolState>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     /// Amm config account stores fund_owner
-    #[account(address = pool_state.amm_config)]
     pub amm_config: Account<'info, AmmConfig>,
 
     /// The address that holds pool tokens for token_0
-    #[account(
-        mut,
-        constraint = token_0_vault.key() == pool_state.token_0_vault
-    )]
+    #[account(mut)]
     pub token_0_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_1
-    #[account(
-        mut,
-        constraint = token_1_vault.key() == pool_state.token_1_vault
-    )]
+    #[account(mut)]
     pub token_1_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The mint of token_0 vault
@@ -84,7 +77,25 @@ pub fn collect_fund_fee(
     let amount_1: u64;
     let auth_bump: u8;
     {
-        let pool_state = &mut ctx.accounts.pool_state;
+        let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+
+        // Validate addresses
+        require_keys_eq!(
+            ctx.accounts.amm_config.key(),
+            pool_state.amm_config,
+            ErrorCode::InvalidOwner
+        );
+        require_keys_eq!(
+            ctx.accounts.token_0_vault.key(),
+            pool_state.token_0_vault,
+            ErrorCode::InvalidVault
+        );
+        require_keys_eq!(
+            ctx.accounts.token_1_vault.key(),
+            pool_state.token_1_vault,
+            ErrorCode::InvalidVault
+        );
+
         amount_0 = amount_0_requested.min(pool_state.fund_fees_token_0);
         amount_1 = amount_1_requested.min(pool_state.fund_fees_token_1);
 
