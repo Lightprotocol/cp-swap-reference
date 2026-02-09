@@ -26,7 +26,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   # Light protocol commit that cp-swap-reference depends on
-  LIGHT_PROTOCOL_COMMIT: "4fa7d8941d698930b1dcfb618cc4901f95320b5c"
+  LIGHT_PROTOCOL_COMMIT: "9edc09306e08ed81740b0c06ec5edae27830735a"
   # Versions from light-protocol at that commit
   SOLANA_VERSION: "2.2.15"
   RUST_VERSION: "1.93"
