@@ -84,11 +84,13 @@ async fn test_sdk_lifecycle() {
     let account_interfaces = setup
         .env
         .rpc
-        .fetch_accounts(&pubkeys, None)
+        .get_multiple_account_interfaces(pubkeys.iter().collect(), None)
         .await
-        .expect("fetch_accounts should succeed");
+        .expect("get_multiple_account_interfaces should succeed");
     let cold_accounts: Vec<_> = account_interfaces
+        .value
         .into_iter()
+        .flatten()
         .filter(|a| a.is_cold())
         .collect();
 
