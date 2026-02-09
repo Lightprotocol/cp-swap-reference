@@ -11,8 +11,9 @@ use light_client::interface::{
     AccountInterface, AccountSpec, AccountToFetch, ColdContext, LightProgramInterface, PdaSpec,
     TokenAccountInterface,
 };
-use light_sdk::interface::token::{Token, TokenDataWithSeeds};
 use light_sdk::LightDiscriminator;
+use light_sdk_types::interface::account::token_seeds::Token;
+use light_sdk_types::interface::TokenDataWithSeeds;
 use raydium_cp_swap::instructions::initialize::LP_MINT_SIGNER_SEED;
 use raydium_cp_swap::raydium_cp_swap::{LightAccountVariant, Token0VaultSeeds, Token1VaultSeeds};
 use raydium_cp_swap::raydium_cp_swap::{ObservationStateSeeds, PoolStateSeeds};

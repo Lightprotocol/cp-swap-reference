@@ -173,9 +173,9 @@ async fn test_sdk_lifecycle() {
     let creator_lp_ata_interface = setup
         .env
         .rpc
-        .get_ata_interface(&setup.creator.pubkey(), &setup.pdas.lp_mint, None)
+        .get_associated_token_account_interface(&setup.creator.pubkey(), &setup.pdas.lp_mint, None)
         .await
-        .expect("get_ata_interface for creator_lp_token should succeed")
+        .expect("get_associated_token_account_interface for creator_lp_token should succeed")
         .value
         .expect("creator_lp_token should exist");
     all_specs.push(AccountSpec::Ata(creator_lp_ata_interface));
@@ -183,9 +183,13 @@ async fn test_sdk_lifecycle() {
     let creator_token_0_interface = setup
         .env
         .rpc
-        .get_ata_interface(&setup.creator.pubkey(), &setup.tokens.token_0_mint, None)
+        .get_associated_token_account_interface(
+            &setup.creator.pubkey(),
+            &setup.tokens.token_0_mint,
+            None,
+        )
         .await
-        .expect("get_ata_interface for creator_token_0 should succeed")
+        .expect("get_associated_token_account_interface for creator_token_0 should succeed")
         .value
         .expect("creator_token_0 should exist");
     all_specs.push(AccountSpec::Ata(creator_token_0_interface));
@@ -193,9 +197,13 @@ async fn test_sdk_lifecycle() {
     let creator_token_1_interface = setup
         .env
         .rpc
-        .get_ata_interface(&setup.creator.pubkey(), &setup.tokens.token_1_mint, None)
+        .get_associated_token_account_interface(
+            &setup.creator.pubkey(),
+            &setup.tokens.token_1_mint,
+            None,
+        )
         .await
-        .expect("get_ata_interface for creator_token_1 should succeed")
+        .expect("get_associated_token_account_interface for creator_token_1 should succeed")
         .value
         .expect("creator_token_1 should exist");
     all_specs.push(AccountSpec::Ata(creator_token_1_interface));

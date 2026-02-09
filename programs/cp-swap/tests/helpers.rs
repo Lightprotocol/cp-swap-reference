@@ -1059,11 +1059,11 @@ pub async fn create_address_lookup_table(
     // This helps ensure we get a slot that's actually in the SlotHashes sysvar
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
-    // Get slot with finalized commitment from the underlying client
+    // Get slot with confirmed commitment
     let recent_slot = rpc
         .client
-        .get_slot_with_commitment(CommitmentConfig::finalized())
-        .expect("Failed to get finalized slot");
+        .get_slot_with_commitment(CommitmentConfig::confirmed())
+        .expect("Failed to get confirmed slot");
 
     println!("Creating LUT with recent_slot: {}", recent_slot);
 
@@ -1511,7 +1511,7 @@ pub async fn compress_pda_account(
     // Derive the compressed address
     let compressed_address = derive_address(
         &pda_pubkey.to_bytes(),
-        &address_tree.to_bytes(),
+        &address_tree,
         &program_id.to_bytes(),
     );
 
@@ -1532,7 +1532,7 @@ pub async fn compress_pda_account(
     let program_metas = vec![
         AccountMeta::new(payer.pubkey(), true),        // fee_payer
         AccountMeta::new_readonly(*config_pda, false), // config
-        AccountMeta::new(rent_sponsor, false),         // rent_sponsor
+        AccountMeta::new(Pubkey::from(rent_sponsor), false), // rent_sponsor
         AccountMeta::new_readonly(compression_authority, false), // compression_authority
     ];
 

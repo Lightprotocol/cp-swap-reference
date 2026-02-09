@@ -25,7 +25,7 @@ pub use crate::states::{
 };
 use anchor_lang::prelude::*;
 use instructions::*;
-use light_token::anchor::{
+use light_account::{
     derive_light_cpi_signer, derive_light_rent_sponsor_pda, light_program, CpiSigner,
 };
 
