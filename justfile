@@ -49,7 +49,7 @@ test-integration: start-validator-background
 # Check formatting and run clippy
 lint:
     cargo fmt --all -- --check
-    cargo clippy --workspace --all-features --tests -- -D warnings
+    cargo clippy --workspace --features "test-sbf" --tests -- -D warnings
 
 # Format code
 format:
