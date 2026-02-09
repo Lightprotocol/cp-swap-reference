@@ -10,6 +10,8 @@ pub fn swap_base_output(
     ctx: Context<Swap>,
     max_amount_in: u64,
     amount_out_less_fee: u64,
+    spl_interface_bump_0: Option<u8>,
+    spl_interface_bump_1: Option<u8>,
 ) -> Result<()> {
     require_gt!(amount_out_less_fee, 0);
     let block_timestamp = solana_program::clock::Clock::get()?.unix_timestamp as u64;
@@ -165,6 +167,22 @@ pub fn swap_base_output(
     });
     require_gte!(constant_after, constant_before);
 
+    // Select SPL interface PDAs based on trade direction
+    let (input_spl_pda, input_spl_bump, output_spl_pda, output_spl_bump) = match trade_direction {
+        TradeDirection::ZeroForOne => (
+            ctx.accounts.spl_interface_pda_0.clone(),
+            spl_interface_bump_0,
+            ctx.accounts.spl_interface_pda_1.clone(),
+            spl_interface_bump_1,
+        ),
+        TradeDirection::OneForZero => (
+            ctx.accounts.spl_interface_pda_1.clone(),
+            spl_interface_bump_1,
+            ctx.accounts.spl_interface_pda_0.clone(),
+            spl_interface_bump_0,
+        ),
+    };
+
     transfer_from_user_to_pool_vault(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.input_token_account.to_account_info(),
@@ -175,6 +193,8 @@ pub fn swap_base_output(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        input_spl_pda,
+        input_spl_bump,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -188,6 +208,8 @@ pub fn swap_base_output(
         ctx.accounts.payer.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        output_spl_pda,
+        output_spl_bump,
     )?;
 
     // update the previous price to the observation

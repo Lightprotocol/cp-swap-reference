@@ -6,6 +6,7 @@ use light_anchor_spl::{
     token_interface::{initialize_account3, InitializeAccount3, Mint},
 };
 use light_sdk::constants::LIGHT_TOKEN_PROGRAM_ID;
+pub use light_token::instruction::get_spl_interface_pda_and_bump;
 use light_token::instruction::TransferInterfaceCpi;
 use spl_token_2022::{
     self,
@@ -55,11 +56,13 @@ pub fn transfer_from_user_to_pool_vault<'a>(
     from: AccountInfo<'a>,
     to_vault: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    _token_program: AccountInfo<'a>,
+    token_program: AccountInfo<'a>,
     amount: u64,
     payer: AccountInfo<'a>,
     light_token_cpi_authority: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
+    spl_interface_pda: Option<AccountInfo<'a>>,
+    spl_interface_pda_bump: Option<u8>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
@@ -79,6 +82,12 @@ pub fn transfer_from_user_to_pool_vault<'a>(
         light_token_cpi_authority,
         system_program,
     )
+    .spl_interface(
+        mint.clone(),
+        token_program,
+        spl_interface_pda,
+        spl_interface_pda_bump,
+    )
     .invoke()
     .map_err(|e| anchor_lang::prelude::ProgramError::from(e))?;
 
@@ -90,12 +99,14 @@ pub fn transfer_from_pool_vault_to_user<'a>(
     from_vault: AccountInfo<'a>,
     to: AccountInfo<'a>,
     mint: AccountInfo<'a>,
-    _token_program: AccountInfo<'a>,
+    token_program: AccountInfo<'a>,
     amount: u64,
     signer_seeds: &[&[&[u8]]],
     payer: AccountInfo<'a>,
     light_token_cpi_authority: AccountInfo<'a>,
     system_program: AccountInfo<'a>,
+    spl_interface_pda: Option<AccountInfo<'a>>,
+    spl_interface_pda_bump: Option<u8>,
 ) -> Result<()> {
     if amount == 0 {
         return Ok(());
@@ -114,6 +125,12 @@ pub fn transfer_from_pool_vault_to_user<'a>(
         payer,
         light_token_cpi_authority,
         system_program,
+    )
+    .spl_interface(
+        mint.clone(),
+        token_program,
+        spl_interface_pda,
+        spl_interface_pda_bump,
     )
     .invoke_signed(signer_seeds)
     .map_err(|e| anchor_lang::prelude::ProgramError::from(e))?;

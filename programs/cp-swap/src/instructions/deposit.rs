@@ -6,8 +6,8 @@ use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use light_anchor_spl::token::Token;
 use light_anchor_spl::token_interface::Token2022;
+use light_anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use light_token::instruction::MintToCpi;
-use light_anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -93,6 +93,14 @@ pub struct Deposit<'info> {
 
     /// CHECK: light-token CPI authority.
     pub light_token_cpi_authority: AccountInfo<'info>,
+
+    /// Optional SPL interface PDA for token_0 (only needed if token_0 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_0: Option<AccountInfo<'info>>,
+
+    /// Optional SPL interface PDA for token_1 (only needed if token_1 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_1: Option<AccountInfo<'info>>,
 }
 
 pub fn deposit(
@@ -100,6 +108,8 @@ pub fn deposit(
     lp_token_amount: u64,
     maximum_token_0_amount: u64,
     maximum_token_1_amount: u64,
+    spl_interface_bump_0: Option<u8>,
+    spl_interface_bump_1: Option<u8>,
 ) -> Result<()> {
     require_gt!(lp_token_amount, 0);
     let pool_id = ctx.accounts.pool_state.key();
@@ -186,6 +196,8 @@ pub fn deposit(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.spl_interface_pda_0.clone(),
+        spl_interface_bump_0,
     )?;
 
     transfer_from_user_to_pool_vault(
@@ -202,11 +214,14 @@ pub fn deposit(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.spl_interface_pda_1.clone(),
+        spl_interface_bump_1,
     )?;
 
     pool_state.lp_supply = pool_state.lp_supply.checked_add(lp_token_amount).unwrap();
 
     MintToCpi {
+        fee_payer: Some(ctx.accounts.owner.to_account_info()),
         mint: ctx.accounts.lp_mint.to_account_info(),
         destination: ctx.accounts.owner_lp_token.to_account_info(),
         amount: lp_token_amount,

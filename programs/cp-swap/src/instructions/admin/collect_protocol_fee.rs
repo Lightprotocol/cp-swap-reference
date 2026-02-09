@@ -74,12 +74,22 @@ pub struct CollectProtocolFee<'info> {
 
     /// CHECK: light_token CPI authority.
     pub light_token_cpi_authority: AccountInfo<'info>,
+
+    /// Optional SPL interface PDA for token_0 (only needed if token_0 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_0: Option<AccountInfo<'info>>,
+
+    /// Optional SPL interface PDA for token_1 (only needed if token_1 is SPL)
+    #[account(mut)]
+    pub spl_interface_pda_1: Option<AccountInfo<'info>>,
 }
 
 pub fn collect_protocol_fee(
     ctx: Context<CollectProtocolFee>,
     amount_0_requested: u64,
     amount_1_requested: u64,
+    spl_interface_bump_0: Option<u8>,
+    spl_interface_bump_1: Option<u8>,
 ) -> Result<()> {
     let amount_0: u64;
     let amount_1: u64;
@@ -118,6 +128,8 @@ pub fn collect_protocol_fee(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.spl_interface_pda_0.clone(),
+        spl_interface_bump_0,
     )?;
 
     transfer_from_pool_vault_to_user(
@@ -135,6 +147,8 @@ pub fn collect_protocol_fee(
         ctx.accounts.owner.to_account_info(),
         ctx.accounts.light_token_cpi_authority.to_account_info(),
         ctx.accounts.system_program.to_account_info(),
+        ctx.accounts.spl_interface_pda_1.clone(),
+        spl_interface_bump_1,
     )?;
 
     Ok(())

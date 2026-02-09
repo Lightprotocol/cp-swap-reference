@@ -1,31 +1,35 @@
 #![allow(dead_code)]
 
-/// CpSwap SDK implementing LightProgramInterface trait.
+/// CpSwap SDK implementing LightProgram and Jupiter Amm traits.
 ///
 /// Provides:
-/// - Parsing pool accounts from AccountInterface
-/// - Tracking account state (hot/cold)
-/// - Building AccountSpec for load instructions
-
+/// - Flat struct populated from pool state at construction
+/// - LightProgram: instruction_accounts + load_specs for cold account handling
+/// - Jupiter AMM: quotes and swap instruction building
 use anchor_lang::AnchorDeserialize;
-use light_client::interface::{
-    AccountInterface, AccountSpec, AccountToFetch, ColdContext, LightProgramInterface, PdaSpec,
-    TokenAccountInterface,
+use jupiter_amm_interface::{
+    AccountMap, Amm, AmmContext, KeyedAccount, Quote, QuoteParams, Swap, SwapAndAccountMetas,
+    SwapMode, SwapParams,
 };
-use light_sdk::LightDiscriminator;
+use light_client::interface::{
+    AccountInterface, AccountSpec, ColdContext, LightProgram, PdaSpec,
+};
 use light_token::compat::{CTokenData, TokenData};
+use raydium_cp_swap::curve::calculator::CurveCalculator;
+use raydium_cp_swap::curve::fees::FEE_RATE_DENOMINATOR_VALUE;
 use raydium_cp_swap::instructions::initialize::LP_MINT_SIGNER_SEED;
+use raydium_cp_swap::states::config::AmmConfig;
 use raydium_cp_swap::{
     raydium_cp_swap::{LightAccountVariant, TokenAccountVariant},
-    states::{ObservationState, PoolState},
+    states::{ObservationState, PoolState, PoolStatusBitIndex},
     AUTH_SEED,
 };
+use rust_decimal::Decimal;
+use solana_instruction::AccountMeta;
 use solana_pubkey::Pubkey;
-use std::collections::HashMap;
 
 pub const PROGRAM_ID: Pubkey = raydium_cp_swap::ID;
 
-/// Instructions supported by the cp-swap program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CpSwapInstruction {
     Swap,
@@ -33,535 +37,472 @@ pub enum CpSwapInstruction {
     Withdraw,
 }
 
-/// Error type for SDK operations.
 #[derive(Debug, Clone)]
 pub enum CpSwapSdkError {
     ParseError(String),
-    UnknownDiscriminator([u8; 8]),
-    MissingField(&'static str),
-    PoolStateNotParsed,
-    AccountNotFound(Pubkey),
 }
 
 impl std::fmt::Display for CpSwapSdkError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ParseError(msg) => write!(f, "Parse error: {}", msg),
-            Self::UnknownDiscriminator(disc) => write!(f, "Unknown discriminator: {:?}", disc),
-            Self::MissingField(field) => write!(f, "Missing field: {}", field),
-            Self::PoolStateNotParsed => write!(f, "Pool state must be parsed first"),
-            Self::AccountNotFound(key) => write!(f, "Account not found: {}", key),
         }
     }
 }
 
 impl std::error::Error for CpSwapSdkError {}
 
-/// SDK for managing cp-swap pool accounts and building decompression instructions.
+/// Flat SDK struct. All pubkey fields populated at construction from pool state.
+/// No Options, no HashMaps. Variants built on the fly in `load_specs`.
 #[derive(Debug, Clone)]
 pub struct CpSwapSdk {
-    /// Pool state pubkey
-    pub pool_state_pubkey: Option<Pubkey>,
-    /// AMM config pubkey
-    pub amm_config: Option<Pubkey>,
-    /// Token 0 mint pubkey
-    pub token_0_mint: Option<Pubkey>,
-    /// Token 1 mint pubkey
-    pub token_1_mint: Option<Pubkey>,
-    /// Token 0 vault pubkey
-    pub token_0_vault: Option<Pubkey>,
-    /// Token 1 vault pubkey
-    pub token_1_vault: Option<Pubkey>,
-    /// LP mint pubkey
-    pub lp_mint: Option<Pubkey>,
-    /// LP mint signer pubkey
-    pub lp_mint_signer: Option<Pubkey>,
-    /// Observation state pubkey
-    pub observation_key: Option<Pubkey>,
-    /// Authority pubkey
-    pub authority: Option<Pubkey>,
-    /// Cached PDA specs keyed by pubkey (includes pool_state, observation, and vaults)
-    pda_specs: HashMap<Pubkey, PdaSpec<LightAccountVariant>>,
-    /// Cached mint interfaces keyed by pubkey
-    mint_specs: HashMap<Pubkey, AccountInterface>,
-}
-
-impl Default for CpSwapSdk {
-    fn default() -> Self {
-        Self::new()
-    }
+    pub pool_state_pubkey: Pubkey,
+    pub amm_config: Pubkey,
+    pub token_0_mint: Pubkey,
+    pub token_1_mint: Pubkey,
+    pub token_0_vault: Pubkey,
+    pub token_1_vault: Pubkey,
+    pub lp_mint: Pubkey,
+    pub lp_mint_signer: Pubkey,
+    pub observation_key: Pubkey,
+    pub authority: Pubkey,
+    pub token_0_program: Pubkey,
+    pub token_1_program: Pubkey,
+    // Jupiter AMM mutable state (populated via Amm::update)
+    pub token_0_amount: u64,
+    pub token_1_amount: u64,
+    pub protocol_fees_token_0: u64,
+    pub protocol_fees_token_1: u64,
+    pub fund_fees_token_0: u64,
+    pub fund_fees_token_1: u64,
+    pub trade_fee_rate: u64,
+    pub protocol_fee_rate: u64,
+    pub fund_fee_rate: u64,
+    pub pool_status: u8,
 }
 
 impl CpSwapSdk {
-    /// Create a new empty SDK instance.
-    pub fn new() -> Self {
-        Self {
-            pool_state_pubkey: None,
-            amm_config: None,
-            token_0_mint: None,
-            token_1_mint: None,
-            token_0_vault: None,
-            token_1_vault: None,
-            lp_mint: None,
-            lp_mint_signer: None,
-            observation_key: None,
-            authority: None,
-            pda_specs: HashMap::new(),
-            mint_specs: HashMap::new(),
-        }
-    }
-
-    /// Parse pool state from AccountInterface and populate SDK fields.
-    fn parse_pool_state(&mut self, interface: AccountInterface) -> Result<(), CpSwapSdkError> {
-        let data = interface.data();
-        if data.len() < 8 {
-            return Err(CpSwapSdkError::ParseError(
-                "Account data too short".to_string(),
-            ));
-        }
-
-        // Skip 8-byte discriminator
-        let pool_state = PoolState::deserialize(&mut &data[8..])
+    /// Construct from pool state pubkey and its account data.
+    pub fn from_pool_data(
+        pool_state_pubkey: Pubkey,
+        pool_data: &[u8],
+    ) -> Result<Self, CpSwapSdkError> {
+        let pool = PoolState::deserialize(&mut &pool_data[8..])
             .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
-
-        let pool_pubkey = interface.key;
-        self.pool_state_pubkey = Some(pool_pubkey);
-        self.amm_config = Some(pool_state.amm_config);
-        self.token_0_mint = Some(pool_state.token_0_mint);
-        self.token_1_mint = Some(pool_state.token_1_mint);
-        self.token_0_vault = Some(pool_state.token_0_vault);
-        self.token_1_vault = Some(pool_state.token_1_vault);
-        self.lp_mint = Some(pool_state.lp_mint);
-        self.observation_key = Some(pool_state.observation_key);
-
-        // Derive lp_mint_signer and authority PDAs
-        let (lp_mint_signer, _) =
-            Pubkey::find_program_address(&[LP_MINT_SIGNER_SEED, pool_pubkey.as_ref()], &PROGRAM_ID);
-        self.lp_mint_signer = Some(lp_mint_signer);
 
         let (authority, _) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &PROGRAM_ID);
-        self.authority = Some(authority);
+        let (lp_mint_signer, _) = Pubkey::find_program_address(
+            &[LP_MINT_SIGNER_SEED, pool_state_pubkey.as_ref()],
+            &PROGRAM_ID,
+        );
 
-        // Create PdaSpec with variant
-        let variant = LightAccountVariant::PoolState {
-            data: pool_state.clone(),
-            amm_config: pool_state.amm_config,
-            token_0_mint: pool_state.token_0_mint,
-            token_1_mint: pool_state.token_1_mint,
-        };
-        let spec = PdaSpec::new(interface, variant, PROGRAM_ID);
-        self.pda_specs.insert(pool_pubkey, spec);
-
-        Ok(())
+        Ok(Self {
+            pool_state_pubkey,
+            amm_config: pool.amm_config,
+            token_0_mint: pool.token_0_mint,
+            token_1_mint: pool.token_1_mint,
+            token_0_vault: pool.token_0_vault,
+            token_1_vault: pool.token_1_vault,
+            lp_mint: pool.lp_mint,
+            lp_mint_signer,
+            observation_key: pool.observation_key,
+            authority,
+            token_0_program: pool.token_0_program,
+            token_1_program: pool.token_1_program,
+            token_0_amount: 0,
+            token_1_amount: 0,
+            protocol_fees_token_0: pool.protocol_fees_token_0,
+            protocol_fees_token_1: pool.protocol_fees_token_1,
+            fund_fees_token_0: pool.fund_fees_token_0,
+            fund_fees_token_1: pool.fund_fees_token_1,
+            trade_fee_rate: 0,
+            protocol_fee_rate: 0,
+            fund_fee_rate: 0,
+            pool_status: pool.status,
+        })
     }
 
-    /// Parse observation state from AccountInterface.
-    fn parse_observation_state(&mut self, interface: AccountInterface) -> Result<(), CpSwapSdkError> {
-        let pool_state = self
-            .pool_state_pubkey
-            .ok_or(CpSwapSdkError::PoolStateNotParsed)?;
-
-        let data = interface.data();
-        if data.len() < 8 {
-            return Err(CpSwapSdkError::ParseError(
-                "Account data too short".to_string(),
-            ));
-        }
-
-        let obs_pubkey = interface.key;
-        let obs_state = ObservationState::deserialize(&mut &data[8..])
-            .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
-
-        let variant = LightAccountVariant::ObservationState {
-            data: obs_state,
-            pool_state,
-        };
-        let spec = PdaSpec::new(interface, variant, PROGRAM_ID);
-        self.pda_specs.insert(obs_pubkey, spec);
-
-        Ok(())
-    }
-
-    /// Store token vault interface.
-    /// Vaults are program-owned PDAs, so we convert them to PdaSpec with CTokenData variant.
-    pub fn set_token_vault(&mut self, interface: TokenAccountInterface, is_vault_0: bool) {
-        let key = interface.key;
-        let pool_state = self.pool_state_pubkey.expect("pool_state must be set before vaults");
-        let mint = if is_vault_0 {
-            self.token_0_mint.expect("token_0_mint must be set")
-        } else {
-            self.token_1_mint.expect("token_1_mint must be set")
-        };
-
-        // Build TokenData from TokenAccountInterface
-        let token_data = TokenData {
-            mint: interface.mint(),
-            owner: interface.owner(),
-            amount: interface.amount(),
-            delegate: if interface.parsed.delegate.option == [1, 0, 0, 0] {
-                Some(Pubkey::from(interface.parsed.delegate.value))
-            } else {
-                None
-            },
-            state: light_token::compat::AccountState::Initialized,
-            tlv: None,
-        };
-
-        // Build variant based on which vault this is
-        let variant = if is_vault_0 {
-            LightAccountVariant::CTokenData(CTokenData {
-                variant: TokenAccountVariant::Token0Vault {
-                    pool_state,
-                    token_0_mint: mint,
-                },
-                token_data,
-            })
-        } else {
-            LightAccountVariant::CTokenData(CTokenData {
-                variant: TokenAccountVariant::Token1Vault {
-                    pool_state,
-                    token_1_mint: mint,
-                },
-                token_data,
-            })
-        };
-
-        // Convert TokenAccountInterface to AccountInterface for PdaSpec
-        // For cold vaults, we need to convert ColdContext::Token to ColdContext::Account
-        let cold = if let Some(ColdContext::Token(ct)) = &interface.cold {
-            Some(ColdContext::Account(ct.account.clone()))
-        } else {
-            None
-        };
-
-        let account_interface = AccountInterface {
-            key,
-            account: interface.account.clone(),
-            cold,
-        };
-
-        let spec = PdaSpec::new(account_interface, variant, PROGRAM_ID);
-
-        self.pda_specs.insert(key, spec);
-        if is_vault_0 {
-            self.token_0_vault = Some(key);
-        } else {
-            self.token_1_vault = Some(key);
-        }
-    }
-
-    /// Store LP mint interface.
-    pub fn set_lp_mint(&mut self, interface: AccountInterface) {
-        let key = interface.key;
-        self.lp_mint = Some(key);
-        self.mint_specs.insert(key, interface);
-    }
-
-    /// Parse token vault from AccountInterface and store as PdaSpec.
-    fn parse_token_vault(
-        &mut self,
+    /// Convert token vault ColdContext::Token -> ColdContext::Account.
+    fn convert_vault_interface(
         account: &AccountInterface,
-        is_vault_0: bool,
-    ) -> Result<(), CpSwapSdkError> {
-        let pool_state = self
-            .pool_state_pubkey
-            .ok_or(CpSwapSdkError::PoolStateNotParsed)?;
-
-        // Deserialize token data properly
-        let token_data = TokenData::deserialize(&mut &account.data()[..])
-            .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
-
-        // Build variant based on which vault this is
-        let variant = if is_vault_0 {
-            let token_0_mint = self
-                .token_0_mint
-                .ok_or(CpSwapSdkError::MissingField("token_0_mint"))?;
-            LightAccountVariant::CTokenData(CTokenData {
-                variant: TokenAccountVariant::Token0Vault {
-                    pool_state,
-                    token_0_mint,
-                },
-                token_data,
-            })
-        } else {
-            let token_1_mint = self
-                .token_1_mint
-                .ok_or(CpSwapSdkError::MissingField("token_1_mint"))?;
-            LightAccountVariant::CTokenData(CTokenData {
-                variant: TokenAccountVariant::Token1Vault {
-                    pool_state,
-                    token_1_mint,
-                },
-                token_data,
-            })
-        };
-
-        // For token vaults, convert ColdContext::Token to ColdContext::Account
-        // because they're decompressed as PDAs, not as token accounts
-        let interface = if account.is_cold() {
+    ) -> Result<AccountInterface, CpSwapSdkError> {
+        if account.is_cold() {
             let compressed_account = match &account.cold {
                 Some(ColdContext::Token(ct)) => ct.account.clone(),
                 Some(ColdContext::Account(ca)) => ca.clone(),
-                None => return Err(CpSwapSdkError::MissingField("cold_context")),
+                _ => {
+                    return Err(CpSwapSdkError::ParseError(
+                        "unexpected cold context for vault".to_string(),
+                    ))
+                }
             };
-            AccountInterface {
+            Ok(AccountInterface {
                 key: account.key,
                 account: account.account.clone(),
                 cold: Some(ColdContext::Account(compressed_account)),
-            }
+            })
         } else {
-            account.clone()
+            Ok(account.clone())
+        }
+    }
+
+    // Jupiter AMM helpers
+
+    fn vault_amounts_without_fees(&self) -> (u64, u64) {
+        let token_0 = self
+            .token_0_amount
+            .saturating_sub(self.protocol_fees_token_0)
+            .saturating_sub(self.fund_fees_token_0);
+        let token_1 = self
+            .token_1_amount
+            .saturating_sub(self.protocol_fees_token_1)
+            .saturating_sub(self.fund_fees_token_1);
+        (token_0, token_1)
+    }
+
+    fn is_swap_enabled(&self) -> bool {
+        (self.pool_status & (1 << (PoolStatusBitIndex::Swap as u8))) == 0
+    }
+
+    fn calculate_quote(
+        &self,
+        input_mint: Pubkey,
+        output_mint: Pubkey,
+        amount: u64,
+        swap_mode: SwapMode,
+    ) -> Result<Quote, anyhow::Error> {
+        let (vault_0, vault_1) = self.vault_amounts_without_fees();
+
+        let (source_amount, dest_amount, fee_mint) =
+            if input_mint == self.token_0_mint && output_mint == self.token_1_mint {
+                (vault_0 as u128, vault_1 as u128, input_mint)
+            } else if input_mint == self.token_1_mint && output_mint == self.token_0_mint {
+                (vault_1 as u128, vault_0 as u128, input_mint)
+            } else {
+                return Err(anyhow::anyhow!("Invalid mint pair"));
+            };
+
+        let result = match swap_mode {
+            SwapMode::ExactIn => CurveCalculator::swap_base_input(
+                amount as u128,
+                source_amount,
+                dest_amount,
+                self.trade_fee_rate,
+                self.protocol_fee_rate,
+                self.fund_fee_rate,
+            ),
+            SwapMode::ExactOut => CurveCalculator::swap_base_output(
+                amount as u128,
+                source_amount,
+                dest_amount,
+                self.trade_fee_rate,
+                self.protocol_fee_rate,
+                self.fund_fee_rate,
+            ),
+        }
+        .ok_or_else(|| anyhow::anyhow!("Swap calculation failed"))?;
+
+        let (in_amount, out_amount) = match swap_mode {
+            SwapMode::ExactIn => (amount, result.destination_amount_swapped as u64),
+            SwapMode::ExactOut => (result.source_amount_swapped as u64, amount),
         };
 
-        let spec = PdaSpec::new(interface, variant, PROGRAM_ID);
-        self.pda_specs.insert(account.key, spec);
+        let fee_pct =
+            Decimal::from(self.trade_fee_rate) / Decimal::from(FEE_RATE_DENOMINATOR_VALUE);
 
-        Ok(())
-    }
-
-    /// Parse LP mint from AccountInterface.
-    fn parse_mint(&mut self, account: &AccountInterface) -> Result<(), CpSwapSdkError> {
-        self.mint_specs.insert(account.key, account.clone());
-        Ok(())
-    }
-
-    /// Parse any account and route to appropriate parser.
-    fn parse_account(&mut self, account: &AccountInterface) -> Result<(), CpSwapSdkError> {
-        // Check if this is a known vault by pubkey
-        if Some(account.key) == self.token_0_vault {
-            return self.parse_token_vault(account, true);
-        }
-        if Some(account.key) == self.token_1_vault {
-            return self.parse_token_vault(account, false);
-        }
-
-        // Check discriminator for pool/observation state
-        let data = account.data();
-        if data.len() >= 8 {
-            let discriminator: [u8; 8] = data[..8].try_into().unwrap_or_default();
-
-            if discriminator == PoolState::LIGHT_DISCRIMINATOR {
-                return self.parse_pool_state(account.clone());
-            }
-            if discriminator == ObservationState::LIGHT_DISCRIMINATOR {
-                return self.parse_observation_state(account.clone());
-            }
-        }
-
-        // Check if this is an LP mint by matching the signer
-        if let Some(lp_mint_signer) = self.lp_mint_signer {
-            if let Some(mint_signer) = account.mint_signer() {
-                if Pubkey::new_from_array(mint_signer) == lp_mint_signer {
-                    return self.parse_mint(account);
-                }
-            }
-        }
-
-        // Check if this is a vault mint (token_0_mint or token_1_mint)
-        if Some(account.key) == self.token_0_mint || Some(account.key) == self.token_1_mint {
-            return self.parse_mint(account);
-        }
-
-        Ok(())
-    }
-
-    /// Check if pool state is cold.
-    pub fn is_pool_state_cold(&self) -> bool {
-        self.pool_state_pubkey
-            .and_then(|k| self.pda_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
-    }
-
-    /// Check if observation state is cold.
-    pub fn is_observation_cold(&self) -> bool {
-        self.observation_key
-            .and_then(|k| self.pda_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
-    }
-
-    /// Check if token 0 vault is cold.
-    pub fn is_vault_0_cold(&self) -> bool {
-        self.token_0_vault
-            .and_then(|k| self.pda_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
-    }
-
-    /// Check if token 1 vault is cold.
-    pub fn is_vault_1_cold(&self) -> bool {
-        self.token_1_vault
-            .and_then(|k| self.pda_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
-    }
-
-    /// Check if LP mint is cold.
-    pub fn is_lp_mint_cold(&self) -> bool {
-        self.lp_mint
-            .and_then(|k| self.mint_specs.get(&k))
-            .map_or(false, |s| s.is_cold())
-    }
-
-    /// Get pool state pubkey.
-    pub fn pool_state(&self) -> Option<Pubkey> {
-        self.pool_state_pubkey
+        Ok(Quote {
+            in_amount,
+            out_amount,
+            fee_amount: result.trade_fee as u64,
+            fee_mint,
+            fee_pct,
+        })
     }
 }
 
-impl LightProgramInterface for CpSwapSdk {
+// ============================================================================
+// LightProgram Trait Implementation
+// ============================================================================
+
+impl LightProgram for CpSwapSdk {
     type Variant = LightAccountVariant;
     type Instruction = CpSwapInstruction;
-    type Error = CpSwapSdkError;
+
+    fn program_id() -> Pubkey {
+        PROGRAM_ID
+    }
+
+    fn instruction_accounts(&self, ix: &Self::Instruction) -> Vec<Pubkey> {
+        match ix {
+            CpSwapInstruction::Swap => vec![
+                self.pool_state_pubkey,
+                self.observation_key,
+                self.token_0_vault,
+                self.token_1_vault,
+                self.token_0_mint,
+                self.token_1_mint,
+            ],
+            CpSwapInstruction::Deposit | CpSwapInstruction::Withdraw => vec![
+                self.pool_state_pubkey,
+                self.observation_key,
+                self.token_0_vault,
+                self.token_1_vault,
+                self.token_0_mint,
+                self.token_1_mint,
+                self.lp_mint,
+            ],
+        }
+    }
+
+    fn load_specs(
+        &self,
+        cold_accounts: &[AccountInterface],
+    ) -> Result<Vec<AccountSpec<Self::Variant>>, Box<dyn std::error::Error>> {
+        let mut specs = Vec::new();
+        for account in cold_accounts {
+            if account.key == self.pool_state_pubkey {
+                let pool = PoolState::deserialize(&mut &account.data()[8..])
+                    .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
+                let variant = LightAccountVariant::PoolState {
+                    data: pool,
+                    amm_config: self.amm_config,
+                    token_0_mint: self.token_0_mint,
+                    token_1_mint: self.token_1_mint,
+                };
+                specs.push(AccountSpec::Pda(PdaSpec::new(
+                    account.clone(),
+                    variant,
+                    PROGRAM_ID,
+                )));
+            } else if account.key == self.observation_key {
+                let obs = ObservationState::deserialize(&mut &account.data()[8..])
+                    .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
+                let variant = LightAccountVariant::ObservationState {
+                    data: obs,
+                    pool_state: self.pool_state_pubkey,
+                };
+                specs.push(AccountSpec::Pda(PdaSpec::new(
+                    account.clone(),
+                    variant,
+                    PROGRAM_ID,
+                )));
+            } else if account.key == self.token_0_vault {
+                let token_data = TokenData::deserialize(&mut &account.data()[..])
+                    .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
+                let variant = LightAccountVariant::CTokenData(CTokenData {
+                    variant: TokenAccountVariant::Token0Vault {
+                        pool_state: self.pool_state_pubkey,
+                        token_0_mint: self.token_0_mint,
+                    },
+                    token_data,
+                });
+                let interface = Self::convert_vault_interface(account)?;
+                specs.push(AccountSpec::Pda(PdaSpec::new(interface, variant, PROGRAM_ID)));
+            } else if account.key == self.token_1_vault {
+                let token_data = TokenData::deserialize(&mut &account.data()[..])
+                    .map_err(|e| CpSwapSdkError::ParseError(e.to_string()))?;
+                let variant = LightAccountVariant::CTokenData(CTokenData {
+                    variant: TokenAccountVariant::Token1Vault {
+                        pool_state: self.pool_state_pubkey,
+                        token_1_mint: self.token_1_mint,
+                    },
+                    token_data,
+                });
+                let interface = Self::convert_vault_interface(account)?;
+                specs.push(AccountSpec::Pda(PdaSpec::new(interface, variant, PROGRAM_ID)));
+            } else if account.key == self.token_0_mint
+                || account.key == self.token_1_mint
+                || account.key == self.lp_mint
+            {
+                specs.push(AccountSpec::Mint(account.clone()));
+            }
+        }
+        Ok(specs)
+    }
+}
+
+// ============================================================================
+// Jupiter AMM Trait Implementation
+// ============================================================================
+
+impl Amm for CpSwapSdk {
+    fn from_keyed_account(
+        keyed_account: &KeyedAccount,
+        _amm_context: &AmmContext,
+    ) -> Result<Self, anyhow::Error>
+    where
+        Self: Sized,
+    {
+        let data = &keyed_account.account.data;
+        let pool = PoolState::deserialize(&mut &data[8..])
+            .map_err(|e| anyhow::anyhow!("Failed to parse pool state: {}", e))?;
+
+        let pool_pubkey = keyed_account.key;
+        let (authority, _) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &PROGRAM_ID);
+        let (lp_mint_signer, _) = Pubkey::find_program_address(
+            &[LP_MINT_SIGNER_SEED, pool_pubkey.as_ref()],
+            &PROGRAM_ID,
+        );
+
+        Ok(Self {
+            pool_state_pubkey: pool_pubkey,
+            amm_config: pool.amm_config,
+            token_0_mint: pool.token_0_mint,
+            token_1_mint: pool.token_1_mint,
+            token_0_vault: pool.token_0_vault,
+            token_1_vault: pool.token_1_vault,
+            lp_mint: pool.lp_mint,
+            lp_mint_signer,
+            observation_key: pool.observation_key,
+            authority,
+            token_0_program: pool.token_0_program,
+            token_1_program: pool.token_1_program,
+            token_0_amount: 0,
+            token_1_amount: 0,
+            protocol_fees_token_0: pool.protocol_fees_token_0,
+            protocol_fees_token_1: pool.protocol_fees_token_1,
+            fund_fees_token_0: pool.fund_fees_token_0,
+            fund_fees_token_1: pool.fund_fees_token_1,
+            trade_fee_rate: 0,
+            protocol_fee_rate: 0,
+            fund_fee_rate: 0,
+            pool_status: pool.status,
+        })
+    }
+
+    fn label(&self) -> String {
+        "Raydium CP Swap".to_string()
+    }
 
     fn program_id(&self) -> Pubkey {
         PROGRAM_ID
     }
 
-    fn from_keyed_accounts(accounts: &[AccountInterface]) -> Result<Self, Self::Error> {
-        let mut sdk = Self::new();
-
-        // First pass: find and parse pool state
-        for account in accounts {
-            let data = account.data();
-            if data.len() >= 8 {
-                let discriminator: [u8; 8] = data[..8].try_into().unwrap_or_default();
-                if discriminator == PoolState::LIGHT_DISCRIMINATOR {
-                    sdk.parse_pool_state(account.clone())?;
-                    break;
-                }
-            }
-        }
-
-        if sdk.pool_state_pubkey.is_none() {
-            return Err(CpSwapSdkError::MissingField("pool_state"));
-        }
-
-        // Second pass: parse other accounts
-        for account in accounts {
-            let data = account.data();
-            if data.len() >= 8 {
-                let discriminator: [u8; 8] = data[..8].try_into().unwrap_or_default();
-                if discriminator == ObservationState::LIGHT_DISCRIMINATOR {
-                    sdk.parse_observation_state(account.clone())?;
-                }
-            }
-        }
-
-        Ok(sdk)
+    fn key(&self) -> Pubkey {
+        self.pool_state_pubkey
     }
 
-    fn get_accounts_to_update(&self, ix: &Self::Instruction) -> Vec<AccountToFetch> {
-        let mut accounts = Vec::new();
-
-        // All instructions need pool_state and observation_state
-        if let Some(pubkey) = self.pool_state_pubkey {
-            accounts.push(AccountToFetch::pda(pubkey, PROGRAM_ID));
-        }
-        if let Some(pubkey) = self.observation_key {
-            accounts.push(AccountToFetch::pda(pubkey, PROGRAM_ID));
-        }
-
-        // All instructions need token vaults
-        if let Some(pubkey) = self.token_0_vault {
-            accounts.push(AccountToFetch::token(pubkey));
-        }
-        if let Some(pubkey) = self.token_1_vault {
-            accounts.push(AccountToFetch::token(pubkey));
-        }
-
-        // All instructions need vault mints (token_0_mint and token_1_mint)
-        if let Some(pubkey) = self.token_0_mint {
-            accounts.push(AccountToFetch::mint(pubkey));
-        }
-        if let Some(pubkey) = self.token_1_mint {
-            accounts.push(AccountToFetch::mint(pubkey));
-        }
-
-        // Deposit and Withdraw also need LP mint
-        match ix {
-            CpSwapInstruction::Deposit | CpSwapInstruction::Withdraw => {
-                if let Some(pubkey) = self.lp_mint {
-                    accounts.push(AccountToFetch::mint(pubkey));
-                }
-            }
-            CpSwapInstruction::Swap => {}
-        }
-
-        accounts
+    fn get_reserve_mints(&self) -> Vec<Pubkey> {
+        vec![self.token_0_mint, self.token_1_mint]
     }
 
-    fn update(&mut self, accounts: &[AccountInterface]) -> Result<(), Self::Error> {
-        for account in accounts {
-            self.parse_account(account)?;
+    fn get_accounts_to_update(&self) -> Vec<Pubkey> {
+        vec![
+            self.pool_state_pubkey,
+            self.token_0_vault,
+            self.token_1_vault,
+            self.amm_config,
+        ]
+    }
+
+    fn update(&mut self, account_map: &AccountMap) -> Result<(), anyhow::Error> {
+        if let Some(account) = account_map.get(&self.pool_state_pubkey) {
+            if account.data.len() >= 8 {
+                let pool = PoolState::deserialize(&mut &account.data[8..])
+                    .map_err(|e| anyhow::anyhow!("Failed to parse pool state: {}", e))?;
+                self.protocol_fees_token_0 = pool.protocol_fees_token_0;
+                self.protocol_fees_token_1 = pool.protocol_fees_token_1;
+                self.fund_fees_token_0 = pool.fund_fees_token_0;
+                self.fund_fees_token_1 = pool.fund_fees_token_1;
+                self.pool_status = pool.status;
+            }
         }
+
+        if let Some(account) = account_map.get(&self.token_0_vault) {
+            if account.data.len() >= 72 {
+                self.token_0_amount =
+                    u64::from_le_bytes(account.data[64..72].try_into().unwrap_or_default());
+            }
+        }
+
+        if let Some(account) = account_map.get(&self.token_1_vault) {
+            if account.data.len() >= 72 {
+                self.token_1_amount =
+                    u64::from_le_bytes(account.data[64..72].try_into().unwrap_or_default());
+            }
+        }
+
+        if let Some(account) = account_map.get(&self.amm_config) {
+            if account.data.len() >= 8 {
+                let config = AmmConfig::deserialize(&mut &account.data[8..])
+                    .map_err(|e| anyhow::anyhow!("Failed to parse amm config: {}", e))?;
+                self.trade_fee_rate = config.trade_fee_rate;
+                self.protocol_fee_rate = config.protocol_fee_rate;
+                self.fund_fee_rate = config.fund_fee_rate;
+            }
+        }
+
         Ok(())
     }
 
-    fn get_all_specs(&self) -> Vec<AccountSpec<Self::Variant>> {
-        let mut specs = Vec::new();
-
-        // Add PDA specs (includes pool_state, observation, and vaults)
-        for spec in self.pda_specs.values() {
-            specs.push(AccountSpec::Pda(spec.clone()));
+    fn quote(&self, quote_params: &QuoteParams) -> Result<Quote, anyhow::Error> {
+        if !self.is_swap_enabled() {
+            return Err(anyhow::anyhow!("Swap is disabled for this pool"));
         }
-
-        // Add mint specs
-        for spec in self.mint_specs.values() {
-            specs.push(AccountSpec::Mint(spec.clone()));
-        }
-
-        specs
+        self.calculate_quote(
+            quote_params.input_mint,
+            quote_params.output_mint,
+            quote_params.amount,
+            quote_params.swap_mode,
+        )
     }
 
-    fn get_specs_for_instruction(&self, ix: &Self::Instruction) -> Vec<AccountSpec<Self::Variant>> {
-        let mut specs = Vec::new();
+    fn get_swap_and_account_metas(
+        &self,
+        swap_params: &SwapParams<'_, '_>,
+    ) -> Result<SwapAndAccountMetas, anyhow::Error> {
+        let (input_vault, output_vault, input_mint, output_mint, input_program, output_program) =
+            if swap_params.source_mint == self.token_0_mint {
+                (
+                    self.token_0_vault,
+                    self.token_1_vault,
+                    self.token_0_mint,
+                    self.token_1_mint,
+                    self.token_0_program,
+                    self.token_1_program,
+                )
+            } else {
+                (
+                    self.token_1_vault,
+                    self.token_0_vault,
+                    self.token_1_mint,
+                    self.token_0_mint,
+                    self.token_1_program,
+                    self.token_0_program,
+                )
+            };
 
-        // Pool state and observation state needed for all instructions
-        if let Some(pubkey) = self.pool_state_pubkey {
-            if let Some(spec) = self.pda_specs.get(&pubkey) {
-                specs.push(AccountSpec::Pda(spec.clone()));
-            }
-        }
-        if let Some(pubkey) = self.observation_key {
-            if let Some(spec) = self.pda_specs.get(&pubkey) {
-                specs.push(AccountSpec::Pda(spec.clone()));
-            }
-        }
+        let account_metas = vec![
+            AccountMeta::new_readonly(swap_params.token_transfer_authority, true),
+            AccountMeta::new_readonly(self.authority, false),
+            AccountMeta::new_readonly(self.amm_config, false),
+            AccountMeta::new(self.pool_state_pubkey, false),
+            AccountMeta::new(swap_params.source_token_account, false),
+            AccountMeta::new(swap_params.destination_token_account, false),
+            AccountMeta::new(input_vault, false),
+            AccountMeta::new(output_vault, false),
+            AccountMeta::new_readonly(input_program, false),
+            AccountMeta::new_readonly(output_program, false),
+            AccountMeta::new_readonly(input_mint, false),
+            AccountMeta::new_readonly(output_mint, false),
+            AccountMeta::new(self.observation_key, false),
+        ];
 
-        // Token vaults needed for all instructions (stored as PDA specs with CTokenData variant)
-        if let Some(pubkey) = self.token_0_vault {
-            if let Some(spec) = self.pda_specs.get(&pubkey) {
-                specs.push(AccountSpec::Pda(spec.clone()));
-            }
-        }
-        if let Some(pubkey) = self.token_1_vault {
-            if let Some(spec) = self.pda_specs.get(&pubkey) {
-                specs.push(AccountSpec::Pda(spec.clone()));
-            }
-        }
+        Ok(SwapAndAccountMetas {
+            swap: Swap::RaydiumCP,
+            account_metas,
+        })
+    }
 
-        // Vault mints (token_0_mint and token_1_mint) needed for all instructions
-        if let Some(pubkey) = self.token_0_mint {
-            if let Some(spec) = self.mint_specs.get(&pubkey) {
-                specs.push(AccountSpec::Mint(spec.clone()));
-            }
-        }
-        if let Some(pubkey) = self.token_1_mint {
-            if let Some(spec) = self.mint_specs.get(&pubkey) {
-                specs.push(AccountSpec::Mint(spec.clone()));
-            }
-        }
+    fn clone_amm(&self) -> Box<dyn Amm + Send + Sync> {
+        Box::new(self.clone())
+    }
 
-        // LP mint needed for deposit/withdraw
-        match ix {
-            CpSwapInstruction::Deposit | CpSwapInstruction::Withdraw => {
-                if let Some(pubkey) = self.lp_mint {
-                    if let Some(spec) = self.mint_specs.get(&pubkey) {
-                        specs.push(AccountSpec::Mint(spec.clone()));
-                    }
-                }
-            }
-            CpSwapInstruction::Swap => {}
-        }
+    fn supports_exact_out(&self) -> bool {
+        true
+    }
 
-        specs
+    fn is_active(&self) -> bool {
+        self.is_swap_enabled()
     }
 }
