@@ -1,6 +1,5 @@
 /// Functional integration test for cp-swap program.
 /// Tests pool initialization with light-program-test framework.
-use light_client::interface::AccountInterfaceExt;
 use light_program_test::program_test::TestRpc;
 use light_program_test::Rpc;
 use solana_keypair::Keypair;
@@ -455,10 +454,10 @@ async fn test_pool_light_token2022() {
     test_pool_with_token_types(TokenType::Light, TokenType::Token2022, 13).await;
 }
 
-/// Test SDK initialization from fetched accounts and account requirements.
+/// Test SDK initialization from pool data and instruction accounts.
 #[tokio::test]
-async fn test_sdk_from_keyed_accounts() {
-    use light_client::interface::LightProgramInterface;
+async fn test_sdk_from_pool_data() {
+    use light_client::interface::LightProgram;
     use program::{CpSwapInstruction, CpSwapSdk};
 
     let program_id = raydium_cp_swap::ID;
@@ -466,7 +465,6 @@ async fn test_sdk_from_keyed_accounts() {
     // Setup environment and initialize pool
     let mut setup = setup_pool_environment(program_id, 2).await;
 
-    // Initialize pool first (SDK requires actual account data)
     let proof_result =
         get_pool_create_accounts_proof(&setup.env.rpc, &program_id, &setup.pdas).await;
     let init_ix = build_initialize_instruction(
@@ -492,48 +490,48 @@ async fn test_sdk_from_keyed_accounts() {
     let pool_interface = setup
         .env
         .rpc
-        .get_account_interface(&setup.pdas.pool_state, &program_id)
+        .get_account_interface(&setup.pdas.pool_state, None)
         .await
-        .expect("get_account_interface should succeed");
+        .expect("get_account_interface should succeed")
+        .value
+        .expect("pool_state should exist");
 
-    // Create SDK from fetched account
-    let sdk = CpSwapSdk::from_keyed_accounts(&[pool_interface])
-        .expect("from_keyed_accounts should succeed");
+    // Create SDK from pool data
+    let sdk = CpSwapSdk::from_pool_data(setup.pdas.pool_state, pool_interface.data())
+        .expect("from_pool_data should succeed");
 
     // Verify SDK parsed addresses match expected
-    assert_eq!(sdk.pool_state_pubkey, Some(setup.pdas.pool_state));
-    assert_eq!(sdk.observation_key, Some(setup.pdas.observation_state));
-    assert_eq!(sdk.token_0_vault, Some(setup.pdas.token_0_vault));
-    assert_eq!(sdk.token_1_vault, Some(setup.pdas.token_1_vault));
-    assert_eq!(sdk.lp_mint, Some(setup.pdas.lp_mint));
-    assert_eq!(sdk.amm_config, Some(setup.amm_config));
-    assert_eq!(sdk.token_0_mint, Some(setup.tokens.token_0_mint));
-    assert_eq!(sdk.token_1_mint, Some(setup.tokens.token_1_mint));
+    assert_eq!(sdk.pool_state_pubkey, setup.pdas.pool_state);
+    assert_eq!(sdk.observation_key, setup.pdas.observation_state);
+    assert_eq!(sdk.token_0_vault, setup.pdas.token_0_vault);
+    assert_eq!(sdk.token_1_vault, setup.pdas.token_1_vault);
+    assert_eq!(sdk.lp_mint, setup.pdas.lp_mint);
+    assert_eq!(sdk.amm_config, setup.amm_config);
+    assert_eq!(sdk.token_0_mint, setup.tokens.token_0_mint);
+    assert_eq!(sdk.token_1_mint, setup.tokens.token_1_mint);
 
-    // Check account requirements for each instruction type
-    let swap_accounts = sdk.get_accounts_for_instruction(CpSwapInstruction::Swap);
+    // Check instruction_accounts for each instruction type
+    let swap_accounts = sdk.instruction_accounts(&CpSwapInstruction::Swap);
     assert_eq!(
         swap_accounts.len(),
         6,
         "Swap needs 6 accounts: pool, observation, vault0, vault1, mint0, mint1"
     );
 
-    let deposit_accounts = sdk.get_accounts_for_instruction(CpSwapInstruction::Deposit);
+    let deposit_accounts = sdk.instruction_accounts(&CpSwapInstruction::Deposit);
     assert_eq!(
         deposit_accounts.len(),
         7,
-        "Deposit needs 7 accounts: pool, observation, vault0, vault1, lp_mint, mint0, mint1"
+        "Deposit needs 7 accounts: pool, observation, vault0, vault1, mint0, mint1, lp_mint"
     );
 
-    let withdraw_accounts = sdk.get_accounts_for_instruction(CpSwapInstruction::Withdraw);
+    let withdraw_accounts = sdk.instruction_accounts(&CpSwapInstruction::Withdraw);
     assert_eq!(
         withdraw_accounts.len(),
         7,
-        "Withdraw needs 7 accounts: pool, observation, vault0, vault1, lp_mint, mint0, mint1"
+        "Withdraw needs 7 accounts: pool, observation, vault0, vault1, mint0, mint1, lp_mint"
     );
 
-    // Verify program_id method
-    assert_eq!(sdk.program_id(), program_id);
-
-    println!("SDK initialization test completed successfully!");
+    // Verify program_id
+    assert_eq!(CpSwapSdk::program_id(), program_id);
 }

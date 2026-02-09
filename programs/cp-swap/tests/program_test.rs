@@ -1,8 +1,6 @@
 /// Clean integration test for cp-swap using CpSwapSdk.
 /// Tests the full lifecycle: Initialize -> Warp -> Compress -> Load -> Execute Operations
-use light_client::interface::{
-    create_load_instructions, AccountInterfaceExt, AccountSpec, LightProgramInterface,
-};
+use light_client::interface::{create_load_instructions, AccountSpec, LightProgram};
 use light_program_test::program_test::TestRpc;
 use light_program_test::Rpc;
 use solana_instruction::Instruction;
@@ -68,55 +66,84 @@ async fn test_sdk_lifecycle() {
     let pool_interface = setup
         .env
         .rpc
-        .get_account_interface(&setup.pdas.pool_state, &program_id)
+        .get_account_interface(&setup.pdas.pool_state, None)
         .await
+        .expect("failed to get pool_state")
+        .value
         .expect("pool should be compressed");
     assert!(
         pool_interface.is_cold(),
         "pool_state should be cold after warp"
     );
 
-    let mut sdk = CpSwapSdk::from_keyed_accounts(&[pool_interface])
-        .expect("from_keyed_accounts should succeed");
+    let sdk = CpSwapSdk::from_pool_data(setup.pdas.pool_state, pool_interface.data())
+        .expect("from_pool_data should succeed");
 
-    // ==================== PHASE 6: Fetch & Update SDK ====================
-    let accounts_to_fetch = sdk.get_accounts_for_instruction(CpSwapInstruction::Deposit);
-    let keyed_accounts = setup
+    // ==================== PHASE 6: Fetch Cold Accounts ====================
+    let pubkeys = sdk.instruction_accounts(&CpSwapInstruction::Deposit);
+    let account_interfaces = setup
         .env
         .rpc
-        .get_multiple_account_interfaces(&accounts_to_fetch)
+        .fetch_accounts(&pubkeys, None)
         .await
-        .expect("get_multiple_account_interfaces should succeed");
-
-    sdk.update_with_interfaces(&keyed_accounts)
-        .expect("sdk.update should succeed");
+        .expect("fetch_accounts should succeed");
+    let cold_accounts: Vec<_> = account_interfaces
+        .into_iter()
+        .filter(|a| a.is_cold())
+        .collect();
 
     // ==================== PHASE 7: Build Specs for Load ====================
-    let mut all_specs = sdk.get_specs_for_instruction(CpSwapInstruction::Deposit);
+    let mut all_specs = sdk
+        .load_specs(&cold_accounts)
+        .expect("load_specs should succeed");
 
     // Fetch creator's ATAs (compressed) and add to specs
     let creator_lp_ata_interface = setup
         .env
         .rpc
-        .get_ata_interface(&setup.creator.pubkey(), &setup.pdas.lp_mint)
+        .get_associated_token_account_interface(
+            &setup.creator.pubkey(),
+            &setup.pdas.lp_mint,
+            None,
+        )
         .await
-        .expect("get_ata_interface for creator_lp_token should succeed");
+        .expect("get ata interface for creator_lp_token should succeed")
+        .value
+        .expect("creator_lp_token should exist")
+        .try_into()
+        .expect("should convert to TokenAccountInterface");
     all_specs.push(AccountSpec::Ata(creator_lp_ata_interface));
 
     let creator_token_0_interface = setup
         .env
         .rpc
-        .get_ata_interface(&setup.creator.pubkey(), &setup.tokens.token_0_mint)
+        .get_associated_token_account_interface(
+            &setup.creator.pubkey(),
+            &setup.tokens.token_0_mint,
+            None,
+        )
         .await
-        .expect("get_ata_interface for creator_token_0 should succeed");
+        .expect("get ata interface for creator_token_0 should succeed")
+        .value
+        .expect("creator_token_0 should exist")
+        .try_into()
+        .expect("should convert to TokenAccountInterface");
     all_specs.push(AccountSpec::Ata(creator_token_0_interface));
 
     let creator_token_1_interface = setup
         .env
         .rpc
-        .get_ata_interface(&setup.creator.pubkey(), &setup.tokens.token_1_mint)
+        .get_associated_token_account_interface(
+            &setup.creator.pubkey(),
+            &setup.tokens.token_1_mint,
+            None,
+        )
         .await
-        .expect("get_ata_interface for creator_token_1 should succeed");
+        .expect("get ata interface for creator_token_1 should succeed")
+        .value
+        .expect("creator_token_1 should exist")
+        .try_into()
+        .expect("should convert to TokenAccountInterface");
     all_specs.push(AccountSpec::Ata(creator_token_1_interface));
 
     // ==================== PHASE 8: Create Load Instructions ====================
@@ -124,7 +151,6 @@ async fn test_sdk_lifecycle() {
         &all_specs,
         setup.env.payer.pubkey(),
         setup.env.config_pda,
-        setup.env.payer.pubkey(),
         &setup.env.rpc,
     )
     .await
@@ -162,7 +188,6 @@ async fn test_sdk_lifecycle() {
     );
     log_transaction_size("Deposit transaction", &[deposit_ix.clone()]);
 
-    // Log combined Load + Deposit
     let mut load_plus_deposit = all_load_ixs.clone();
     load_plus_deposit.push(deposit_ix.clone());
     log_transaction_size("Load + Deposit transaction", &load_plus_deposit);
@@ -192,7 +217,6 @@ async fn test_sdk_lifecycle() {
     );
     log_transaction_size("Swap transaction", &[swap_ix.clone()]);
 
-    // Log combined Load + Swap
     let mut load_plus_swap = all_load_ixs.clone();
     load_plus_swap.push(swap_ix.clone());
     log_transaction_size("Load + Swap transaction", &load_plus_swap);
