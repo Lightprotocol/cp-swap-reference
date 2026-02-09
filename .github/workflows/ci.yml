@@ -3,9 +3,21 @@ name: CI
 on:
   push:
     branches: [main, master]
+    paths:
+      - "programs/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "justfile"
+      - ".github/**"
   pull_request:
     branches: [main, master]
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "programs/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "justfile"
+      - ".github/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -57,7 +69,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: target/deploy/*.so
-          key: ${{ runner.os }}-program-${{ hashFiles('programs/**/*.rs', 'programs/**/Cargo.toml', 'Cargo.lock') }}
+          key: ${{ runner.os }}-program-${{ hashFiles('programs/**/*.rs', 'programs/**/Cargo.toml', 'Cargo.lock', 'justfile') }}
 
       - name: Build program
         if: steps.cache-program.outputs.cache-hit != 'true'
