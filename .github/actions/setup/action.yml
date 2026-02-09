@@ -1,0 +1,65 @@
+name: Setup CI
+description: Common CI setup — just, Rust, git HTTPS, and optionally Solana, Node, pnpm
+
+inputs:
+  rust-version:
+    description: Rust toolchain version
+    required: true
+  components:
+    description: Rust components (e.g. "rustfmt, clippy")
+    default: ""
+  solana-version:
+    description: Solana CLI version (skip if empty)
+    default: ""
+  node-version:
+    description: Node.js version (skip if empty)
+    default: ""
+  pnpm-version:
+    description: pnpm version (skip if empty)
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install just
+      uses: extractions/setup-just@v2
+
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ inputs.rust-version }}
+        components: ${{ inputs.components }}
+
+    - name: Configure git to use HTTPS instead of SSH
+      shell: bash
+      run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+    - name: Cache Solana CLI
+      if: inputs.solana-version != ''
+      id: cache-solana
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/solana/install
+        key: ${{ runner.os }}-solana-${{ inputs.solana-version }}
+
+    - name: Install Solana CLI
+      if: inputs.solana-version != '' && steps.cache-solana.outputs.cache-hit != 'true'
+      shell: bash
+      run: sh -c "$(curl -sSfL https://release.anza.xyz/v${{ inputs.solana-version }}/install)"
+
+    - name: Add Solana to PATH
+      if: inputs.solana-version != ''
+      shell: bash
+      run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+    - name: Setup Node.js
+      if: inputs.node-version != ''
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Setup pnpm
+      if: inputs.pnpm-version != ''
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}

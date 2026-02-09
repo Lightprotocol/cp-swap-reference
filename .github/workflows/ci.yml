@@ -32,13 +32,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install just
-        uses: extractions/setup-just@v2
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: ./.github/actions/setup
         with:
-          toolchain: ${{ env.RUST_VERSION }}
+          rust-version: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
 
       - name: Run lint
@@ -51,28 +47,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install just
-        uses: extractions/setup-just@v2
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: ./.github/actions/setup
         with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: Cache Solana CLI
-        id: cache-solana
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/solana/install
-          key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
-
-      - name: Install Solana CLI
-        if: steps.cache-solana.outputs.cache-hit != 'true'
-        run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
-
-      - name: Add Solana to PATH
-        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          rust-version: ${{ env.RUST_VERSION }}
+          solana-version: ${{ env.SOLANA_VERSION }}
 
       - name: Cache program build
         id: cache-program
@@ -100,38 +78,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install just
-        uses: extractions/setup-just@v2
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: ./.github/actions/setup
         with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
+          rust-version: ${{ env.RUST_VERSION }}
+          solana-version: ${{ env.SOLANA_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Cache Solana CLI
-        id: cache-solana
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/solana/install
-          key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
-
-      - name: Install Solana CLI
-        if: steps.cache-solana.outputs.cache-hit != 'true'
-        run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
-
-      - name: Add Solana to PATH
-        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          pnpm-version: ${{ env.PNPM_VERSION }}
 
       - name: Cache light-protocol
         id: cache-light-protocol
@@ -194,38 +146,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install just
-        uses: extractions/setup-just@v2
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: ./.github/actions/setup
         with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
+          rust-version: ${{ env.RUST_VERSION }}
+          solana-version: ${{ env.SOLANA_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Cache Solana CLI
-        id: cache-solana
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/solana/install
-          key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
-
-      - name: Install Solana CLI
-        if: steps.cache-solana.outputs.cache-hit != 'true'
-        run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
-
-      - name: Add Solana to PATH
-        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          pnpm-version: ${{ env.PNPM_VERSION }}
 
       - name: Cache Photon
         id: cache-photon
