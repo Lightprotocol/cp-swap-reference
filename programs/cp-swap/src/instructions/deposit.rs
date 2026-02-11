@@ -6,8 +6,8 @@ use crate::utils::token::*;
 use anchor_lang::prelude::*;
 use light_anchor_spl::token::Token;
 use light_anchor_spl::token_interface::Token2022;
+use light_anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use light_token::instruction::MintToCpi;
-use light_anchor_spl::token_interface::{TokenAccount, Mint,TokenInterface};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -213,6 +213,7 @@ pub fn deposit(
         authority: ctx.accounts.authority.to_account_info(),
         system_program: ctx.accounts.system_program.to_account_info(),
         max_top_up: None,
+        fee_payer: None,
     }
     .invoke_signed(&[&[crate::AUTH_SEED.as_bytes(), &[pool_state.auth_bump]]])?;
     pool_state.recent_epoch = Clock::get()?.epoch;

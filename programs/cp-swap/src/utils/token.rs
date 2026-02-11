@@ -1,11 +1,11 @@
 use crate::error::ErrorCode;
 use anchor_lang::{prelude::*, system_program};
+use light_account::constants::LIGHT_TOKEN_PROGRAM_ID;
 use light_anchor_spl::{
     token::{Token, TokenAccount},
     token_2022,
     token_interface::{initialize_account3, InitializeAccount3, Mint},
 };
-use light_sdk::constants::LIGHT_TOKEN_PROGRAM_ID;
 use light_token::instruction::TransferInterfaceCpi;
 use spl_token_2022::{
     self,
@@ -50,6 +50,7 @@ const MINT_WHITELIST: [&'static str; 4] = [
     "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
 ];
 
+#[allow(clippy::too_many_arguments)]
 pub fn transfer_from_user_to_pool_vault<'a>(
     authority: AccountInfo<'a>,
     from: AccountInfo<'a>,
@@ -79,12 +80,12 @@ pub fn transfer_from_user_to_pool_vault<'a>(
         light_token_cpi_authority,
         system_program,
     )
-    .invoke()
-    .map_err(|e| anchor_lang::prelude::ProgramError::from(e))?;
+    .invoke()?;
 
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn transfer_from_pool_vault_to_user<'a>(
     authority: AccountInfo<'a>,
     from_vault: AccountInfo<'a>,
@@ -115,8 +116,7 @@ pub fn transfer_from_pool_vault_to_user<'a>(
         light_token_cpi_authority,
         system_program,
     )
-    .invoke_signed(signer_seeds)
-    .map_err(|e| anchor_lang::prelude::ProgramError::from(e))?;
+    .invoke_signed(signer_seeds)?;
 
     Ok(())
 }

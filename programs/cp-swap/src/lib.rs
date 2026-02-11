@@ -1,4 +1,15 @@
 #![allow(deprecated)]
+#![allow(clippy::redundant_static_lifetimes)]
+#![allow(clippy::let_and_return)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::needless_question_mark)]
+#![allow(clippy::needless_bool)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::suspicious_doc_comments)]
+#![allow(clippy::manual_div_ceil)]
+#![allow(clippy::bool_assert_comparison)]
+#![allow(clippy::reversed_empty_ranges)]
+#![allow(clippy::collapsible_if)]
 
 pub mod curve;
 pub mod error;
@@ -14,7 +25,7 @@ pub use crate::states::{
 };
 use anchor_lang::prelude::*;
 use instructions::*;
-use light_token::anchor::{
+use light_account::{
     derive_light_cpi_signer, derive_light_rent_sponsor_pda, light_program, CpiSigner,
 };
 
@@ -49,10 +60,7 @@ pub mod admin {
     use super::{pubkey, Pubkey};
     #[cfg(feature = "devnet")]
     pub const ID: Pubkey = pubkey!("adMCyoCgfkg7bQiJ9aBJ59H3BXLY3r5LNLfPpQfMzBe");
-    #[cfg(all(not(feature = "devnet"), not(feature = "test-sbf")))]
-    pub const ID: Pubkey = pubkey!("AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9");
-    // Test admin - pubkey derived from Keypair::from_seed(&[1u8; 32])
-    #[cfg(feature = "test-sbf")]
+    #[cfg(not(feature = "devnet"))]
     pub const ID: Pubkey = pubkey!("AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9");
 }
 

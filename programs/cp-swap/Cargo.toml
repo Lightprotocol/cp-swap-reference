@@ -19,11 +19,11 @@ enable-log = []
 devnet = []
 client = []
 anchor-debug = []
-idl-build = ["anchor-lang/idl-build", "light-sdk/idl-build", "light-token/idl-build", "light-anchor-spl/idl-build"]
+idl-build = ["anchor-lang/idl-build", "light-anchor-spl/idl-build", "light-anchor-spl/token_2022"]
 test-sbf = []
 
 [dependencies]
-anchor-lang = { version = "=0.31.1", features = ["init-if-needed", "idl-build"] }
+anchor-lang = { version = "=0.31.1", features = ["init-if-needed"] }
 spl-token-2022 = { version = "7.0.0", features = ["no-entrypoint"] }
 spl-math = { version = "0.3", features = ["no-entrypoint"] }
 uint = "0.10.0"
@@ -32,10 +32,11 @@ bytemuck = { version = "1.4.0", features = ["derive", "min_const_generics"] }
 arrayref = { version = "0.3.6" }
 blake3 = { workspace = true }
 
-light-sdk = { version = "0.18.0", features = ["anchor", "anchor-discriminator", "idl-build", "cpi-context"] }
-light-token = { version = "0.3.0", features = ["anchor", "idl-build"] }
-light-hasher = "5"
-light-anchor-spl = { version = "0.31.1", features = ["idl-build", "memo"] }
+light-sdk = { git = "https://github.com/Lightprotocol/light-protocol", rev = "2e6671bf109be75706dd0d5c8bdafb5d734013d5", features = ["anchor", "cpi-context"] }
+light-token = { git = "https://github.com/Lightprotocol/light-protocol", rev = "2e6671bf109be75706dd0d5c8bdafb5d734013d5", features = ["anchor"] }
+light-hasher = { git = "https://github.com/Lightprotocol/light-protocol", rev = "2e6671bf109be75706dd0d5c8bdafb5d734013d5" }
+light-account = { git = "https://github.com/Lightprotocol/light-protocol", rev = "2e6671bf109be75706dd0d5c8bdafb5d734013d5", features = ["token", "anchor", "sha256"] }
+light-anchor-spl = { version = "0.31.1", features = ["memo", "token_2022"] }
 solana-account-info = "2.3"
 solana-program = "2.2"
 solana-pubkey = "2.2"
@@ -48,15 +49,25 @@ quickcheck = "1.0.3"
 proptest = "1.0"
 rand = "0.9.0"
 
-light-program-test = { version = "0.18.0" }
-light-client = { version = "0.18.0" }
+light-sdk-types = { git = "https://github.com/Lightprotocol/light-protocol", rev = "2e6671bf109be75706dd0d5c8bdafb5d734013d5", features = ["token", "std", "anchor"] }
+light-program-test = { git = "https://github.com/Lightprotocol/light-protocol", rev = "2e6671bf109be75706dd0d5c8bdafb5d734013d5" }
+light-client = { git = "https://github.com/Lightprotocol/light-protocol", rev = "2e6671bf109be75706dd0d5c8bdafb5d734013d5" }
+light-registry = { git = "https://github.com/Lightprotocol/light-protocol", rev = "2e6671bf109be75706dd0d5c8bdafb5d734013d5" }
+forester-utils = { git = "https://github.com/Lightprotocol/light-protocol", rev = "2e6671bf109be75706dd0d5c8bdafb5d734013d5" }
 tokio = { version = "1", features = ["full"] }
 spl-token = "7.0.0"
+solana-commitment-config = { version = "2.2" }
+solana-compute-budget-interface = { version = "2.2" }
 solana-keypair = { version = "2.2" }
 solana-signer = { version = "2.2" }
 solana-instruction = { version = "2.2" }
+solana-message = { version = "2.2" }
 solana-sdk = { version = "2.3" }
 bincode = "1.3"
+base64 = "0.22"
+serde_json = "1.0"
+bs58 = "0.5"
+reqwest = { version = "0.12", features = ["json"] }
 
 
 [profile.release]
