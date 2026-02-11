@@ -8,7 +8,7 @@
 /// - Building AccountSpec for load instructions
 use anchor_lang::AnchorDeserialize;
 use light_client::interface::{
-    AccountInterface, AccountSpec, AccountToFetch, ColdContext, LightProgramInterface, PdaSpec,
+    AccountInterface, AccountSpec, AccountToFetch, LightProgramInterface, PdaSpec,
     TokenAccountInterface,
 };
 use light_sdk::LightDiscriminator;
@@ -235,7 +235,7 @@ impl CpSwapSdk {
         let account_interface = AccountInterface {
             key: interface.key,
             account: interface.account,
-            cold: interface.cold,
+            cold: interface.cold.map(|ct| ct.account),
         };
 
         let spec = PdaSpec::new(account_interface, variant, PROGRAM_ID);
@@ -288,28 +288,8 @@ impl CpSwapSdk {
             })
         };
 
-        // For token vaults, convert ColdContext::Token to ColdContext::Account
-        // because they're decompressed as PDAs, not as token accounts
-        let interface = if account.is_cold() {
-            let compressed_account = match &account.cold {
-                Some(ColdContext::Token(ct)) => ct.account.clone(),
-                Some(ColdContext::Account(ca)) => ca.clone(),
-                Some(ColdContext::Mint(_)) => {
-                    return Err(CpSwapSdkError::MissingField("unexpected mint cold context"))
-                }
-                None => return Err(CpSwapSdkError::MissingField("cold_context")),
-            };
-            AccountInterface {
-                key: account.key,
-                account: account.account.clone(),
-                cold: Some(ColdContext::Account(compressed_account)),
-            }
-        } else {
-            account.clone()
-        };
-
-        // Decompression goes to PROGRAM_ID (cp-swap), not interface.account.owner (SPL/Light Token)
-        let spec = PdaSpec::new(interface, variant, PROGRAM_ID);
+        // Decompression goes to PROGRAM_ID (cp-swap), not account.account.owner (SPL/Light Token)
+        let spec = PdaSpec::new(account.clone(), variant, PROGRAM_ID);
         self.pda_specs.insert(account.key, spec);
 
         Ok(())

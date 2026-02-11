@@ -178,7 +178,7 @@ async fn test_sdk_lifecycle() {
         .expect("get_associated_token_account_interface for creator_lp_token should succeed")
         .value
         .expect("creator_lp_token should exist");
-    all_specs.push(AccountSpec::Ata(creator_lp_ata_interface));
+    all_specs.push(AccountSpec::Ata(Box::new(creator_lp_ata_interface)));
 
     let creator_token_0_interface = setup
         .env
@@ -192,7 +192,7 @@ async fn test_sdk_lifecycle() {
         .expect("get_associated_token_account_interface for creator_token_0 should succeed")
         .value
         .expect("creator_token_0 should exist");
-    all_specs.push(AccountSpec::Ata(creator_token_0_interface));
+    all_specs.push(AccountSpec::Ata(Box::new(creator_token_0_interface)));
 
     let creator_token_1_interface = setup
         .env
@@ -206,7 +206,7 @@ async fn test_sdk_lifecycle() {
         .expect("get_associated_token_account_interface for creator_token_1 should succeed")
         .value
         .expect("creator_token_1 should exist");
-    all_specs.push(AccountSpec::Ata(creator_token_1_interface));
+    all_specs.push(AccountSpec::Ata(Box::new(creator_token_1_interface)));
 
     // ==================== PHASE 8: Create Load Instructions ====================
     // Debug: print tree info from the specs
